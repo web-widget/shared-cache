@@ -1,0 +1,82 @@
+{
+  "name": "@web-widget/shared-cache",
+  "version": "0.0.1",
+  "description": "An implementation of the web Cache API using LRU",
+  "exports": {
+    ".": {
+      "types": "./dist/shared-cache.d.ts",
+      "development": "./src/index.ts",
+      "default": "./dist/shared-cache.js"
+    }
+  },
+  "scripts": {
+    "build": "pnpm exec tsup",
+    "changeset": "changeset",
+    "clean:build": "rm -rf dist",
+    "clean:node": "rm -rf node_modules",
+    "contributors": "git-authors-cli && finepack",
+    "coverage": "c8 report",
+    "coverage:html": "NODE_OPTIONS=--experimental-vm-modules pnpm exec jest --coverage",
+    "dev": "pnpm exec tsup --watch",
+    "lint": "turbo run lint",
+    "lockfile": "pnpm install --lockfile && git add pnpm-lock.yaml && git commit -m \"build: regenerate lock\"",
+    "prebuild": "pnpm run clean:build",
+    "prettier": "prettier **/*.{ts,tsx,js,vue} --write",
+    "test": "NODE_OPTIONS=--experimental-vm-modules c8 jest",
+    "update": "pnpm -r exec ncu -- --upgrade && ncu -- --upgrade",
+    "update:check": "pnpm -r exec ncu -- --errorLevel 2 && ncu -- --errorLevel 2",
+    "version:prepare": "changeset version && pnpm install --no-frozen-lockfile",
+    "version:publish": "changeset publish",
+    "docs": "typedoc",
+    "example": "ts-node example/example.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/web-widget/shared-cache.git"
+  },
+  "author": "aui",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/web-widget/shared-cache/issues"
+  },
+  "homepage": "https://github.com/web-widget/shared-cache#readme",
+  "devDependencies": {
+    "@changesets/cli": "^2.27.1",
+    "@types/jest": "^29.5.3",
+    "c8": "latest",
+    "finepack": "latest",
+    "git-authors-cli": "latest",
+    "jest": "^29.6.2",
+    "jest-environment-miniflare": "^2.14.2",
+    "miniflare": "^3.20240129.1",
+    "prettier": "latest",
+    "ts-jest": "^29.1.1",
+    "tsup": "^8.0.1",
+    "typescript": "latest",
+    "@rdfjs/types": "^1.0.1",
+    "@typescript-eslint/eslint-plugin": "^5.5.0",
+    "@typescript-eslint/parser": "^5.5.0",
+    "eslint": "^8.3.0",
+    "eslint-config-prettier": "latest",
+    "eslint-plugin-prettier": "latest",
+    "ts-node": "^10.4.0",
+    "typedoc": "^0.22.10",
+    "typedoc-plugin-markdown": "^3.11.7",
+    "lru-cache": "^10.2.0"
+  },
+  "dependencies": {
+    "@web-widget/http-cache-semantics": "^1.0.0",
+    "@web-widget/helpers": "^1.10.37"
+  },
+  "packageManager": "pnpm@8.4.0",
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/shared-cache.d.ts",
+        "default": "./dist/shared-cache.js"
+      }
+    }
+  },
+  "type": "module"
+}
