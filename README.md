@@ -21,13 +21,13 @@ import { LRUCache } from 'lru-cache';
 // Optionally provide a settings for the LRU cache. Options are defined here:
 // https://www.npmjs.com/package/lru-cache
 const createLRUCache = (): KVStorage => {
-  const store = new LRUCache<string, CacheItem>({ max: 1024 });
+  const store = new LRUCache<string, any>({ max: 1024 });
 
   return {
     async get(cacheKey: string) {
-      return store.get(cacheKey) as CacheItem | undefined;
+      return store.get(cacheKey) as any | undefined;
     },
-    async set(cacheKey: string, value: CacheItem, ttl?: number) {
+    async set(cacheKey: string, value: any, ttl?: number) {
       store.set(cacheKey, value, { ttl });
     },
     async delete(cacheKey: string) {
@@ -74,13 +74,13 @@ declare global {
 }
 
 const createLRUCache = (): KVStorage => {
-  const store = new LRUCache<string, CacheItem>({ max: 1024 });
+  const store = new LRUCache<string, any>({ max: 1024 });
 
   return {
     async get(cacheKey: string) {
-      return store.get(cacheKey) as CacheItem | undefined;
+      return store.get(cacheKey) as any | undefined;
     },
-    async set(cacheKey: string, value: CacheItem, ttl?: number) {
+    async set(cacheKey: string, value: any, ttl?: number) {
       store.set(cacheKey, value, { ttl });
     },
     async delete(cacheKey: string) {
