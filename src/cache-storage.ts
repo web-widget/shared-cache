@@ -2,12 +2,12 @@ import { SharedCache } from './cache';
 import { SharedCacheOptions, KVStorage } from './types';
 
 export class SharedCacheStorage implements CacheStorage {
-  #KVStorage: KVStorage;
+  #storage: KVStorage;
   #caches: Map<string, SharedCache> = new Map();
   #options?: SharedCacheOptions;
 
-  constructor(KVStorage: KVStorage, options?: SharedCacheOptions) {
-    this.#KVStorage = KVStorage;
+  constructor(storage: KVStorage, options?: SharedCacheOptions) {
+    this.#storage = storage;
     this.#options = options;
   }
 
@@ -26,38 +26,17 @@ export class SharedCacheStorage implements CacheStorage {
     return hasCache;
   }
 
-  /**
-   * The has() method of the CacheStorage interface returns a Promise that
-   * resolves to true if a Cache object matches the cacheName.
-   * @param cacheName A string representing the name of the Cache object you are
-   * looking for in the CacheStorage.
-   * @returns a Promise that resolves to true if the cache exists or false if
-   * not.
-   */
+  /** @private */
   async has(_cacheName: string): Promise<boolean> {
     throw new Error('Not Implemented.');
   }
 
-  /**
-   * The keys() method of the CacheStorage interface returns a Promise that will
-   * resolve with an array containing strings corresponding to all of the named
-   * Cache objects tracked by the CacheStorage object in the order they were
-   * created. Use this method to iterate over a list of all Cache objects.
-   */
+  /** @private */
   async keys(): Promise<string[]> {
     throw new Error('Not Implemented.');
   }
 
-  /**
-   * The match() method of the CacheStorage interface checks if a given Request
-   * or URL string is a key for a stored Response. This method returns a Promise
-   * for a Response, or a Promise which resolves to undefined if no match is
-   * found.
-   * @param request The Request you want to match. This can be a Request object
-   * or a URL string.
-   * @param options An object whose properties control how matching is done in
-   * the match operation. The available options are:
-   */
+  /** @private */
   async match(
     _request: RequestInfo,
     _options?: MultiCacheQueryOptions
@@ -80,7 +59,7 @@ export class SharedCacheStorage implements CacheStorage {
       ...this.#options,
       _cacheName: cacheName,
     };
-    const newCache = new SharedCache(this.#KVStorage, newOptions);
+    const newCache = new SharedCache(this.#storage, newOptions);
     this.#caches.set(cacheName, newCache);
     return newCache;
   }

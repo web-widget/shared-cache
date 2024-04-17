@@ -14,11 +14,8 @@ import { CACHE_STATUS_HEADERS_NAME, EXPIRED, HIT, STALE } from './constants';
 
 const ORIGINAL_FETCH = globalThis.fetch;
 
-/**
- * An LRU Implementation of Cache
- */
 export class SharedCache implements Cache {
-  #KVStorage: KVStorage;
+  #storage: KVStorage;
   #waitUntil: (promise: Promise<any>) => void;
   #cacheKeyRules?: CacheKeyRules;
   #fetch: typeof fetch;
@@ -27,9 +24,9 @@ export class SharedCache implements Cache {
     options?: SharedCacheQueryOptions
   ) => Promise<string>;
 
-  constructor(KVStorage: KVStorage, options?: SharedCacheOptions) {
-    if (!KVStorage) {
-      throw new TypeError('KVStorage is required.');
+  constructor(storage: KVStorage, options?: SharedCacheOptions) {
+    if (!storage) {
+      throw new TypeError('storage is required.');
     }
 
     const resolveOptions = {
@@ -37,7 +34,7 @@ export class SharedCache implements Cache {
       ...options,
     };
 
-    this.#KVStorage = KVStorage;
+    this.#storage = storage;
     this.#waitUntil = resolveOptions.waitUntil;
     this.#fetch = resolveOptions.fetch ?? ORIGINAL_FETCH;
     this.#cacheKeyRules = resolveOptions.cacheKeyRules;
@@ -47,24 +44,12 @@ export class SharedCache implements Cache {
     );
   }
 
-  /**
-   * The add() method of the Cache interface takes a URL, retrieves it, and adds
-   * the resulting response object to the given cache.
-   * @param request The request you want to add to the cache. This can be a
-   * Request object or a URL.
-   */
+  /** @private */
   async add(_request: RequestInfo): Promise<void> {
     throw new Error('Not Implemented.');
   }
 
-  /**
-   * The addAll() method of the Cache interface takes an array of URLs,
-   * retrieves them, and adds the resulting response objects to the given cache.
-   * The request objects created during retrieval become keys to the stored
-   * response operations.
-   * @param requests An array of string URLs that you want to be fetched and
-   * added to the cache. You can specify the Request object instead of the URL.
-   */
+  /** @private */
   async addAll(_requests: RequestInfo[]): Promise<void> {
     throw new Error('Not Implemented.');
   }
@@ -91,18 +76,10 @@ export class SharedCache implements Cache {
       ...options,
     });
 
-    return deleteCacheItem(request, this.#KVStorage, cacheKey);
+    return deleteCacheItem(request, this.#storage, cacheKey);
   }
 
-  /**
-   * The keys() method of the Cache interface returns a Promise that resolves to
-   * an array ofRequest objects representing the keys of the Cache.
-   * @param request The Request want to return, if a specific key is desired.
-   * This can be a Request object or a URL.
-   * @param options An object whose properties control how matching is done in
-   * the keys operation.
-   * @returns A Promise that resolves to an array of Request objects.
-   */
+  /** @private */
   async keys(
     _requestInfo?: RequestInfo,
     _options?: SharedCacheQueryOptions
@@ -130,7 +107,7 @@ export class SharedCache implements Cache {
       cacheKeyRules: this.#cacheKeyRules,
       ...options,
     });
-    const cacheItem = await getCacheItem(request, this.#KVStorage, cacheKey);
+    const cacheItem = await getCacheItem(request, this.#storage, cacheKey);
 
     if (!cacheItem) {
       return;
@@ -169,6 +146,7 @@ export class SharedCache implements Cache {
         this.#setCacheStatus(response.headers, STALE);
       } else {
         // NOTE: This will take effect when caching TTL is not working.
+        await deleteCacheItem(request, this.#storage, cacheKey);
         response = await this.#revalidate(
           request,
           resolveCacheItem,
@@ -184,17 +162,7 @@ export class SharedCache implements Cache {
     return response;
   }
 
-  /**
-   * The matchAll() method of the Cache interface returns a Promise that
-   * resolves to an array of all matching responses in the Cache object.
-   * @param request The Request for which you are attempting to find responses
-   * in the Cache. This can be a Request object or a URL. If this argument is
-   * omitted, you will get a copy of all responses in this cache.
-   * @param options An options object allowing you to set specific control
-   * options for the matching performed.
-   * @returns A Promise that resolves to an array of all matching responses in
-   * the Cache object.
-   */
+  /** @private */
   async matchAll(
     _requestInfo?: RequestInfo,
     _options?: SharedCacheQueryOptions
@@ -258,7 +226,7 @@ export class SharedCache implements Cache {
     };
 
     await setCacheItem(
-      this.#KVStorage,
+      this.#storage,
       cacheKey,
       cacheItem,
       ttl,
@@ -312,40 +280,40 @@ export class SharedCache implements Cache {
 
 async function getCacheItem(
   request: Request,
-  KVStorage: KVStorage,
+  storage: KVStorage,
   customCacheKey: string
 ): Promise<CacheItem> {
   const varyKey = `vary:${customCacheKey}`;
   const varyFilterOptions: FilterOptions | undefined =
-    await KVStorage.get(varyKey);
+    await storage.get(varyKey);
   const varyPart = varyFilterOptions
     ? await getVary(request, varyFilterOptions)
     : undefined;
   const cacheKey = varyPart ? `${customCacheKey}:${varyPart}` : customCacheKey;
-  const cacheItem: CacheItem = await KVStorage.get(cacheKey);
+  const cacheItem: CacheItem = await storage.get(cacheKey);
   return cacheItem;
 }
 
 async function deleteCacheItem(
   request: Request,
-  KVStorage: KVStorage,
+  storage: KVStorage,
   customCacheKey: string
 ): Promise<boolean> {
   const varyKey = `vary:${customCacheKey}`;
   const varyFilterOptions: FilterOptions | undefined =
-    await KVStorage.get(varyKey);
+    await storage.get(varyKey);
   const varyPart = varyFilterOptions
     ? await getVary(request, varyFilterOptions)
     : undefined;
   const cacheKey = varyPart ? `${customCacheKey}:${varyPart}` : customCacheKey;
 
   return varyFilterOptions
-    ? (await KVStorage.delete(varyKey)) && (await KVStorage.delete(cacheKey))
-    : KVStorage.delete(cacheKey);
+    ? (await storage.delete(varyKey)) && (await storage.delete(cacheKey))
+    : storage.delete(cacheKey);
 }
 
 async function setCacheItem(
-  KVStorage: KVStorage,
+  storage: KVStorage,
   customCacheKey: string,
   cacheItem: CacheItem,
   ttl: number,
@@ -361,9 +329,9 @@ async function setCacheItem(
         : { include: vary.split(',').map((field) => field.trim()) };
     const varyPart = await getVary(request, varyFilterOptions);
     const cacheKey = `${customCacheKey}:${varyPart}`;
-    await KVStorage.set(varyKey, varyFilterOptions, ttl);
-    await KVStorage.set(cacheKey, cacheItem, ttl);
+    await storage.set(varyKey, varyFilterOptions, ttl);
+    await storage.set(cacheKey, cacheItem, ttl);
   } else {
-    await KVStorage.set(customCacheKey, cacheItem, ttl);
+    await storage.set(customCacheKey, cacheItem, ttl);
   }
 }

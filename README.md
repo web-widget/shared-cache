@@ -162,3 +162,4 @@ The birth of shared-cache is inseparable from the inspiration of the following p
 - [http-cache-lru](https://github.com/o-development/http-cache-lru/)
 - [cloudflare/miniflare](https://github.com/cloudflare/miniflare/blob/master/packages/cache/src/cache.ts)
 - [cloudflare/workers-sdk](https://github.com/cloudflare/workers-sdk/blob/main/packages/miniflare/src/workers/cache/cache.worker.ts)
+- [natemoo-re/ultrafetch](https://github.com/natemoo-re/ultrafetch)
