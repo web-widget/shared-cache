@@ -168,15 +168,15 @@ Finds the Cache object matching the cacheName, and if found, deletes the Cache o
 
 ### ~~`match`~~
 
-Not implemented.
+SharedCache didn't implement it.
 
 ### ~~`has`~~
 
-Not implemented.
+SharedCache didn't implement it.
 
 ### ~~`keys`~~
 
-Not implemented.
+SharedCache didn't implement it.
 
 ## `Cache` class
 
@@ -214,15 +214,15 @@ Finds the Cache entry whose key is the request, returning a Promise that resolve
 
 ### ~~`add`~~
 
-Not implemented.
+SharedCache didn't implement it.
 
 ### ~~`addAll`~~
 
-Not implemented.
+SharedCache didn't implement it.
 
 ### ~~`keys`~~
 
-Not implemented.
+SharedCache didn't implement it.
 
 ## `CacheQueryOptions`
 
@@ -327,15 +327,15 @@ Classifies a request as `mobile`, `desktop`, or `tablet` based on the User Agent
 
 ### ~~`ignoreMethod`~~
 
-Will be ignored.
+SharedCache didn't implement it.
 
 ### ~~`ignoreSearch`~~
 
-Will be ignored.
+SharedCache didn't implement it.
 
 ### ~~`ignoreVary`~~
 
-Will be ignored.
+SharedCache didn't implement it.
 
 ## Thinks
 
