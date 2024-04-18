@@ -1,7 +1,13 @@
 {
   "name": "@web-widget/shared-cache",
-  "version": "0.0.1",
+  "version": "0.0.0",
   "description": "An implementation of the web Cache API using LRU",
+  "keywords": [
+    "Cache",
+    "caches",
+    "fetch",
+    "WinterCG"
+  ],
   "exports": {
     ".": {
       "types": "./dist/shared-cache.d.ts",
@@ -27,8 +33,7 @@
     "update:check": "pnpm -r exec ncu -- --errorLevel 2 && ncu -- --errorLevel 2",
     "version:prepare": "changeset version && pnpm install --no-frozen-lockfile",
     "version:publish": "changeset publish",
-    "docs": "typedoc",
-    "example": "ts-node example/example.ts"
+    "docs": "typedoc"
   },
   "repository": {
     "type": "git",
