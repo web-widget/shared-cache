@@ -339,6 +339,7 @@ SharedCache didn't implement it.
 The birth of SharedCache is inseparable from the inspiration of the following projects:
 
 - [Cloudflare Cache Key](https://developers.cloudflare.com/cache/how-to/cache-keys/)
+- [Next Data Cache](https://nextjs.org/docs/app/building-your-application/caching#data-cache)
 - [http-cache-lru](https://github.com/o-development/http-cache-lru/)
 - [cloudflare/miniflare](https://github.com/cloudflare/miniflare/blob/master/packages/cache/src/cache.ts)
 - [cloudflare/workers-sdk](https://github.com/cloudflare/workers-sdk/blob/main/packages/miniflare/src/workers/cache/cache.worker.ts)
