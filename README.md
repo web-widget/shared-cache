@@ -79,7 +79,7 @@ run();
 
 ## Create global `caches` and `fetch`
 
-The `SharedCache` project creates a `fetch` function that conforms to the definition of the Web [fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API), but extends it.
+The global `caches` object needs to be defined beforehand. The `caches` object is a global instance of the `CacheStorage` class.
 
 ```ts
 import { CacheStorage, type KVStorage } from '@web-widget/shared-cache';
@@ -127,7 +127,7 @@ globalThis.fetch = fetch;
 
 ## `fetch` function
 
-The `fetch` function extends the specification with additional `sharedCache` options.
+The `SharedCache` project creates a `fetch` function that conforms to the definition of the Web [fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API), but extends it.
 
 ```ts
 const res = await fetch('https://httpbin.org/response-headers', {
