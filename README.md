@@ -12,6 +12,8 @@ It's aware of many tricky details such as the `vary` header, proxy revalidation,
 - Support custom Cache Key, for example, you can cache specific members of device types, cookies and headers
 - For HTTP's `cache-control` header, `SharedCache` prefers `s-maxage`
 
+The project works in a [WinterCG](https://wintercg.org/) compatible runtime environment.
+
 ## Why `SharedCache`
 
 Although the use of the Web `fetch` API has become very common on the server side, there is still a lack of standardized caching API on the server side. The Web `Cache` API was a priority, but we needed to carefully handle server-side scenarios and browser differences, so that was the motivation for creating this project.
