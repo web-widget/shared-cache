@@ -114,11 +114,11 @@ globalThis.caches = caches;
 When the above global `caches` object is ready, you can also register the globally registered cacheable `fetch`:
 
 ```ts
-import { fetch, type SharedCacheFetch } from '@web-widget/shared-cache';
+import { fetch, type Fetch } from '@web-widget/shared-cache';
 
 declare global {
   interface WindowOrWorkerGlobalScope {
-    fetch: SharedCacheFetch;
+    fetch: Fetch;
   }
 }
 
@@ -320,7 +320,7 @@ Host determines which host header to include in the Cache Key.
 
 #### Cookie
 
-Like `query_string` or `header`, `cookie` controls which cookies appear in the Cache Key. You can either include the cookie value or check for the presence of a particular cookie.
+Like `search` or `header`, `cookie` controls which cookies appear in the Cache Key. You can either include the cookie value or check for the presence of a particular cookie.
 
 #### Device
 
