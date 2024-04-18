@@ -136,17 +136,6 @@ describe('multiple duplicate requests', () => {
     expect(await res.text()).toBe('lol');
   });
 
-  test('when cached when the response is fresh it should 304', async () => {
-    const res = await fetch(TEST_URL, {
-      headers: {
-        'if-None-Match': '"v1"',
-      },
-    });
-
-    expect(res.status).toBe(304);
-    expect(res.headers.get('x-cache-status')).toBe(HIT);
-  });
-
   test('when cached when the method is GET it should serve from cache until cleared', async () => {
     const fetch = createSharedCacheFetch(cache, {
       async fetch() {
@@ -428,44 +417,6 @@ test('when etag and last-modified headers are set it should cache those values',
   expect(cachedRes).toBeTruthy();
   expect(await cachedRes?.text()).toBe('lol');
   expect(cachedRes?.headers.get('etag')).toBe('"v1');
-  expect(cachedRes?.headers.get('content-type')).toBe(
-    'text/lol; charset=utf-8'
-  );
-  expect(cachedRes?.headers.get('last-modified')).toBe(
-    new Date(date * 1000).toUTCString()
-  );
-});
-
-test('when the response is fresh it should return a 304 and cache the response', async () => {
-  const date = Math.round(Date.now() / 1000);
-  const store = createCacheStore();
-  const cache = new SharedCache(store);
-  const fetch = createSharedCacheFetch(cache, {
-    async fetch(input, init) {
-      const req = new Request(input, init);
-      return new Response('lol', {
-        headers: {
-          'cache-control': 'max-age=1',
-          etag: '"v1"',
-          'content-type': 'text/lol; charset=utf-8',
-          'last-modified': new Date(date * 1000).toUTCString(),
-        },
-      });
-    },
-  });
-  const req = new Request(TEST_URL, {
-    headers: {
-      'if-none-match': '"v1"',
-    },
-  });
-  const res = await fetch(req);
-  const cachedRes = await cache.match(req);
-
-  expect(await res.text()).toBe('');
-  expect(res.status).toBe(304);
-  expect(cachedRes).toBeTruthy();
-  expect(await cachedRes?.text()).toBe('lol');
-  expect(cachedRes?.headers.get('etag')).toBe('"v1"');
   expect(cachedRes?.headers.get('content-type')).toBe(
     'text/lol; charset=utf-8'
   );

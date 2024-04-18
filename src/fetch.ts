@@ -58,9 +58,6 @@ export function createSharedCacheFetch(
 
     if (cachedResponse) {
       setCacheStatus(cachedResponse.headers, HIT);
-      if (isNotModified(request, cachedResponse)) {
-        return notModified(cachedResponse);
-      }
       return cachedResponse;
     }
 
@@ -84,10 +81,6 @@ export function createSharedCacheFetch(
       }
     } else {
       setCacheStatus(fetchedResponse.headers, DYNAMIC);
-    }
-
-    if (isNotModified(request, fetchedResponse)) {
-      return notModified(fetchedResponse);
     }
 
     return fetchedResponse;
@@ -124,49 +117,6 @@ function bypassCache(cacheControl: string) {
     cacheControl.includes('s-maxage=0') ||
     (!cacheControl.includes('s-maxage') && cacheControl.includes('max-age=0'))
   );
-}
-
-/**
- * Default headers to pass through on 304 responses. From the spec:
- * > The response must not contain a body and must include the headers that
- * > would have been sent in an equivalent 200 OK response: Cache-Control,
- * > Content-Location, Date, ETag, Expires, and Vary.
- */
-const RETAINED_304_HEADERS = [
-  'cache-control',
-  'content-location',
-  'date',
-  'etag',
-  'expires',
-  'vary',
-];
-
-function isNotModified(req: Request, res: Response) {
-  const method = req.method;
-
-  // GET or HEAD for weak freshness validation only
-  if (method !== 'GET' && method !== 'HEAD') return false;
-
-  const status = res.status;
-  // 2xx or 304 as per rfc2616 14.26
-  if ((status >= 200 && status < 300) || status === 304) {
-    return fresh(req.headers, res.headers);
-  }
-
-  return false;
-}
-
-function notModified(response: Response) {
-  response.headers.forEach((_, key) => {
-    if (!RETAINED_304_HEADERS.includes(key.toLowerCase())) {
-      response.headers.delete(key);
-    }
-  });
-  return new Response(null, {
-    status: Status.NotModified,
-    statusText: STATUS_TEXT[Status.NotModified],
-    headers: response.headers,
-  });
 }
 
 function getRequestCacheMode(
