@@ -133,7 +133,7 @@ The `SharedCache` project creates a `fetch` function that conforms to the defini
 const res = await fetch('https://httpbin.org/response-headers', {
   sharedCache: {
     cacheControlOverride: 's-maxage=120',
-    varyOverride: '',
+    varyOverride: 'accept-language',
     cacheKeyRules: {
       host: true,
       method: { include: ['GET', 'HEAD'] },
