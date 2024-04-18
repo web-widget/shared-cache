@@ -8,12 +8,13 @@ It's aware of many tricky details such as the `vary` header, proxy revalidation,
 - Support custom cache storage sources, such as using Redis to implement cluster shared cache
 - It extends the caching capabilities of the `fetch` function
 - Support custom Cache Key, for example, you can cache specific members of device types, cookies and headers
+- For HTTP's `cache-control` header, SharedCache prefers `s-maxage`
 
 ## Why SharedCache
 
-Although the use of the Web `fetch` API has become very common on the server side, there is still a lack of standardized cache API on the server side. SharedCache refers to Cloudflare Workers Cache and many projects, hoping to define a better cache API.
+Although the use of the Web `fetch` API has become very common on the server side, there is still a lack of standardized caching API on the server side. The Web `Cache` API was a priority, but we needed to carefully handle server-side scenarios and browser differences, so that was the motivation for creating this project.
 
-Since a browser's cache usually targets a single user, a server's cache usually serves all users, which is why this project is called SharedCache.
+Since a browser's cache is typically targeted to a single user, while a server's cache typically serves all users, this is why the project is called SharedCache.
 
 ## Installation
 
