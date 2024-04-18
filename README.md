@@ -1,6 +1,6 @@
 # SharedCache
 
-An http cache following http header semantics. It implements the [Cache Interface](https://developer.mozilla.org/en-US/docs/Web/API/Cache), but it DOES NOT follow the Cache Interface specification.
+An http cache following http header semantics. It implements the [Cache Interface](https://developer.mozilla.org/en-US/docs/Web/API/Cache), but different.
 
 SharedCache tells when responses can be reused from a cache, taking into account [HTTP RFC 7234](http://httpwg.org/specs/rfc7234.html) rules for user agents and shared caches. It also implements [RFC 5861](https://tools.ietf.org/html/rfc5861), implementing `stale-if-error` and `stale-while-revalidate`.
 It's aware of many tricky details such as the `vary` header, proxy revalidation, and authenticated responses。
