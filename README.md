@@ -140,6 +140,20 @@ const res = await fetch('https://httpbin.org/response-headers', {
 });
 ```
 
+### `sharedCache`
+
+#### `cacheControlOverride`
+
+Since many APIs do not configure cache headers correctly, you can use override cache control values.
+
+#### `varyOverride`
+
+You can use override vary values.
+
+#### `cacheKeyRules`
+
+Custom cache key. See also [`CacheQueryOptions`](#cachequeryoptions).
+
 ## `CacheStorage` class
 
 The `CacheStorage` class implements [CacheStorage](https://developer.mozilla.org/en-US/docs/Web/API/CacheStorage) interface, but does not implement its specification. It deviates from it in a few ways.
@@ -331,3 +345,4 @@ The birth of shared-cache is inseparable from the inspiration of the following p
 - [cloudflare/miniflare](https://github.com/cloudflare/miniflare/blob/master/packages/cache/src/cache.ts)
 - [cloudflare/workers-sdk](https://github.com/cloudflare/workers-sdk/blob/main/packages/miniflare/src/workers/cache/cache.worker.ts)
 - [natemoo-re/ultrafetch](https://github.com/natemoo-re/ultrafetch)
+- [island.is/island.is](https://github.com/island-is/island.is/blob/main/libs/clients/middlewares/src/lib/withCache/withCache.ts)
