@@ -13,7 +13,7 @@ It's aware of many tricky details such as the `vary` header, proxy revalidation,
 
 Although the use of the Web `fetch` API has become very common on the server side, there is still a lack of standardized cache API on the server side. SharedCache refers to Cloudflare Workers Cache and many projects, hoping to define a better cache API.
 
-Since the browser's cache is usually for a single user, while the server's cache usually serves all users, this is why this project is called SharedCache.
+Since a browser's cache usually targets a single user, a server's cache usually serves all users, which is why this project is called SharedCache.
 
 ## Installation
 
