@@ -333,7 +333,7 @@ SharedCache didn't implement it.
 
 SharedCache didn't implement it.
 
-## Thinks
+## Thanks
 
 The birth of SharedCache is inseparable from the inspiration of the following projects:
 
