@@ -277,7 +277,7 @@ If you include the query string foo in a URL like `https://www.example.com/?foo=
 ##### Usage notes
 
 - To include all query string parameters (the default behavior), use include: `true`
-- To ignore query strings, use exclude: `false`
+- To ignore query strings, use exclude: `true`
 - To include most query string parameters but exclude a few, use the exclude field which assumes the other query string parameters are included.
 
 #### Headers
