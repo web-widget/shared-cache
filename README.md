@@ -321,10 +321,6 @@ Like `query_string` or `header`, `cookie` controls which cookies appear in the C
 
 Classifies a request as `mobile`, `desktop`, or `tablet` based on the User Agent.
 
-### `forceCache`
-
-### `ignoreCacheControl`
-
 ### ~~`ignoreMethod`~~
 
 SharedCache didn't implement it.
@@ -339,7 +335,7 @@ SharedCache didn't implement it.
 
 ## Thinks
 
-The birth of shared-cache is inseparable from the inspiration of the following projects:
+The birth of SharedCache is inseparable from the inspiration of the following projects:
 
 - [Cloudflare Cache Key](https://developers.cloudflare.com/cache/how-to/cache-keys/)
 - [http-cache-lru](https://github.com/o-development/http-cache-lru/)
