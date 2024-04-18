@@ -124,12 +124,18 @@ globalThis.fetch = fetch;
 
 The `fetch` function extends the specification with additional `sharedCache` options.
 
-For example, it can override the origin's cache control:
-
 ```ts
 const res = await fetch('https://httpbin.org/response-headers', {
   sharedCache: {
     cacheControlOverride: 's-maxage=120',
+    varyOverride: '',
+    cacheKeyRules: {
+      host: true,
+      method: { include: ['GET', 'HEAD'] },
+      pathname: true,
+      search: false,
+      device: true,
+    },
   },
 });
 ```
