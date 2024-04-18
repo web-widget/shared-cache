@@ -145,7 +145,7 @@ const res = await fetch('https://httpbin.org/response-headers', {
 });
 ```
 
-### `sharedCache`
+### `sharedCache` options
 
 #### `cacheControlOverride`
 
