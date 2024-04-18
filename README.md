@@ -1,6 +1,19 @@
-# shared-cache
+# SharedCache
 
 An http cache following http header semantics. It implements the [Cache Interface](https://developer.mozilla.org/en-US/docs/Web/API/Cache), but it DOES NOT follow the Cache Interface specification.
+
+SharedCache tells when responses can be reused from a cache, taking into account [HTTP RFC 7234](http://httpwg.org/specs/rfc7234.html) rules for user agents and shared caches. It also implements [RFC 5861](https://tools.ietf.org/html/rfc5861), implementing `stale-if-error` and `stale-while-revalidate`.
+It's aware of many tricky details such as the `Vary` header, proxy revalidation, and authenticated responses。
+
+- Support custom cache storage sources, such as using Redis to implement cluster shared cache
+- It extends the caching capabilities of the `fetch` function
+- Support custom Cache Key, for example, you can cache specific members of device types, cookies and headers
+
+## Why SharedCache
+
+Although the use of the Web `fetch` API has become very common on the server side, there is still a lack of standardized cache API on the server side. SharedCache refers to Cloudflare Workers Cache and many projects, hoping to define a better cache API.
+
+Since the browser's cache is usually for a single user, while the server's cache usually serves all users, this is why this project is called SharedCache.
 
 ## Installation
 
@@ -59,7 +72,7 @@ async function run() {
 run();
 ```
 
-## `cahces` object
+## Create global `caches` and `fetch`
 
 The global `cahces` object needs to be defined beforehand. The `cahces` object is a global instance of the `CacheStorage` class.
 
@@ -96,7 +109,7 @@ globalThis.caches = caches;
 When the above global `caches` object is ready, you can also register the globally registered cacheable `fetch`:
 
 ```ts
-import { fetch, type SharedCacheFetch; } from '@web-widget/shared-cache';
+import { fetch, type SharedCacheFetch } from '@web-widget/shared-cache';
 
 declare global {
   interface WindowOrWorkerGlobalScope {
@@ -107,53 +120,132 @@ declare global {
 globalThis.fetch = fetch;
 ```
 
+## `fetch` function
+
+The `fetch` function extends the specification with additional `sharedCache` options.
+
+For example, it can override the origin's cache control:
+
+```ts
+const res = await fetch('https://httpbin.org/response-headers', {
+  sharedCache: {
+    cacheControlOverride: 's-maxage=120',
+  },
+});
+```
+
 ## `CacheStorage` class
 
 The `CacheStorage` class implements [CacheStorage](https://developer.mozilla.org/en-US/docs/Web/API/CacheStorage) interface, but does not implement its specification. It deviates from it in a few ways.
 
-### `CacheStorage.open`
+### `open`
 
 Returns a Promise that resolves to the Cache object matching the cacheName (a new cache is created if it doesn't already exist.) This method follows the specification.
 
-### `CacheStorage.delete`
+### `delete`
 
 Finds the Cache object matching the cacheName, and if found, deletes the Cache object and returns a Promise that resolves to true. If no Cache object is found, it resolves to false. This method follows the specification.
 
-### Unrealized
+### ~~`match`~~
 
-- `CacheStorage.match`
-- `CacheStorage.has`
-- `CacheStorage.keys`
+Not implemented.
+
+### ~~`has`~~
+
+Not implemented.
+
+### ~~`keys`~~
+
+Not implemented.
 
 ## `Cache` class
 
 The `Cache` class implements [Cache](https://developer.mozilla.org/en-US/docs/Web/API/Cache) interface, but does not implement its specification. It deviates from it in a few ways.
 
-### `Cache.match(request, options)`
+### `match(request, options)`
 
 Checks the cache to see if it includes the response to the given request. If it does and the response isn't stale, it returns the response. Otherwise, it will make a fetch, cache the response, and return the response.
 
-This method deviates from the match method defined in the normal cache interface. It is more similar to the `add` method in that it will make a request if the response is not in the cahce.
+#### Parameters
 
-The `options` parameter is also ignored.
+- `request` The Request for which you are attempting to find responses in the Cache. See also [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request)
+- `options` An object that sets options for the match operation. See also [`CacheQueryOptions`](#cachequeryoptions)
 
-### `Cache.put(request, response, options)`
+### `put(request, response, options)`
 
 Takes both a request and its response and adds it to the given cache if allowed. This method deviates from the specification in a few ways:
 
 It has extra protections beyond the specification. For example, a response that includes the `cahce-control: no-cache` will not be stored in this library, but would be stored in a specification compliant library.
 
-Requests with the same uri, but different headers will overwrite eachother.
+#### Parameters
 
-### `Cache.delete(request, options)`
+- `request` The Request object or URL that you want to add to the cache. See also [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request)
+- `response` The Response you want to match up to the request. See also [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response)
+- `options` An object that sets options for the put operation. See also [`CacheQueryOptions`](#cachequeryoptions)
+
+### `delete(request, options)`
 
 Finds the Cache entry whose key is the request, returning a Promise that resolves to true if a matching Cache entry is found and deleted. If no Cache entry is found, the promise resolves to false. This method follows the specification.
 
-### Unrealized
+#### Parameters
 
-- `Cache.add`
-- `Cache.addAll`
-- `Cache.keys`
+- `request` The Request you are looking to delete. See also [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request)
+- `options` An object whose properties control how matching is done in the delete operation. See also [`CacheQueryOptions`](#cachequeryoptions)
+
+### ~~`add`~~
+
+Not implemented.
+
+### ~~`addAll`~~
+
+Not implemented.
+
+### ~~`keys`~~
+
+Not implemented.
+
+## `CacheQueryOptions`
+
+This is an option for query caching which extends the specification.
+
+### `cacheKeyRules`
+
+Custom cache key generation rules.
+
+Default value:
+
+```ts
+{
+  host: true,
+  method: { include: ['GET', 'HEAD'] },
+  pathname: true,
+  search: true,
+}
+```
+
+- `host`
+- `method`
+- `pathname`
+- `search`
+- `cookie`
+- `device`
+- `header`
+
+### `forceCache`
+
+### `ignoreCacheControl`
+
+### ~~`ignoreMethod`~~
+
+Will be ignored.
+
+### ~~`ignoreSearch`~~
+
+Will be ignored.
+
+### ~~`ignoreVary`~~
+
+Will be ignored.
 
 ## Thinks
 

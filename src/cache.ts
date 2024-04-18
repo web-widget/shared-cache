@@ -6,7 +6,6 @@ import type {
   CacheItem,
   PolicyResponse,
   CacheStatus,
-  SharedCacheMatchOptions,
 } from './types';
 import { createCacheKeyGenerator, vary as getVary } from './cache-key';
 import type { CacheKeyRules, FilterOptions } from './cache-key';
@@ -99,7 +98,7 @@ export class SharedCache implements Cache {
    */
   async match(
     requestInfo: RequestInfo,
-    options?: SharedCacheMatchOptions
+    options?: SharedCacheQueryOptions
   ): Promise<Response | undefined> {
     const request =
       typeof requestInfo === 'string' ? new Request(requestInfo) : requestInfo;
@@ -175,11 +174,12 @@ export class SharedCache implements Cache {
    * to the current Cache object.
    * @param request The Request object or URL that you want to add to the cache.
    * @param response The Response you want to match up to the request.
+   * @param options An object that sets options for the put operation.
    */
   async put(
     requestInfo: RequestInfo,
     response: Response,
-    options?: SharedCacheMatchOptions
+    options?: SharedCacheQueryOptions
   ): Promise<void> {
     const request =
       typeof requestInfo === 'string' ? new Request(requestInfo) : requestInfo;

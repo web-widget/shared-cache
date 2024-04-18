@@ -4,4 +4,11 @@ export {
   createSharedCacheFetch as createFetch,
   sharedCacheFetch as fetch,
 } from './fetch';
-export * from './types';
+export {
+  SharedCacheOptions as CacheOptions,
+  SharedCacheQueryOptions as CacheQueryOptions,
+  KVStorage,
+  CacheStatus,
+  SharedCacheFetch as Fetch,
+  SharedCacheRequestInitProperties as RequestInitProperties,
+} from './types';

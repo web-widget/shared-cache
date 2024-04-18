@@ -57,21 +57,12 @@ export type CacheStatus =
   | 'REVALIDATED'
   | 'DYNAMIC';
 
-export type SharedCacheMatchOptions = {
-  /**
-   * Method to initiate a request after cache expiration.
-   * @private
-   */
-  _fetch?: typeof fetch;
-
+export type SharedCacheQueryOptions = {
+  cacheKeyRules?: CacheKeyRules;
   /**
    * Force cache to be used even if it's stale.
    */
   forceCache?: boolean;
-} & SharedCacheQueryOptions;
-
-export type SharedCacheQueryOptions = {
-  cacheKeyRules?: CacheKeyRules;
   ignoreCacheControl?: boolean;
   /** @deprecated */
   ignoreMethod?: never;
@@ -79,6 +70,11 @@ export type SharedCacheQueryOptions = {
   ignoreSearch?: never;
   /** @deprecated */
   ignoreVary?: never;
+  /**
+   * Method to initiate a request after cache expiration.
+   * @private
+   */
+  _fetch?: typeof fetch;
 } & CacheQueryOptions;
 
 export type SharedCacheFetch = (

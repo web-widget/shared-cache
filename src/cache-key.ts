@@ -229,12 +229,12 @@ const BUILT_IN_EXPANDED_PART_DEFINERS: BuiltInExpandedCacheKeyPartDefiners = {
   method,
 };
 
-export const DEFAULT_CACHE_KEY_RULES: CacheKeyRules = Object.freeze({
+export const DEFAULT_CACHE_KEY_RULES: CacheKeyRules = {
   host: true,
   method: { include: ['GET', 'HEAD'] },
   pathname: true,
   search: true,
-});
+};
 
 const CACHE_KEYS = new WeakMap();
 
