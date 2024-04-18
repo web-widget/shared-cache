@@ -2,19 +2,19 @@
 
 An http cache following http header semantics. It implements the [Cache Interface](https://developer.mozilla.org/en-US/docs/Web/API/Cache), but different.
 
-SharedCache tells when responses can be reused from a cache, taking into account [HTTP RFC 7234](http://httpwg.org/specs/rfc7234.html) rules for user agents and shared caches. It also implements [RFC 5861](https://tools.ietf.org/html/rfc5861), implementing `stale-if-error` and `stale-while-revalidate`.
+`SharedCache` tells when responses can be reused from a cache, taking into account [HTTP RFC 7234](http://httpwg.org/specs/rfc7234.html) rules for user agents and shared caches. It also implements [RFC 5861](https://tools.ietf.org/html/rfc5861), implementing `stale-if-error` and `stale-while-revalidate`.
 It's aware of many tricky details such as the `vary` header, proxy revalidation, and authenticated responses。
 
 - Support custom cache storage sources, such as using Redis to implement cluster shared cache
 - It extends the caching capabilities of the `fetch` function
 - Support custom Cache Key, for example, you can cache specific members of device types, cookies and headers
-- For HTTP's `cache-control` header, SharedCache prefers `s-maxage`
+- For HTTP's `cache-control` header, `SharedCache` prefers `s-maxage`
 
-## Why SharedCache
+## Why `SharedCache`
 
 Although the use of the Web `fetch` API has become very common on the server side, there is still a lack of standardized caching API on the server side. The Web `Cache` API was a priority, but we needed to carefully handle server-side scenarios and browser differences, so that was the motivation for creating this project.
 
-Since a browser's cache is typically targeted to a single user, while a server's cache typically serves all users, this is why the project is called SharedCache.
+Since a browser's cache is typically targeted to a single user, while a server's cache typically serves all users, this is why the project is called `SharedCache`.
 
 ## Installation
 
@@ -169,15 +169,15 @@ Finds the Cache object matching the cacheName, and if found, deletes the Cache o
 
 ### ~~`match`~~
 
-SharedCache didn't implement it.
+`SharedCache` didn't implement it.
 
 ### ~~`has`~~
 
-SharedCache didn't implement it.
+`SharedCache` didn't implement it.
 
 ### ~~`keys`~~
 
-SharedCache didn't implement it.
+`SharedCache` didn't implement it.
 
 ## `Cache` class
 
@@ -215,15 +215,15 @@ Finds the Cache entry whose key is the request, returning a Promise that resolve
 
 ### ~~`add`~~
 
-SharedCache didn't implement it.
+`SharedCache` didn't implement it.
 
 ### ~~`addAll`~~
 
-SharedCache didn't implement it.
+`SharedCache` didn't implement it.
 
 ### ~~`keys`~~
 
-SharedCache didn't implement it.
+`SharedCache` didn't implement it.
 
 ## `CacheQueryOptions`
 
@@ -324,19 +324,19 @@ Classifies a request as `mobile`, `desktop`, or `tablet` based on the User Agent
 
 ### ~~`ignoreMethod`~~
 
-SharedCache didn't implement it.
+`SharedCache` didn't implement it.
 
 ### ~~`ignoreSearch`~~
 
-SharedCache didn't implement it.
+`SharedCache` didn't implement it.
 
 ### ~~`ignoreVary`~~
 
-SharedCache didn't implement it.
+`SharedCache` didn't implement it.
 
 ## Thanks
 
-The birth of SharedCache is inseparable from the inspiration of the following projects:
+The birth of `SharedCache` is inseparable from the inspiration of the following projects:
 
 - [Cloudflare Cache Key](https://developers.cloudflare.com/cache/how-to/cache-keys/)
 - [Next Data Cache](https://nextjs.org/docs/app/building-your-application/caching#data-cache)
