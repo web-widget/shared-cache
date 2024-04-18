@@ -286,7 +286,7 @@ Headers control which headers go into the Cache Key. Similar to Query String, yo
 
 When you include a header, the header value is included in the Cache Key. For example, if an HTTP request contains an HTTP header like `X-Auth-API-key: 12345`, and you include the `X-Auth-API-Key header` in your Cache Key Template, then `12345` appears in the Cache Key.
 
-To check for the presence of a header without including its actual value, use the `check_presence` option.
+To check for the presence of a header without including its actual value, use the `checkPresence` option.
 
 Currently, you can only exclude the `Origin` header. The `Origin` header is always included unless explicitly excluded. Including the [Origin header](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin) in the Cache Key is important to enforce [CORS](https://developer.mozilla.org/en-US/docs/Glossary/CORS). Additionally, you cannot include the following headers:
 
