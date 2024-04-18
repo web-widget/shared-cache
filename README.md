@@ -79,7 +79,7 @@ run();
 
 ## Create global `caches` and `fetch`
 
-The global `cahces` object needs to be defined beforehand. The `cahces` object is a global instance of the `CacheStorage` class.
+The `SharedCache` project creates a `fetch` function that conforms to the definition of the Web [fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API), but extends it.
 
 ```ts
 import { CacheStorage, type KVStorage } from '@web-widget/shared-cache';
