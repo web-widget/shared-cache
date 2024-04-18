@@ -250,8 +250,8 @@ If you include the query string foo in a URL like `https://www.example.com/?foo=
 ```ts
 {
   search: {
-    include: ['foo'];
-  }
+    include: ['foo'],
+  },
 }
 ```
 
