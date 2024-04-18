@@ -64,11 +64,11 @@ export type SharedCacheQueryOptions = {
    */
   forceCache?: boolean;
   ignoreCacheControl?: boolean;
-  /** @deprecated */
+  /** @private */
   ignoreMethod?: never;
-  /** @deprecated */
+  /** @private */
   ignoreSearch?: never;
-  /** @deprecated */
+  /** @private */
   ignoreVary?: never;
   /**
    * Method to initiate a request after cache expiration.
