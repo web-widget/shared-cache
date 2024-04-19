@@ -64,8 +64,8 @@ export function createSharedCacheFetch(
     }
 
     const fetchedResponse = await fetcher(request);
-    const cacheControl = fetchedResponse.headers.get('cache-control');
     setCacheControlAndVary(fetchedResponse, sharedCache);
+    const cacheControl = fetchedResponse.headers.get('cache-control');
 
     if (cacheControl) {
       if (bypassCache(cacheControl)) {
