@@ -1,5 +1,11 @@
 # @web-widget/shared-cache
 
+## 0.1.1
+
+### Patch Changes
+
+- d1aa8b2: Fix `cacheControlOverride` not being overridden correctly.
+
 ## 0.1.0
 
 ### Minor Changes
