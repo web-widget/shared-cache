@@ -29,7 +29,9 @@ export class SharedCache implements Cache {
     }
 
     const resolveOptions = {
-      waitUntil() {},
+      async waitUntil(promise: Promise<any>) {
+        await promise.catch(console.error);
+      },
       ...options,
     };
 
@@ -138,11 +140,9 @@ export class SharedCache implements Cache {
         // Well actually, in this case it's fine to return the stale response.
         // But we'll update the cache in the background.
         this.#waitUntil(
-          this.#revalidate(request, resolveCacheItem, cacheKey, fetch).then(
-            () => {}
-          )
+          this.#revalidate(request, resolveCacheItem, cacheKey, fetch)
         );
-        this.#setCacheStatus(response.headers, STALE);
+        this.#setCacheStatus(response, STALE);
       } else {
         // NOTE: This will take effect when caching TTL is not working.
         await deleteCacheItem(request, this.#storage, cacheKey);
@@ -152,10 +152,10 @@ export class SharedCache implements Cache {
           cacheKey,
           fetch
         );
-        this.#setCacheStatus(response.headers, EXPIRED);
+        this.#setCacheStatus(response, EXPIRED);
       }
     } else {
-      this.#setCacheStatus(response.headers, HIT);
+      this.#setCacheStatus(response, HIT);
     }
 
     return response;
@@ -273,8 +273,8 @@ export class SharedCache implements Cache {
     });
   }
 
-  #setCacheStatus(headers: Headers, status: SharedCacheStatus) {
-    headers.set(CACHE_STATUS_HEADERS_NAME, status);
+  #setCacheStatus(response: Response, status: SharedCacheStatus) {
+    response.headers.set(CACHE_STATUS_HEADERS_NAME, status);
   }
 }
 

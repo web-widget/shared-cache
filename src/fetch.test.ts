@@ -1,5 +1,5 @@
 import { LRUCache } from 'lru-cache';
-import { CacheItem, KVStorage } from './types';
+import { KVStorage } from './types';
 import { createSharedCacheFetch } from './fetch';
 import { SharedCache } from './cache';
 import { BYPASS, DYNAMIC, HIT, MISS, STALE } from './constants';
@@ -7,13 +7,13 @@ import { BYPASS, DYNAMIC, HIT, MISS, STALE } from './constants';
 const TEST_URL = 'http://localhost/';
 
 const createCacheStore = (): KVStorage => {
-  const store = new LRUCache<string, CacheItem>({ max: 1024 });
+  const store = new LRUCache<string, any>({ max: 1024 });
 
   return {
     async get(cacheKey: string) {
-      return store.get(cacheKey) as CacheItem | undefined;
+      return store.get(cacheKey);
     },
-    async set(cacheKey: string, value: CacheItem, ttl?: number) {
+    async set(cacheKey: string, value: any, ttl?: number) {
       store.set(cacheKey, value, { ttl });
     },
     async delete(cacheKey: string) {

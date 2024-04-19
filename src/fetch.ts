@@ -39,23 +39,23 @@ export function createSharedCacheFetch(
     const request = new Request(input, init);
     const requestCache = getRequestCacheMode(request, init?.cache);
     const sharedCache = init?.sharedCache;
+    const interceptor = createInterceptor(fetcher, sharedCache);
 
     if (requestCache === 'no-store') {
-      const fetchedResponse = await fetcher(request);
-      setCacheControlAndVary(fetchedResponse, sharedCache);
-      setCacheStatus(fetchedResponse.headers, BYPASS);
+      const fetchedResponse = await interceptor(input, init);
+      setCacheStatus(fetchedResponse, BYPASS);
       return fetchedResponse;
     }
 
     const cachedResponse = await cache.match(request, {
       ...sharedCache,
-      _fetch: fetcher,
+      _fetch: interceptor,
       forceCache:
         requestCache === 'force-cache' || requestCache === 'only-if-cached',
     });
 
     if (cachedResponse) {
-      setCacheStatus(cachedResponse.headers, HIT);
+      setCacheStatus(cachedResponse, HIT);
       return cachedResponse;
     }
 
@@ -63,22 +63,21 @@ export function createSharedCacheFetch(
       throw TypeError('Failed to fetch.');
     }
 
-    const fetchedResponse = await fetcher(request);
-    setCacheControlAndVary(fetchedResponse, sharedCache);
+    const fetchedResponse = await interceptor(request);
     const cacheControl = fetchedResponse.headers.get('cache-control');
 
     if (cacheControl) {
       if (bypassCache(cacheControl)) {
-        setCacheStatus(fetchedResponse.headers, BYPASS);
+        setCacheStatus(fetchedResponse, BYPASS);
       } else {
         const ok = await cache.put(request, fetchedResponse, sharedCache).then(
           () => true,
           () => false
         );
-        setCacheStatus(fetchedResponse.headers, ok ? MISS : DYNAMIC);
+        setCacheStatus(fetchedResponse, ok ? MISS : DYNAMIC);
       }
     } else {
-      setCacheStatus(fetchedResponse.headers, DYNAMIC);
+      setCacheStatus(fetchedResponse, DYNAMIC);
     }
 
     return fetchedResponse;
@@ -87,24 +86,30 @@ export function createSharedCacheFetch(
 
 export const sharedCacheFetch = createSharedCacheFetch();
 
-function setCacheStatus(headers: Headers, status: SharedCacheStatus) {
+function setCacheStatus(response: Response, status: SharedCacheStatus) {
+  const headers = response.headers;
   if (!headers.has(CACHE_STATUS_HEADERS_NAME)) {
     headers.set(CACHE_STATUS_HEADERS_NAME, status);
   }
 }
 
-function setCacheControlAndVary(
-  response: Response,
+function createInterceptor(
+  fetcher: typeof fetch,
   sharedCache?: SharedCacheRequestInitProperties
-) {
-  if (response.ok) {
-    if (sharedCache?.cacheControlOverride) {
-      cacheControl(response.headers, sharedCache.cacheControlOverride);
+): typeof fetch {
+  return async function fetch(...args) {
+    const response = await fetcher(...args);
+    const headers = response.headers;
+    if (response.ok) {
+      if (sharedCache?.cacheControlOverride) {
+        cacheControl(headers, sharedCache.cacheControlOverride);
+      }
+      if (sharedCache?.varyOverride) {
+        vary(headers, sharedCache.varyOverride);
+      }
     }
-    if (sharedCache?.varyOverride) {
-      vary(response.headers, sharedCache.varyOverride);
-    }
-  }
+    return response;
+  };
 }
 
 function bypassCache(cacheControl: string) {
