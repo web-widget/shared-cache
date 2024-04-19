@@ -1,10 +1,10 @@
-import { CacheStatus } from './types';
+import { SharedCacheStatus } from './types';
 
 export const CACHE_STATUS_HEADERS_NAME = 'x-cache-status';
-export const HIT: CacheStatus = 'HIT';
-export const MISS: CacheStatus = 'MISS';
-export const EXPIRED: CacheStatus = 'EXPIRED';
-export const STALE: CacheStatus = 'STALE';
-export const BYPASS: CacheStatus = 'BYPASS';
-export const REVALIDATED: CacheStatus = 'REVALIDATED';
-export const DYNAMIC: CacheStatus = 'DYNAMIC';
+export const HIT: SharedCacheStatus = 'HIT';
+export const MISS: SharedCacheStatus = 'MISS';
+export const EXPIRED: SharedCacheStatus = 'EXPIRED';
+export const STALE: SharedCacheStatus = 'STALE';
+export const BYPASS: SharedCacheStatus = 'BYPASS';
+export const REVALIDATED: SharedCacheStatus = 'REVALIDATED';
+export const DYNAMIC: SharedCacheStatus = 'DYNAMIC';

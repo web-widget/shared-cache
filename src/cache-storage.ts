@@ -50,7 +50,7 @@ export class SharedCacheStorage implements CacheStorage {
    * @param cacheName The name of the cache you want to open.
    * @returns A Promise that resolves to the requested Cache object.
    */
-  async open(cacheName: string): Promise<Cache> {
+  async open(cacheName: string): Promise<SharedCache> {
     const cache = this.#caches.get(cacheName);
     if (cache) {
       return cache;

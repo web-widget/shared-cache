@@ -1,4 +1,4 @@
-import { cacheControl, fresh, vary } from '@web-widget/helpers/headers';
+import { cacheControl, vary } from '@web-widget/helpers/headers';
 import { SharedCache } from './cache';
 import { SharedCacheStorage } from './cache-storage';
 import {
@@ -9,11 +9,10 @@ import {
   MISS,
 } from './constants';
 import {
-  CacheStatus,
+  SharedCacheStatus,
   SharedCacheFetch,
   SharedCacheRequestInitProperties,
 } from './types';
-import { STATUS_TEXT, Status } from '@web-widget/helpers/status';
 
 const ORIGINAL_FETCH = globalThis.fetch;
 
@@ -25,17 +24,16 @@ export function createSharedCacheFetch(
 ): SharedCacheFetch {
   const fetcher = options?.fetch ?? ORIGINAL_FETCH;
   return async function fetch(input, init) {
-    cache ??=
-      caches instanceof SharedCacheStorage
-        ? ((await caches.open('default')) as SharedCache)
-        : undefined;
+    if (!cache && globalThis.caches instanceof SharedCacheStorage) {
+      cache = await globalThis.caches.open('default');
+    }
 
     if (!cache) {
       throw TypeError('Missing cache.');
     }
 
     if (!(cache instanceof SharedCache)) {
-      throw TypeError('Cache is not an instance of SharedCache.');
+      throw TypeError('Invalid cache.');
     }
 
     const request = new Request(input, init);
@@ -89,7 +87,7 @@ export function createSharedCacheFetch(
 
 export const sharedCacheFetch = createSharedCacheFetch();
 
-function setCacheStatus(headers: Headers, status: CacheStatus) {
+function setCacheStatus(headers: Headers, status: SharedCacheStatus) {
   if (!headers.has(CACHE_STATUS_HEADERS_NAME)) {
     headers.set(CACHE_STATUS_HEADERS_NAME, status);
   }

@@ -5,10 +5,12 @@ export {
   sharedCacheFetch as fetch,
 } from './fetch';
 export {
+  KVStorage,
+  SharedCacheFetch as Fetch,
+  SharedCacheKeyPartDefiners as CacheKeyPartDefiners,
+  SharedCacheKeyRules as CacheKeyRules,
   SharedCacheOptions as CacheOptions,
   SharedCacheQueryOptions as CacheQueryOptions,
-  KVStorage,
-  CacheStatus,
-  SharedCacheFetch as Fetch,
   SharedCacheRequestInitProperties as RequestInitProperties,
+  SharedCacheStatus as CacheStatus,
 } from './types';
