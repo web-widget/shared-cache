@@ -83,5 +83,8 @@
       }
     }
   },
-  "type": "module"
+  "type": "module",
+  "files": [
+    "dist"
+  ]
 }

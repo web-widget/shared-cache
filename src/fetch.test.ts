@@ -45,6 +45,7 @@ describe('override headers', () => {
     });
 
     expect(res.headers.get('cache-control')).toBe('max-age=300, s-maxage=120');
+    expect(res.headers.get('x-cache-status')).toBe(MISS);
   });
 
   test('the `vary` header should be overridable', async () => {
@@ -55,6 +56,7 @@ describe('override headers', () => {
         return new Response('lol', {
           headers: {
             vary: 'x-custom',
+            'cache-control': 'max-age=300',
           },
         });
       },
@@ -66,6 +68,7 @@ describe('override headers', () => {
     });
 
     expect(res.headers.get('vary')).toBe('x-custom, accept-language');
+    expect(res.headers.get('x-cache-status')).toBe(MISS);
   });
 
   test('do not set HTTP headers when status code is greater than or equal to 500', async () => {
@@ -87,6 +90,7 @@ describe('override headers', () => {
 
     expect(res.headers.get('cache-control')).toBe(null);
     expect(res.headers.get('vary')).toBe(null);
+    expect(res.headers.get('x-cache-status')).toBe(DYNAMIC);
   });
 });
 
