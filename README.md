@@ -167,9 +167,9 @@ The `CacheStorage` class implements [CacheStorage](https://developer.mozilla.org
 
 Returns a Promise that resolves to the Cache object matching the cacheName (a new cache is created if it doesn't already exist.) This method follows the specification.
 
-### `delete`
+### ~~`delete`~~
 
-Finds the Cache object matching the cacheName, and if found, deletes the Cache object and returns a Promise that resolves to true. If no Cache object is found, it resolves to false. This method follows the specification.
+`SharedCache` didn't implement it.
 
 ### ~~`match`~~
 

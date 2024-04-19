@@ -11,19 +11,9 @@ export class SharedCacheStorage implements CacheStorage {
     this.#options = options;
   }
 
-  /**
-   * The delete() method of the CacheStorage interface finds the Cache object
-   * matching the cacheName, and if found, deletes the Cache object and returns
-   * a Promise that resolves to true. If no Cache object is found, it resolves
-   * to false.
-   * @param cacheName The name of the cache you want to delete.
-   */
-  async delete(cacheName: string): Promise<boolean> {
-    const hasCache = this.#caches.has(cacheName);
-    if (hasCache) {
-      this.#caches.delete(cacheName);
-    }
-    return hasCache;
+  /** @private */
+  async delete(_cacheName: string): Promise<boolean> {
+    throw new Error('Not Implemented.');
   }
 
   /** @private */
