@@ -1,5 +1,11 @@
 # @web-widget/shared-cache
 
+## 0.1.2
+
+### Patch Changes
+
+- 98a3a1a: Fixed the problem of failing to process logs correctly after updating the cache error.
+
 ## 0.1.1
 
 ### Patch Changes
