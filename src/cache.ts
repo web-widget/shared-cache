@@ -5,10 +5,10 @@ import type {
   SharedCacheQueryOptions,
   CacheItem,
   PolicyResponse,
-  CacheStatus,
+  SharedCacheStatus,
 } from './types';
 import { createCacheKeyGenerator, vary as getVary } from './cache-key';
-import type { CacheKeyRules, FilterOptions } from './cache-key';
+import type { SharedCacheKeyRules, FilterOptions } from './cache-key';
 import { CACHE_STATUS_HEADERS_NAME, EXPIRED, HIT, STALE } from './constants';
 
 const ORIGINAL_FETCH = globalThis.fetch;
@@ -16,7 +16,7 @@ const ORIGINAL_FETCH = globalThis.fetch;
 export class SharedCache implements Cache {
   #storage: KVStorage;
   #waitUntil: (promise: Promise<any>) => void;
-  #cacheKeyRules?: CacheKeyRules;
+  #cacheKeyRules?: SharedCacheKeyRules;
   #fetch: typeof fetch;
   #cacheKeyGenerator: (
     request: Request,
@@ -25,7 +25,7 @@ export class SharedCache implements Cache {
 
   constructor(storage: KVStorage, options?: SharedCacheOptions) {
     if (!storage) {
-      throw new TypeError('storage is required.');
+      throw TypeError('Missing storage.');
     }
 
     const resolveOptions = {
@@ -273,7 +273,7 @@ export class SharedCache implements Cache {
     });
   }
 
-  #setCacheStatus(headers: Headers, status: CacheStatus) {
+  #setCacheStatus(headers: Headers, status: SharedCacheStatus) {
     headers.set(CACHE_STATUS_HEADERS_NAME, status);
   }
 }

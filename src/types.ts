@@ -1,7 +1,9 @@
 import CachePolicy, {
   CachePolicyObject,
 } from '@web-widget/http-cache-semantics';
-import { CacheKeyPartDefiners, CacheKeyRules } from './cache-key';
+import { SharedCacheKeyPartDefiners, SharedCacheKeyRules } from './cache-key';
+
+export { SharedCacheKeyRules, SharedCacheKeyPartDefiners };
 
 export type SharedCacheOptions = {
   /**
@@ -13,12 +15,12 @@ export type SharedCacheOptions = {
   /**
    * Default cache key rules.
    */
-  cacheKeyRules?: CacheKeyRules;
+  cacheKeyRules?: SharedCacheKeyRules;
 
   /**
    * Define custom parts for cache keys.
    */
-  cacheKeyPartDefiners?: CacheKeyPartDefiners;
+  cacheKeyPartDefiners?: SharedCacheKeyPartDefiners;
 
   waitUntil?: (promise: Promise<any>) => void;
 
@@ -48,7 +50,7 @@ export type PolicyResponse = {
   response: Response;
 };
 
-export type CacheStatus =
+export type SharedCacheStatus =
   | 'HIT'
   | 'MISS'
   | 'EXPIRED'
@@ -58,7 +60,7 @@ export type CacheStatus =
   | 'DYNAMIC';
 
 export type SharedCacheQueryOptions = {
-  cacheKeyRules?: CacheKeyRules;
+  cacheKeyRules?: SharedCacheKeyRules;
   /**
    * Force cache to be used even if it's stale.
    */

@@ -13,7 +13,7 @@ export type FilterOptions =
     }
   | boolean;
 
-export type CacheKeyRules = {
+export type SharedCacheKeyRules = {
   /** Use cookie as part of cache key. */
   cookie?: FilterOptions;
   /** Use device type as part of cache key. */
@@ -32,27 +32,23 @@ export type CacheKeyRules = {
   [customPart: string]: FilterOptions | undefined;
 };
 
-export type PartDefiner = (
+export type SharedCacheKeyPartDefiner = (
   request: Request,
   options?: FilterOptions
 ) => Promise<string>;
 
-export type BuiltInExpandedPartDefiner = (
-  request: Request,
-  options?: FilterOptions
-) => Promise<string>;
-
-export type CacheKeyPartDefiners = {
-  [customPart: string]: PartDefiner | undefined;
+export type SharedCacheKeyPartDefiners = {
+  [customPart: string]: SharedCacheKeyPartDefiner | undefined;
 };
 
-export type BuiltInExpandedCacheKeyPartDefiners = {
+type BuiltInExpandedPartDefiner = (
+  request: Request,
+  options?: FilterOptions
+) => Promise<string>;
+
+type BuiltInExpandedCacheKeyPartDefiners = {
   [customPart: string]: BuiltInExpandedPartDefiner | undefined;
 };
-
-export async function shortHash(data: Parameters<typeof sha1>[0]) {
-  return (await sha1(data))?.slice(0, 6);
-}
 
 export function filter(
   array: [key: string, value: string][],
@@ -82,6 +78,10 @@ export function filter(
   }
 
   return result;
+}
+
+async function shortHash(data: Parameters<typeof sha1>[0]) {
+  return (await sha1(data))?.slice(0, 6);
 }
 
 function sort(array: [key: string, value: string][]) {
@@ -229,7 +229,7 @@ const BUILT_IN_EXPANDED_PART_DEFINERS: BuiltInExpandedCacheKeyPartDefiners = {
   method,
 };
 
-export const DEFAULT_CACHE_KEY_RULES: CacheKeyRules = {
+export const DEFAULT_CACHE_KEY_RULES: SharedCacheKeyRules = {
   host: true,
   method: { include: ['GET', 'HEAD'] },
   pathname: true,
@@ -240,12 +240,12 @@ const CACHE_KEYS = new WeakMap();
 
 export function createCacheKeyGenerator(
   cacheName?: string,
-  cacheKeyPartDefiners?: CacheKeyPartDefiners
+  cacheKeyPartDefiners?: SharedCacheKeyPartDefiners
 ) {
   return async function cacheKeyGenerator(
     request: Request,
     options: {
-      cacheKeyRules?: CacheKeyRules;
+      cacheKeyRules?: SharedCacheKeyRules;
     } & CacheQueryOptions = {}
   ): Promise<string> {
     if (CACHE_KEYS.has(request)) {
@@ -258,7 +258,7 @@ export function createCacheKeyGenerator(
 
     const { cacheKeyRules = DEFAULT_CACHE_KEY_RULES } = options;
     const { host, pathname, search, ...fragmentRules } = cacheKeyRules;
-    const urlRules: CacheKeyRules = { host, pathname, search };
+    const urlRules: SharedCacheKeyRules = { host, pathname, search };
     const url = new URL(request.url);
     const urlPart: string[] = BUILT_IN_URL_PART_KEYS.filter(
       (name) => urlRules[name]
