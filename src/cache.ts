@@ -9,7 +9,13 @@ import type {
 } from './types';
 import { createCacheKeyGenerator, vary as getVary } from './cache-key';
 import type { SharedCacheKeyRules, FilterOptions } from './cache-key';
-import { CACHE_STATUS_HEADERS_NAME, EXPIRED, HIT, STALE } from './constants';
+import {
+  CACHE_STATUS_HEADERS_NAME,
+  EXPIRED,
+  HIT,
+  REVALIDATED,
+  STALE,
+} from './constants';
 
 const ORIGINAL_FETCH = globalThis.fetch;
 
@@ -67,22 +73,39 @@ export class SharedCache implements Cache {
    * false otherwise.
    */
   async delete(
-    requestInfo: RequestInfo,
+    request: RequestInfo,
     options?: SharedCacheQueryOptions
   ): Promise<boolean> {
-    const request =
-      typeof requestInfo === 'string' ? new Request(requestInfo) : requestInfo;
-    const cacheKey = await this.#cacheKeyGenerator(request, {
+    // 1.
+    let r: Request | null = null;
+
+    // 2.
+    if (request instanceof Request) {
+      // 2.1
+      r = request;
+
+      // 2.2
+      if (r.method !== 'GET' && !options?.ignoreMethod) {
+        return false;
+      }
+    } else {
+      // 3.
+      r = new Request(request);
+    }
+
+    r = r!;
+
+    const cacheKey = await this.#cacheKeyGenerator(r, {
       cacheKeyRules: this.#cacheKeyRules,
       ...options,
     });
 
-    return deleteCacheItem(request, this.#storage, cacheKey);
+    return deleteCacheItem(r, this.#storage, cacheKey);
   }
 
   /** @private */
   async keys(
-    _requestInfo?: RequestInfo,
+    _request?: RequestInfo,
     _options?: SharedCacheQueryOptions
   ): Promise<readonly Request[]> {
     throw new Error('Not Implemented.');
@@ -99,23 +122,41 @@ export class SharedCache implements Cache {
    * request or to undefined if no match is found.
    */
   async match(
-    requestInfo: RequestInfo,
+    request: RequestInfo,
     options?: SharedCacheQueryOptions
   ): Promise<Response | undefined> {
-    const request =
-      typeof requestInfo === 'string' ? new Request(requestInfo) : requestInfo;
-    const cacheKey = await this.#cacheKeyGenerator(request, {
+    // 1.
+    let r: Request | null = null;
+
+    // 2.
+    if (request !== undefined) {
+      if (request instanceof Request) {
+        // 2.1.1
+        r = request;
+
+        // 2.1.2
+        if (r.method !== 'GET' && !options?.ignoreMethod) {
+          return undefined;
+        }
+      } else if (typeof request === 'string') {
+        // 2.2.1
+        r = new Request(request);
+      }
+    }
+
+    r = r!;
+
+    const cacheKey = await this.#cacheKeyGenerator(r, {
       cacheKeyRules: this.#cacheKeyRules,
       ...options,
     });
-    const cacheItem = await getCacheItem(request, this.#storage, cacheKey);
+    const cacheItem = await getCacheItem(r, this.#storage, cacheKey);
 
     if (!cacheItem) {
       return;
     }
 
     const fetch = options?._fetch ?? this.#fetch;
-    const ignoreCacheControl = options?.ignoreCacheControl;
     const forceCache = options?.forceCache;
     const { body, status, statusText } = cacheItem.response;
     const policy = CachePolicy.fromObject(cacheItem.policy);
@@ -126,33 +167,19 @@ export class SharedCache implements Cache {
       headers,
     });
 
-    const stale = ignoreCacheControl
-      ? policy.stale()
-      : !policy.satisfiesWithoutRevalidation(request);
-
-    if (!forceCache && stale) {
+    if (!forceCache && !policy.satisfiesWithoutRevalidation(r)) {
       const resolveCacheItem: PolicyResponse = {
         response,
         policy,
       };
-      /* istanbul ignore else */
-      if (policy.useStaleWhileRevalidate()) {
+
+      if (policy.stale() && policy.useStaleWhileRevalidate()) {
         // Well actually, in this case it's fine to return the stale response.
         // But we'll update the cache in the background.
-        this.#waitUntil(
-          this.#revalidate(request, resolveCacheItem, cacheKey, fetch)
-        );
+        this.#waitUntil(this.#revalidate(r, resolveCacheItem, cacheKey, fetch));
         this.#setCacheStatus(response, STALE);
       } else {
-        // NOTE: This will take effect when caching TTL is not working.
-        await deleteCacheItem(request, this.#storage, cacheKey);
-        response = await this.#revalidate(
-          request,
-          resolveCacheItem,
-          cacheKey,
-          fetch
-        );
-        this.#setCacheStatus(response, EXPIRED);
+        response = await this.#revalidate(r, resolveCacheItem, cacheKey, fetch);
       }
     } else {
       this.#setCacheStatus(response, HIT);
@@ -163,7 +190,7 @@ export class SharedCache implements Cache {
 
   /** @private */
   async matchAll(
-    _requestInfo?: RequestInfo,
+    _request?: RequestInfo,
     _options?: SharedCacheQueryOptions
   ): Promise<readonly Response[]> {
     throw new Error('Not Implemented.');
@@ -177,39 +204,73 @@ export class SharedCache implements Cache {
    * @param options An object that sets options for the put operation.
    */
   async put(
-    requestInfo: RequestInfo,
+    request: RequestInfo,
     response: Response,
     options?: SharedCacheQueryOptions
   ): Promise<void> {
-    const request =
-      typeof requestInfo === 'string' ? new Request(requestInfo) : requestInfo;
-    const cacheKey = await this.#cacheKeyGenerator(request, {
-      cacheKeyRules: this.#cacheKeyRules,
-      ...options,
-    });
-    return this.#putWithCustomCacheKey(request, response, cacheKey);
+    return this.#putWithCustomCacheKey(request, response, options);
   }
 
   async #putWithCustomCacheKey(
-    request: Request,
+    request: RequestInfo,
     response: Response,
-    cacheKey: string
+    cacheKey?: string | SharedCacheQueryOptions
   ): Promise<void> {
-    if (request.method !== 'GET') {
-      throw new TypeError('Cannot cache response to non-GET request.');
+    // 1.
+    let innerRequest = null;
+
+    // 2.
+    if (request instanceof Request) {
+      innerRequest = request;
+    } else {
+      // 3.
+      innerRequest = new Request(request);
     }
 
-    if (response.status === 206) {
-      throw new TypeError(
-        'Cannot cache response to a range request (206 Partial Content).'
+    // 4.
+    if (
+      !urlIsHttpHttpsScheme(innerRequest.url) ||
+      innerRequest.method !== 'GET'
+    ) {
+      new TypeError(
+        `Cache.put: Expected an http/s scheme when method is not GET.`
       );
     }
 
-    if (response.headers.get('vary')?.includes('*')) {
-      throw new TypeError("Cannot cache response with 'Vary: *' header.");
+    // 5.
+    const innerResponse = response;
+
+    // 6.
+    if (innerResponse.status === 206) {
+      throw new TypeError(`Cache.put: Got 206 status.`);
     }
 
-    const policy = new CachePolicy(request, response);
+    // 7.
+    if (innerResponse.headers.has('vary')) {
+      // 7.1.
+      const fieldValues = getFieldValues(innerResponse.headers.get('vary')!);
+
+      // 7.2.
+      for (const fieldValue of fieldValues) {
+        // 7.2.1
+        if (fieldValue === '*') {
+          throw new TypeError(`Cache.put: Got * vary field value.`);
+        }
+      }
+    }
+
+    // 8.
+    if (
+      innerResponse.body &&
+      (innerResponse.bodyUsed || innerResponse.body.locked)
+    ) {
+      throw new TypeError(`Cache.put: Response body is locked or disturbed.`);
+    }
+
+    // 9.
+    const clonedResponse = innerResponse.clone();
+
+    const policy = new CachePolicy(innerRequest, clonedResponse);
     const ttl = policy.timeToLive();
 
     if (!policy.storable() || ttl <= 0) {
@@ -219,19 +280,26 @@ export class SharedCache implements Cache {
     const cacheItem: CacheItem = {
       policy: policy.toObject(),
       response: {
-        body: await response.clone().text(),
-        status: response.status,
-        statusText: response.statusText,
+        body: await clonedResponse.text(),
+        status: clonedResponse.status,
+        statusText: clonedResponse.statusText,
       },
     };
+
+    if (typeof cacheKey !== 'string') {
+      cacheKey = await this.#cacheKeyGenerator(innerRequest, {
+        cacheKeyRules: this.#cacheKeyRules,
+        ...cacheKey,
+      });
+    }
 
     await setCacheItem(
       this.#storage,
       cacheKey,
       cacheItem,
       ttl,
-      request,
-      response
+      innerRequest,
+      clonedResponse
     );
   }
 
@@ -250,6 +318,7 @@ export class SharedCache implements Cache {
       revalidationResponse = await fetch(revalidationRequest);
     } catch (error) {
       if (resolveCacheItem.policy.useStaleIfError()) {
+        this.#setCacheStatus(resolveCacheItem.response, EXPIRED);
         return resolveCacheItem.response;
       } else {
         throw error;
@@ -266,11 +335,20 @@ export class SharedCache implements Cache {
       : resolveCacheItem.response;
 
     await this.#putWithCustomCacheKey(request, response, cacheKey);
-    return new Response(response.body, {
+
+    const clonedResponse = new Response(response.body, {
       status: response.status,
       statusText: response.statusText,
       headers: revalidatedPolicy.responseHeaders(),
     });
+
+    if (modified) {
+      this.#setCacheStatus(clonedResponse, EXPIRED);
+    } else {
+      this.#setCacheStatus(clonedResponse, REVALIDATED);
+    }
+
+    return clonedResponse;
   }
 
   #setCacheStatus(response: Response, status: SharedCacheStatus) {
@@ -334,4 +412,26 @@ async function setCacheItem(
   } else {
     await storage.set(customCacheKey, cacheItem, ttl);
   }
+}
+
+/**
+ * @see https://fetch.spec.whatwg.org/#http-scheme
+ */
+function urlIsHttpHttpsScheme(url: string) {
+  return /^https?:/.test(url);
+}
+
+/**
+ * @see https://github.com/chromium/chromium/blob/694d20d134cb553d8d89e5500b9148012b1ba299/content/browser/cache_storage/cache_storage_cache.cc#L260-L262
+ */
+function getFieldValues(header: string) {
+  const values = [];
+
+  for (let value of header.split(',')) {
+    value = value.trim();
+
+    values.push(value);
+  }
+
+  return values;
 }

@@ -4,10 +4,13 @@
 
 An http cache following http header semantics. It implements the [Cache Interface](https://developer.mozilla.org/en-US/docs/Web/API/Cache), but different.
 
-`SharedCache` tells when responses can be reused from a cache, taking into account [HTTP RFC 7234](http://httpwg.org/specs/rfc7234.html) rules for user agents and shared caches. It also implements [RFC 5861](https://tools.ietf.org/html/rfc5861), implementing `stale-if-error` and `stale-while-revalidate`.
-It's aware of many tricky details such as the `vary` header, proxy revalidation, and authenticated responses。
+`SharedCache` tells when responses can be reused from a cache, taking into account [HTTP RFC 7234](http://httpwg.org/specs/rfc7234.html) rules for user agents and shared caches.
 
-- Support custom cache storage sources, such as using Redis to implement cluster shared cache
+## Features
+
+- Implements [RFC 5861](https://tools.ietf.org/html/rfc5861), implements "stale-if-error" and "stale-while-revalidate"
+- It's aware of many tricky details such as the `vary` header, proxy revalidation, and authenticated responses
+- Supports inserting external storage, such as using memory or Redis database
 - It extends the caching capabilities of the `fetch` function
 - Support custom Cache Key, for example, you can cache specific members of device types, cookies and headers
 - For HTTP's `cache-control` header, `SharedCache` prefers `s-maxage`
@@ -136,7 +139,7 @@ const res = await fetch('https://httpbin.org/response-headers', {
     varyOverride: 'accept-language',
     cacheKeyRules: {
       host: true,
-      method: { include: ['GET', 'HEAD'] },
+      method: true,
       pathname: true,
       search: false,
       device: true,
@@ -242,7 +245,7 @@ Default value:
 ```ts
 {
   host: true,
-  method: { include: ['GET', 'HEAD'] },
+  method: true,
   pathname: true,
   search: true,
 }
@@ -344,7 +347,8 @@ The birth of `SharedCache` is inseparable from the inspiration of the following 
 
 - [Cloudflare Cache Key](https://developers.cloudflare.com/cache/how-to/cache-keys/)
 - [Next Data Cache](https://nextjs.org/docs/app/building-your-application/caching#data-cache)
-- [http-cache-lru](https://github.com/o-development/http-cache-lru/)
+- [nodejs/undici](https://github.com/nodejs/undici/blob/main/lib/web/cache/cache.js)
+- [o-development/http-cache-lru](https://github.com/o-development/http-cache-lru/)
 - [cloudflare/miniflare](https://github.com/cloudflare/miniflare/blob/master/packages/cache/src/cache.ts)
 - [cloudflare/workers-sdk](https://github.com/cloudflare/workers-sdk/blob/main/packages/miniflare/src/workers/cache/cache.worker.ts)
 - [natemoo-re/ultrafetch](https://github.com/natemoo-re/ultrafetch)
