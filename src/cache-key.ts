@@ -231,7 +231,7 @@ const BUILT_IN_EXPANDED_PART_DEFINERS: BuiltInExpandedCacheKeyPartDefiners = {
 
 export const DEFAULT_CACHE_KEY_RULES: SharedCacheKeyRules = {
   host: true,
-  method: { include: ['GET', 'HEAD'] },
+  method: true,
   pathname: true,
   search: true,
 };

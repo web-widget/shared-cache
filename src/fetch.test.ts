@@ -2,7 +2,7 @@ import { LRUCache } from 'lru-cache';
 import { KVStorage } from './types';
 import { createSharedCacheFetch } from './fetch';
 import { SharedCache } from './cache';
-import { BYPASS, DYNAMIC, HIT, MISS, STALE } from './constants';
+import { BYPASS, DYNAMIC, EXPIRED, HIT, MISS, STALE } from './constants';
 
 const TEST_URL = 'http://localhost/';
 
@@ -135,7 +135,7 @@ describe('multiple duplicate requests', () => {
     });
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('text/lol; charset=utf-8');
-    expect(res.headers.get('x-cache-status')).toBe(DYNAMIC);
+    expect(res.headers.get('x-cache-status')).toBe(MISS);
     expect(res.headers.get('etag')).toBe('"v1"');
     expect(await res.text()).toBe('lol');
   });
@@ -193,7 +193,7 @@ test('when no cache control is set the latest content should be loaded', async (
   expect(await res.text()).toBe('lol');
 });
 
-test('when a request contains a cache control header it should be ignored', async () => {
+test('should respect cache control directives from requests', async () => {
   const store = createCacheStore();
   const cache = new SharedCache(store);
   const fetch = createSharedCacheFetch(cache, {
@@ -206,9 +206,6 @@ test('when a request contains a cache control header it should be ignored', asyn
     },
   });
   let res = await fetch(TEST_URL, {
-    sharedCache: {
-      ignoreCacheControl: true,
-    },
     headers: {
       'cache-control': 'no-cache',
     },
@@ -221,16 +218,13 @@ test('when a request contains a cache control header it should be ignored', asyn
   expect(await res.text()).toBe('lol');
 
   res = await fetch(TEST_URL, {
-    sharedCache: {
-      ignoreCacheControl: true,
-    },
     headers: {
       'cache-control': 'no-cache',
     },
   });
 
   expect(res.status).toBe(200);
-  expect(res.headers.get('x-cache-status')).toBe(HIT);
+  expect(res.headers.get('x-cache-status')).toBe(EXPIRED);
   expect(res.headers.get('age')).toBe('0');
   expect(res.headers.get('cache-control')).toBe('max-age=300');
   expect(await res.text()).toBe('lol');
@@ -280,7 +274,7 @@ test('when the method is POST it should not cache the response', async () => {
 
   expect(res.status).toBe(200);
   expect(await res.text()).toBe('POST');
-  expect(res.headers.get('x-cache-status')).toBe(DYNAMIC);
+  expect(res.headers.get('x-cache-status')).toBe(MISS);
   expect(await cache.match(post)).toBeUndefined();
 });
 
