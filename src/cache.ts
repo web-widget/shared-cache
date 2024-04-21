@@ -179,7 +179,6 @@ export class SharedCache implements Cache {
         this.#waitUntil(this.#revalidate(r, resolveCacheItem, cacheKey, fetch));
         this.#setCacheStatus(response, STALE);
       } else {
-        await deleteCacheItem(r, this.#storage, cacheKey);
         response = await this.#revalidate(r, resolveCacheItem, cacheKey, fetch);
       }
     } else {
@@ -424,7 +423,6 @@ function urlIsHttpHttpsScheme(url: string) {
 
 /**
  * @see https://github.com/chromium/chromium/blob/694d20d134cb553d8d89e5500b9148012b1ba299/content/browser/cache_storage/cache_storage_cache.cc#L260-L262
- * @param {string} header
  */
 function getFieldValues(header: string) {
   const values = [];
