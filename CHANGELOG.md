@@ -1,5 +1,11 @@
 # @web-widget/shared-cache
 
+## 0.2.0
+
+### Minor Changes
+
+- dc275c7: Make the post method’s caching logic comply with standards.
+
 ## 0.1.2
 
 ### Patch Changes
