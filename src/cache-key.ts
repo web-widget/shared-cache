@@ -236,8 +236,6 @@ export const DEFAULT_CACHE_KEY_RULES: SharedCacheKeyRules = {
   search: true,
 };
 
-const CACHE_KEYS = new WeakMap();
-
 export function createCacheKeyGenerator(
   cacheName?: string,
   cacheKeyPartDefiners?: SharedCacheKeyPartDefiners
@@ -248,10 +246,6 @@ export function createCacheKeyGenerator(
       cacheKeyRules?: SharedCacheKeyRules;
     } & CacheQueryOptions = {}
   ): Promise<string> {
-    if (CACHE_KEYS.has(request)) {
-      return CACHE_KEYS.get(request);
-    }
-
     notImplemented(options, 'ignoreMethod');
     notImplemented(options, 'ignoreVary');
     notImplemented(options, 'ignoreSearch');
@@ -287,13 +281,9 @@ export function createCacheKeyGenerator(
       fragmentPart.unshift(cacheName);
     }
 
-    const cacheKey = fragmentPart.length
+    return fragmentPart.length
       ? `${urlPart.join('')}#${fragmentPart.join(':')}`
       : urlPart.join('');
-
-    CACHE_KEYS.set(request, cacheKey);
-
-    return cacheKey;
   };
 }
 

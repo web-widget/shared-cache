@@ -166,6 +166,16 @@ Custom cache key. See also [`CacheQueryOptions`](#cachequeryoptions).
 
 The `CacheStorage` class implements [CacheStorage](https://developer.mozilla.org/en-US/docs/Web/API/CacheStorage) interface, but does not implement its specification. It deviates from it in a few ways.
 
+### `constructor`
+
+```ts
+new CacheStorage(storage);
+```
+
+#### Parameters
+
+- `storage` Custom external storage
+
 ### `open`
 
 Returns a Promise that resolves to the Cache object matching the cacheName (a new cache is created if it doesn't already exist.) This method follows the specification.
