@@ -168,18 +168,31 @@ export class SharedCache implements Cache {
     });
 
     if (!forceCache && !policy.satisfiesWithoutRevalidation(r)) {
-      const resolveCacheItem: PolicyResponse = {
-        response,
-        policy,
-      };
-
       if (policy.stale() && policy.useStaleWhileRevalidate()) {
         // Well actually, in this case it's fine to return the stale response.
         // But we'll update the cache in the background.
-        this.#waitUntil(this.#revalidate(r, resolveCacheItem, cacheKey, fetch));
+        this.#waitUntil(
+          this.#revalidate(
+            r,
+            {
+              response: response.clone(),
+              policy,
+            },
+            cacheKey,
+            fetch
+          )
+        );
         this.#setCacheStatus(response, STALE);
       } else {
-        response = await this.#revalidate(r, resolveCacheItem, cacheKey, fetch);
+        response = await this.#revalidate(
+          r,
+          {
+            response,
+            policy,
+          },
+          cacheKey,
+          fetch
+        );
       }
     } else {
       this.#setCacheStatus(response, HIT);
@@ -318,8 +331,7 @@ export class SharedCache implements Cache {
       revalidationResponse = await fetch(revalidationRequest);
     } catch (error) {
       if (resolveCacheItem.policy.useStaleIfError()) {
-        this.#setCacheStatus(resolveCacheItem.response, EXPIRED);
-        return resolveCacheItem.response;
+        revalidationResponse = resolveCacheItem.response;
       } else {
         throw error;
       }
