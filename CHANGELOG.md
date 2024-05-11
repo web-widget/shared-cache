@@ -1,5 +1,11 @@
 # @web-widget/shared-cache
 
+## 0.2.1
+
+### Patch Changes
+
+- 1c7d03c: Fix `Cache.put: Response body is locked or disturbed` error.
+
 ## 0.2.0
 
 ### Minor Changes
