@@ -1,5 +1,11 @@
 # @web-widget/shared-cache
 
+## 0.2.2
+
+### Patch Changes
+
+- 453e7ee: Improve error handling.
+
 ## 0.2.1
 
 ### Patch Changes
