@@ -330,11 +330,12 @@ export class SharedCache implements Cache {
     try {
       revalidationResponse = await fetch(revalidationRequest);
     } catch (error) {
-      if (resolveCacheItem.policy.useStaleIfError()) {
-        revalidationResponse = resolveCacheItem.response;
-      } else {
-        throw error;
-      }
+      revalidationResponse = new Response(
+        error instanceof Error ? error.message : 'Internal Server Error',
+        {
+          status: 500,
+        }
+      );
     }
 
     const { modified, policy: revalidatedPolicy } =
