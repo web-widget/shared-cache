@@ -1,5 +1,11 @@
 # @web-widget/shared-cache
 
+## 0.2.3
+
+### Patch Changes
+
+- bec7c90: Avoid strict instance checks leading to run failures.
+
 ## 0.2.2
 
 ### Patch Changes
