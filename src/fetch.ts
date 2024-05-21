@@ -32,9 +32,9 @@ export function createSharedCacheFetch(
       throw TypeError('Missing cache.');
     }
 
-    if (!(cache instanceof SharedCache)) {
-      throw TypeError('Invalid cache.');
-    }
+    // if (!(cache instanceof SharedCache)) {
+    //   throw TypeError('Invalid cache.');
+    // }
 
     const request = new Request(input, init);
     const requestCache = getRequestCacheMode(request, init?.cache);
