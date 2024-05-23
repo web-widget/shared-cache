@@ -81,6 +81,32 @@ test('should support presence or absence without including its actual value', as
   expect(key).toBe('localhost/?a&b=2');
 });
 
+describe('should support cacheName', () => {
+  test('"default" value should be overridden to empty', async () => {
+    const keyGenerator = createCacheKeyGenerator('default');
+    const key = await keyGenerator(new Request('http://localhost/?a=1&b=2'), {
+      cacheKeyRules: {
+        host: true,
+        pathname: true,
+        search: { include: ['a', 'b'], checkPresence: ['a'] },
+      },
+    });
+    expect(key).toBe('localhost/?a&b=2');
+  });
+
+  test('cacheName should appear in the prefix', async () => {
+    const keyGenerator = createCacheKeyGenerator('custom');
+    const key = await keyGenerator(new Request('http://localhost/?a=1&b=2'), {
+      cacheKeyRules: {
+        host: true,
+        pathname: true,
+        search: { include: ['a', 'b'], checkPresence: ['a'] },
+      },
+    });
+    expect(key).toBe('custom/localhost/?a&b=2');
+  });
+});
+
 describe('should support cookie', () => {
   test('the value should be hashed', async () => {
     const keyGenerator = createCacheKeyGenerator();

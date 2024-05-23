@@ -252,6 +252,11 @@ export function createCacheKeyGenerator(
 
     const { cacheKeyRules = DEFAULT_CACHE_KEY_RULES } = options;
     const { host, pathname, search, ...fragmentRules } = cacheKeyRules;
+    const prefix = cacheName
+      ? cacheName === 'default'
+        ? ''
+        : `${cacheName}/`
+      : '';
     const urlRules: SharedCacheKeyRules = { host, pathname, search };
     const url = new URL(request.url);
     const urlPart: string[] = BUILT_IN_URL_PART_KEYS.filter(
@@ -277,13 +282,9 @@ export function createCacheKeyGenerator(
         })
     );
 
-    if (cacheName) {
-      fragmentPart.unshift(cacheName);
-    }
-
     return fragmentPart.length
-      ? `${urlPart.join('')}#${fragmentPart.join(':')}`
-      : urlPart.join('');
+      ? `${prefix}${urlPart.join('')}#${fragmentPart.join(':')}`
+      : `${prefix}${urlPart.join('')}`;
   };
 }
 
