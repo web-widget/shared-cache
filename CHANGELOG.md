@@ -1,5 +1,11 @@
 # @web-widget/shared-cache
 
+## 0.3.0
+
+### Minor Changes
+
+- be3d4d6: cacheName will be added to the prefix of cache key.
+
 ## 0.2.3
 
 ### Patch Changes
