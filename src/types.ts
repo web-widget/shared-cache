@@ -28,6 +28,16 @@ export type SharedCacheOptions = {
    * @default globalThis.fetch
    */
   fetch?: typeof fetch;
+
+  /**
+   * Custom logger.
+   */
+  logger?: Logger;
+};
+
+export type Logger = {
+  info(message?: any, ...optionalParams: any[]): void;
+  error(message?: any, ...optionalParams: any[]): void;
 };
 
 export type KVStorage = {
