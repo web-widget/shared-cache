@@ -6,6 +6,7 @@ import type {
   CacheItem,
   PolicyResponse,
   SharedCacheStatus,
+  Logger,
 } from './types';
 import { createCacheKeyGenerator, vary as getVary } from './cache-key';
 import type { SharedCacheKeyRules, FilterOptions } from './cache-key';
@@ -20,14 +21,15 @@ import {
 const ORIGINAL_FETCH = globalThis.fetch;
 
 export class SharedCache implements Cache {
-  #storage: KVStorage;
-  #waitUntil: (promise: Promise<any>) => void;
-  #cacheKeyRules?: SharedCacheKeyRules;
-  #fetch: typeof fetch;
   #cacheKeyGenerator: (
     request: Request,
     options?: SharedCacheQueryOptions
   ) => Promise<string>;
+  #cacheKeyRules?: SharedCacheKeyRules;
+  #fetch: typeof fetch;
+  #logger?: Logger;
+  #storage: KVStorage;
+  #waitUntil: (promise: Promise<any>) => void;
 
   constructor(storage: KVStorage, options?: SharedCacheOptions) {
     if (!storage) {
@@ -41,14 +43,15 @@ export class SharedCache implements Cache {
       ...options,
     };
 
-    this.#storage = storage;
-    this.#waitUntil = resolveOptions.waitUntil;
-    this.#fetch = resolveOptions.fetch ?? ORIGINAL_FETCH;
-    this.#cacheKeyRules = resolveOptions.cacheKeyRules;
     this.#cacheKeyGenerator = createCacheKeyGenerator(
       resolveOptions._cacheName,
       resolveOptions.cacheKeyPartDefiners
     );
+    this.#cacheKeyRules = resolveOptions.cacheKeyRules;
+    this.#fetch = resolveOptions.fetch ?? ORIGINAL_FETCH;
+    this.#logger = resolveOptions.logger;
+    this.#storage = storage;
+    this.#waitUntil = resolveOptions.waitUntil;
   }
 
   /** @private */
@@ -221,7 +224,15 @@ export class SharedCache implements Cache {
     response: Response,
     options?: SharedCacheQueryOptions
   ): Promise<void> {
-    return this.#putWithCustomCacheKey(request, response, options);
+    return this.#putWithCustomCacheKey(request, response, options).catch(
+      (error) => {
+        this.#logger?.error('Failed to cache response.', {
+          url: request instanceof Request ? request.url : request,
+          error,
+        });
+        throw error;
+      }
+    );
   }
 
   async #putWithCustomCacheKey(
@@ -336,6 +347,13 @@ export class SharedCache implements Cache {
           status: 500,
         }
       );
+    }
+
+    if (revalidationResponse.status >= 500) {
+      this.#logger?.error(`Revalidation failed.`, {
+        url: request.url,
+        status: revalidationResponse.status,
+      });
     }
 
     const { modified, policy: revalidatedPolicy } =
