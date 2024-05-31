@@ -226,7 +226,7 @@ export class SharedCache implements Cache {
   ): Promise<void> {
     return this.#putWithCustomCacheKey(request, response, options).catch(
       (error) => {
-        this.#logger?.error('Failed to cache response.', {
+        this.#logger?.error('Cache.put: Failed to cache response.', {
           url: request instanceof Request ? request.url : request,
           error,
         });
@@ -350,9 +350,10 @@ export class SharedCache implements Cache {
     }
 
     if (revalidationResponse.status >= 500) {
-      this.#logger?.error(`Revalidation failed.`, {
+      this.#logger?.error(`Cache: Revalidation failed.`, {
         url: request.url,
         status: revalidationResponse.status,
+        cacheKey,
       });
     }
 
@@ -392,7 +393,7 @@ async function getCacheItem(
   storage: KVStorage,
   customCacheKey: string
 ): Promise<CacheItem> {
-  const varyKey = `vary:${customCacheKey}`;
+  const varyKey = getVaryCacheKey(customCacheKey);
   const varyFilterOptions: FilterOptions | undefined =
     await storage.get(varyKey);
   const varyPart = varyFilterOptions
@@ -408,7 +409,7 @@ async function deleteCacheItem(
   storage: KVStorage,
   customCacheKey: string
 ): Promise<boolean> {
-  const varyKey = `vary:${customCacheKey}`;
+  const varyKey = getVaryCacheKey(customCacheKey);
   const varyFilterOptions: FilterOptions | undefined =
     await storage.get(varyKey);
   const varyPart = varyFilterOptions
@@ -431,7 +432,7 @@ async function setCacheItem(
 ): Promise<void> {
   const vary = response.headers.get('vary');
   if (vary) {
-    const varyKey = `vary:${customCacheKey}`;
+    const varyKey = getVaryCacheKey(customCacheKey);
     const varyFilterOptions: FilterOptions =
       vary === '*'
         ? true
@@ -443,6 +444,10 @@ async function setCacheItem(
   } else {
     await storage.set(customCacheKey, cacheItem, ttl);
   }
+}
+
+function getVaryCacheKey(customCacheKey: string) {
+  return `${customCacheKey}:vary`;
 }
 
 /**
