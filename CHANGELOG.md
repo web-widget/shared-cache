@@ -1,5 +1,11 @@
 # @web-widget/shared-cache
 
+## 0.4.2
+
+### Patch Changes
+
+- 6596e83: Reduce the frequency of cache revalidation.
+
 ## 0.4.1
 
 ### Patch Changes
