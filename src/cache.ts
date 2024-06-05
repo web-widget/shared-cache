@@ -170,7 +170,12 @@ export class SharedCache implements Cache {
       headers,
     });
 
-    if (!forceCache && !policy.satisfiesWithoutRevalidation(r)) {
+    if (
+      !forceCache &&
+      !policy.satisfiesWithoutRevalidation(r, {
+        ignoreSearch: true,
+      })
+    ) {
       if (policy.stale() && policy.useStaleWhileRevalidate()) {
         // Well actually, in this case it's fine to return the stale response.
         // But we'll update the cache in the background.
@@ -334,7 +339,9 @@ export class SharedCache implements Cache {
     fetch: typeof globalThis.fetch
   ): Promise<Response> {
     const revalidationRequest = new Request(request, {
-      headers: resolveCacheItem.policy.revalidationHeaders(request),
+      headers: resolveCacheItem.policy.revalidationHeaders(request, {
+        ignoreSearch: true,
+      }),
     });
     let revalidationResponse: Response;
 
