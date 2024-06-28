@@ -240,7 +240,6 @@ export function createCacheKeyGenerator(
       cacheKeyRules?: SharedCacheKeyRules;
     } & CacheQueryOptions = {}
   ): Promise<string> {
-    notImplemented(options, 'ignoreMethod');
     notImplemented(options, 'ignoreVary');
     notImplemented(options, 'ignoreSearch');
 
@@ -267,6 +266,9 @@ export function createCacheKeyGenerator(
       }
     });
 
+    if (options.ignoreMethod) {
+      fragmentRules.method = false;
+    }
     const fragmentPart: string[] = await Promise.all(
       Object.keys(fragmentRules)
         .sort()

@@ -75,8 +75,7 @@ export type SharedCacheQueryOptions = {
    * Force cache to be used even if it's stale.
    */
   forceCache?: boolean;
-  /** @private */
-  ignoreMethod?: never;
+  ignoreMethod?: boolean;
   /** @private */
   ignoreSearch?: never;
   /** @private */
