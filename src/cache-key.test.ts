@@ -569,24 +569,9 @@ describe('get header part', () => {
           b: '2',
           c: '3',
         },
-      }),
-      true
+      })
     );
     expect(key).toBe('a=356a19&b=da4b92&c=77de68');
-  });
-
-  test('should exclude all', async () => {
-    const key = await header(
-      new Request('http://localhost/?a=1', {
-        headers: {
-          A: '1',
-          B: '2',
-          C: '3',
-        },
-      }),
-      false
-    );
-    expect(key).toBe('');
   });
 
   test('should include some', async () => {
@@ -631,24 +616,9 @@ describe('get vary part', () => {
           b: '2',
           c: '3',
         },
-      }),
-      true
+      })
     );
     expect(key).toBe('a=356a19&b=da4b92&c=77de68');
-  });
-
-  test('should exclude all', async () => {
-    const key = await vary(
-      new Request('http://localhost/?a=1', {
-        headers: {
-          A: '1',
-          B: '2',
-          C: '3',
-        },
-      }),
-      false
-    );
-    expect(key).toBe('');
   });
 
   test('should include some', async () => {

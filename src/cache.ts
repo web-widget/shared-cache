@@ -29,7 +29,7 @@ export class SharedCache implements Cache {
   #fetch: typeof fetch;
   #logger?: Logger;
   #storage: KVStorage;
-  #waitUntil: (promise: Promise<any>) => void;
+  #waitUntil: (promise: Promise<unknown>) => void;
 
   constructor(storage: KVStorage, options?: SharedCacheOptions) {
     if (!storage) {
@@ -37,7 +37,7 @@ export class SharedCache implements Cache {
     }
 
     const resolveOptions = {
-      async waitUntil(promise: Promise<any>) {
+      async waitUntil(promise: Promise<unknown>) {
         await promise.catch(console.error);
       },
       ...options,
@@ -399,15 +399,16 @@ async function getCacheItem(
   request: Request,
   storage: KVStorage,
   customCacheKey: string
-): Promise<CacheItem> {
+): Promise<CacheItem | undefined> {
   const varyKey = getVaryCacheKey(customCacheKey);
-  const varyFilterOptions: FilterOptions | undefined =
-    await storage.get(varyKey);
+  const varyFilterOptions = (await storage.get(varyKey)) as
+    | FilterOptions
+    | undefined;
   const varyPart = varyFilterOptions
     ? await getVary(request, varyFilterOptions)
     : undefined;
   const cacheKey = varyPart ? `${customCacheKey}:${varyPart}` : customCacheKey;
-  const cacheItem: CacheItem = await storage.get(cacheKey);
+  const cacheItem = (await storage.get(cacheKey)) as CacheItem | undefined;
   return cacheItem;
 }
 
@@ -417,8 +418,9 @@ async function deleteCacheItem(
   customCacheKey: string
 ): Promise<boolean> {
   const varyKey = getVaryCacheKey(customCacheKey);
-  const varyFilterOptions: FilterOptions | undefined =
-    await storage.get(varyKey);
+  const varyFilterOptions = (await storage.get(varyKey)) as
+    | FilterOptions
+    | undefined;
   const varyPart = varyFilterOptions
     ? await getVary(request, varyFilterOptions)
     : undefined;
@@ -440,9 +442,9 @@ async function setCacheItem(
   const vary = response.headers.get('vary');
   if (vary) {
     const varyKey = getVaryCacheKey(customCacheKey);
-    const varyFilterOptions: FilterOptions =
+    const varyFilterOptions: FilterOptions | undefined =
       vary === '*'
-        ? true
+        ? undefined
         : { include: vary.split(',').map((field) => field.trim()) };
     const varyPart = await getVary(request, varyFilterOptions);
     const cacheKey = `${customCacheKey}:${varyPart}`;
