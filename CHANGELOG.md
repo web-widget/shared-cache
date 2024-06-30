@@ -1,5 +1,13 @@
 # @web-widget/shared-cache
 
+## 1.0.0-next.0
+
+### Major Changes
+
+- 8682fd6: - Support ignoreMethod option.
+  - support ignoreRequestCacheContro option.
+  - Ignore spaces in cache keys.
+
 ## 0.4.2
 
 ### Patch Changes
