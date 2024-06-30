@@ -187,7 +187,8 @@ export class SharedCache implements Cache {
               policy,
             },
             cacheKey,
-            fetch
+            fetch,
+            options
           )
         );
         this.#setCacheStatus(response, STALE);
@@ -199,7 +200,8 @@ export class SharedCache implements Cache {
             policy,
           },
           cacheKey,
-          fetch
+          fetch,
+          options
         );
       }
     } else {
@@ -336,11 +338,15 @@ export class SharedCache implements Cache {
     request: Request,
     resolveCacheItem: PolicyResponse,
     cacheKey: string,
-    fetch: typeof globalThis.fetch
+    fetch: typeof globalThis.fetch,
+    options: SharedCacheQueryOptions | undefined
   ): Promise<Response> {
     const revalidationRequest = new Request(request, {
       headers: resolveCacheItem.policy.revalidationHeaders(request, {
+        ignoreRequestCacheControl: options?.ignoreRequestCacheControl ?? true,
+        ignoreMethod: true,
         ignoreSearch: true,
+        ignoreVary: false,
       }),
     });
     let revalidationResponse: Response;
