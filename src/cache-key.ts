@@ -269,28 +269,31 @@ export function createCacheKeyGenerator(
     if (options.ignoreMethod) {
       fragmentRules.method = false;
     }
-    const fragmentPart: string[] = await Promise.all(
-      Object.keys(fragmentRules)
-        .sort()
-        .map((name) => {
-          const expandedCacheKeyPartDefiners =
-            BUILT_IN_EXPANDED_PART_DEFINERS[name] ??
-            cacheKeyPartDefiners?.[name];
 
-          if (expandedCacheKeyPartDefiners) {
-            const options = cacheKeyRules[name];
-            if (options === true) {
-              return expandedCacheKeyPartDefiners(request);
-            } else if (options === false) {
-              return '';
-            } else {
-              return expandedCacheKeyPartDefiners(request, options);
+    const fragmentPart: string[] = (
+      await Promise.all(
+        Object.keys(fragmentRules)
+          .sort()
+          .map((name) => {
+            const expandedCacheKeyPartDefiners =
+              BUILT_IN_EXPANDED_PART_DEFINERS[name] ??
+              cacheKeyPartDefiners?.[name];
+
+            if (expandedCacheKeyPartDefiners) {
+              const options = cacheKeyRules[name];
+              if (options === true) {
+                return expandedCacheKeyPartDefiners(request);
+              } else if (options === false) {
+                return '';
+              } else {
+                return expandedCacheKeyPartDefiners(request, options);
+              }
             }
-          }
 
-          throw TypeError(`Unknown custom part: "${name}".`);
-        })
-    );
+            throw TypeError(`Unknown custom part: "${name}".`);
+          })
+      )
+    ).filter(Boolean);
 
     return fragmentPart.length
       ? `${prefix}${urlPart.join('')}#${fragmentPart.join(':')}`

@@ -431,7 +431,7 @@ describe('should support method', () => {
         },
       }
     );
-    expect(key).toBe('#');
+    expect(key).toBe('');
   });
 
   test('the body of the POST, PATCH and PUT methods should be used as part of the key', async () => {
@@ -557,6 +557,28 @@ describe('should support custom key', () => {
         },
       })
     ).rejects.toThrow('Unknown custom part: "foo".');
+  });
+
+  test('empty parts should be ignored', async () => {
+    const keyGenerator = createCacheKeyGenerator(undefined, {
+      foo: async () => '',
+    });
+    const key = await keyGenerator(
+      new Request('http://localhost/', {
+        headers: {
+          'x-id': 'custom',
+        },
+      }),
+      {
+        cacheKeyRules: {
+          foo: true,
+          header: {
+            include: ['x-id'],
+          },
+        },
+      }
+    );
+    expect(key).toBe('#x-id=f9ac14');
   });
 });
 
