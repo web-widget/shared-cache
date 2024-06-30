@@ -27,16 +27,14 @@ export interface SharedCacheKeyRules {
   /** Use search as part of cache key. */
   search?: FilterOptions | boolean;
   /** Use custom part of cache key. */
-  [customPart: string]: FilterOptions | boolean | undefined;
+  [customPart: string]: unknown | boolean | undefined;
 }
 
-export type SharedCacheKeyPartDefiner = (
-  request: Request,
-  options?: FilterOptions
-) => Promise<string>;
-
 export interface SharedCacheKeyPartDefiners {
-  [customPart: string]: SharedCacheKeyPartDefiner | undefined;
+  [customPart: string]: (
+    request: Request,
+    options?: unknown
+  ) => Promise<string> | undefined;
 }
 
 type BuiltInExpandedPartDefiner = (
@@ -252,6 +250,11 @@ export function createCacheKeyGenerator(
       : '';
     const urlRules: SharedCacheKeyRules = { host, pathname, search };
     const url = new URL(request.url);
+
+    if (options.ignoreMethod) {
+      fragmentRules.method = false;
+    }
+
     const urlPart: string[] = BUILT_IN_URL_PART_KEYS.filter(
       (name) => urlRules[name]
     ).map((name) => {
@@ -262,15 +265,11 @@ export function createCacheKeyGenerator(
       } else if (options === false) {
         return '';
       } else {
-        return urlPartDefiner(url, options);
+        return urlPartDefiner(url, options as FilterOptions);
       }
     });
 
-    if (options.ignoreMethod) {
-      fragmentRules.method = false;
-    }
-
-    const fragmentPart: string[] = (
+    const fragmentPart = (
       await Promise.all(
         Object.keys(fragmentRules)
           .sort()
@@ -286,7 +285,10 @@ export function createCacheKeyGenerator(
               } else if (options === false) {
                 return '';
               } else {
-                return expandedCacheKeyPartDefiners(request, options);
+                return expandedCacheKeyPartDefiners(
+                  request,
+                  options as FilterOptions
+                );
               }
             }
 
