@@ -1,0 +1,8 @@
+{
+  "mode": "pre",
+  "tag": "next",
+  "initialVersions": {
+    "@web-widget/shared-cache": "0.4.2"
+  },
+  "changesets": []
+}

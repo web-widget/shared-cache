@@ -1,19 +1,20 @@
 import { LRUCache } from 'lru-cache';
 import { SharedCache } from './cache';
 import { SharedCacheStorage } from './cache-storage';
-import { KVStorage, CacheItem } from './types';
+import { KVStorage } from './types';
 
 const createCacheStore = (): KVStorage => {
-  const store = new LRUCache<string, CacheItem>({ max: 1024 });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const store = new LRUCache<string, any>({ max: 1024 });
 
   return {
-    async get(cacheKey: string) {
-      return store.get(cacheKey) as CacheItem | undefined;
+    async get(cacheKey) {
+      return store.get(cacheKey);
     },
-    async set(cacheKey: string, value: CacheItem, ttl?: number) {
+    async set(cacheKey, value, ttl) {
       store.set(cacheKey, value, { ttl });
     },
-    async delete(cacheKey: string) {
+    async delete(cacheKey) {
       return store.delete(cacheKey);
     },
   };

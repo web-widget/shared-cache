@@ -5,7 +5,7 @@ import { SharedCacheKeyPartDefiners, SharedCacheKeyRules } from './cache-key';
 
 export { SharedCacheKeyRules, SharedCacheKeyPartDefiners };
 
-export type SharedCacheOptions = {
+export interface SharedCacheOptions {
   /**
    * Cache namespace.
    * @private
@@ -22,7 +22,7 @@ export type SharedCacheOptions = {
    */
   cacheKeyPartDefiners?: SharedCacheKeyPartDefiners;
 
-  waitUntil?: (promise: Promise<any>) => void;
+  waitUntil?: (promise: Promise<unknown>) => void;
 
   /**
    * @default globalThis.fetch
@@ -33,32 +33,32 @@ export type SharedCacheOptions = {
    * Custom logger.
    */
   logger?: Logger;
-};
+}
 
-export type Logger = {
-  info(message?: any, ...optionalParams: any[]): void;
-  error(message?: any, ...optionalParams: any[]): void;
-};
+export interface Logger {
+  info(message?: unknown, ...optionalParams: unknown[]): void;
+  error(message?: unknown, ...optionalParams: unknown[]): void;
+}
 
-export type KVStorage = {
-  get: (cacheKey: string) => Promise<any | undefined>;
-  set: (cacheKey: string, value: any, ttl?: number) => Promise<void>;
+export interface KVStorage {
+  get: (cacheKey: string) => Promise<unknown | undefined>;
+  set: (cacheKey: string, value: unknown, ttl?: number) => Promise<void>;
   delete: (cacheKey: string) => Promise<boolean>;
-};
+}
 
-export type CacheItem = {
+export interface CacheItem {
   response: {
     body: string;
     status: number;
     statusText: string;
   };
   policy: CachePolicyObject;
-};
+}
 
-export type PolicyResponse = {
+export interface PolicyResponse {
   policy: CachePolicy;
   response: Response;
-};
+}
 
 export type SharedCacheStatus =
   | 'HIT'
@@ -75,8 +75,8 @@ export type SharedCacheQueryOptions = {
    * Force cache to be used even if it's stale.
    */
   forceCache?: boolean;
-  /** @private */
-  ignoreMethod?: never;
+  ignoreRequestCacheControl?: boolean;
+  ignoreMethod?: boolean;
   /** @private */
   ignoreSearch?: never;
   /** @private */

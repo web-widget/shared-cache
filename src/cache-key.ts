@@ -5,59 +5,51 @@ import {
 } from '@web-widget/helpers/headers';
 import { CACHE_STATUS_HEADERS_NAME } from './constants';
 
-export type FilterOptions =
-  | {
-      include?: string[];
-      exclude?: string[];
-      checkPresence?: string[];
-    }
-  | boolean;
+export interface FilterOptions {
+  include?: string[];
+  exclude?: string[];
+  checkPresence?: string[];
+}
 
-export type SharedCacheKeyRules = {
+export interface SharedCacheKeyRules {
   /** Use cookie as part of cache key. */
-  cookie?: FilterOptions;
+  cookie?: FilterOptions | boolean;
   /** Use device type as part of cache key. */
-  device?: FilterOptions;
+  device?: FilterOptions | boolean;
   /** Use header as part of cache key. */
-  header?: FilterOptions;
+  header?: FilterOptions | boolean;
   /** Use host as part of cache key. */
-  host?: FilterOptions;
+  host?: FilterOptions | boolean;
   /** Use method as part of cache key. */
-  method?: FilterOptions;
+  method?: FilterOptions | boolean;
   /** Use pathname as part of cache key. */
-  pathname?: FilterOptions;
+  pathname?: FilterOptions | boolean;
   /** Use search as part of cache key. */
-  search?: FilterOptions;
+  search?: FilterOptions | boolean;
   /** Use custom part of cache key. */
-  [customPart: string]: FilterOptions | undefined;
-};
+  [customPart: string]: unknown | boolean | undefined;
+}
 
-export type SharedCacheKeyPartDefiner = (
-  request: Request,
-  options?: FilterOptions
-) => Promise<string>;
-
-export type SharedCacheKeyPartDefiners = {
-  [customPart: string]: SharedCacheKeyPartDefiner | undefined;
-};
+export interface SharedCacheKeyPartDefiners {
+  [customPart: string]: (
+    request: Request,
+    options?: unknown
+  ) => Promise<string> | undefined;
+}
 
 type BuiltInExpandedPartDefiner = (
   request: Request,
   options?: FilterOptions
 ) => Promise<string>;
 
-type BuiltInExpandedCacheKeyPartDefiners = {
-  [customPart: string]: BuiltInExpandedPartDefiner | undefined;
-};
+interface BuiltInExpandedCacheKeyPartDefiners {
+  [part: string]: BuiltInExpandedPartDefiner | undefined;
+}
 
 export function filter(
   array: [key: string, value: string][],
-  options?: FilterOptions | boolean
+  options?: FilterOptions
 ) {
-  if (typeof options === 'boolean') {
-    return options ? array : [];
-  }
-
   let result = array;
   const exclude = options?.exclude;
   const include = options?.include;
@@ -246,7 +238,6 @@ export function createCacheKeyGenerator(
       cacheKeyRules?: SharedCacheKeyRules;
     } & CacheQueryOptions = {}
   ): Promise<string> {
-    notImplemented(options, 'ignoreMethod');
     notImplemented(options, 'ignoreVary');
     notImplemented(options, 'ignoreSearch');
 
@@ -259,28 +250,52 @@ export function createCacheKeyGenerator(
       : '';
     const urlRules: SharedCacheKeyRules = { host, pathname, search };
     const url = new URL(request.url);
+
+    if (options.ignoreMethod) {
+      fragmentRules.method = false;
+    }
+
     const urlPart: string[] = BUILT_IN_URL_PART_KEYS.filter(
       (name) => urlRules[name]
     ).map((name) => {
       const urlPartDefiner = BUILT_IN_URL_PART_DEFINERS[name];
-      return urlPartDefiner(url, cacheKeyRules[name]);
+      const options = cacheKeyRules[name];
+      if (options === true) {
+        return urlPartDefiner(url);
+      } else if (options === false) {
+        return '';
+      } else {
+        return urlPartDefiner(url, options as FilterOptions);
+      }
     });
 
-    const fragmentPart: string[] = await Promise.all(
-      Object.keys(fragmentRules)
-        .sort()
-        .map((name) => {
-          const expandedCacheKeyPartDefiners =
-            BUILT_IN_EXPANDED_PART_DEFINERS[name] ??
-            cacheKeyPartDefiners?.[name];
+    const fragmentPart = (
+      await Promise.all(
+        Object.keys(fragmentRules)
+          .sort()
+          .map((name) => {
+            const expandedCacheKeyPartDefiners =
+              BUILT_IN_EXPANDED_PART_DEFINERS[name] ??
+              cacheKeyPartDefiners?.[name];
 
-          if (expandedCacheKeyPartDefiners) {
-            return expandedCacheKeyPartDefiners(request, cacheKeyRules[name]);
-          }
+            if (expandedCacheKeyPartDefiners) {
+              const options = cacheKeyRules[name];
+              if (options === true) {
+                return expandedCacheKeyPartDefiners(request);
+              } else if (options === false) {
+                return '';
+              } else {
+                return expandedCacheKeyPartDefiners(
+                  request,
+                  options as FilterOptions
+                );
+              }
+            }
 
-          throw TypeError(`Unknown custom part: "${name}".`);
-        })
-    );
+            throw TypeError(`Unknown custom part: "${name}".`);
+          })
+      )
+    ).filter(Boolean);
 
     return fragmentPart.length
       ? `${prefix}${urlPart.join('')}#${fragmentPart.join(':')}`
@@ -288,6 +303,7 @@ export function createCacheKeyGenerator(
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function notImplemented(options: any, name: string) {
   if (name in options) {
     throw new Error(`Not Implemented: "${name}" option.`);

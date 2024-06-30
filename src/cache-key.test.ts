@@ -431,7 +431,7 @@ describe('should support method', () => {
         },
       }
     );
-    expect(key).toBe('#');
+    expect(key).toBe('');
   });
 
   test('the body of the POST, PATCH and PUT methods should be used as part of the key', async () => {
@@ -558,6 +558,28 @@ describe('should support custom key', () => {
       })
     ).rejects.toThrow('Unknown custom part: "foo".');
   });
+
+  test('empty parts should be ignored', async () => {
+    const keyGenerator = createCacheKeyGenerator(undefined, {
+      foo: async () => '',
+    });
+    const key = await keyGenerator(
+      new Request('http://localhost/', {
+        headers: {
+          'x-id': 'custom',
+        },
+      }),
+      {
+        cacheKeyRules: {
+          foo: true,
+          header: {
+            include: ['x-id'],
+          },
+        },
+      }
+    );
+    expect(key).toBe('#x-id=f9ac14');
+  });
 });
 
 describe('get header part', () => {
@@ -569,24 +591,9 @@ describe('get header part', () => {
           b: '2',
           c: '3',
         },
-      }),
-      true
+      })
     );
     expect(key).toBe('a=356a19&b=da4b92&c=77de68');
-  });
-
-  test('should exclude all', async () => {
-    const key = await header(
-      new Request('http://localhost/?a=1', {
-        headers: {
-          A: '1',
-          B: '2',
-          C: '3',
-        },
-      }),
-      false
-    );
-    expect(key).toBe('');
   });
 
   test('should include some', async () => {
@@ -631,24 +638,9 @@ describe('get vary part', () => {
           b: '2',
           c: '3',
         },
-      }),
-      true
+      })
     );
     expect(key).toBe('a=356a19&b=da4b92&c=77de68');
-  });
-
-  test('should exclude all', async () => {
-    const key = await vary(
-      new Request('http://localhost/?a=1', {
-        headers: {
-          A: '1',
-          B: '2',
-          C: '3',
-        },
-      }),
-      false
-    );
-    expect(key).toBe('');
   });
 
   test('should include some', async () => {

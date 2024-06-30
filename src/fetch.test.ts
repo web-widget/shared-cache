@@ -7,16 +7,17 @@ import { BYPASS, DYNAMIC, EXPIRED, HIT, MISS, STALE } from './constants';
 const TEST_URL = 'http://localhost/';
 
 const createCacheStore = (): KVStorage => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const store = new LRUCache<string, any>({ max: 1024 });
 
   return {
-    async get(cacheKey: string) {
+    async get(cacheKey) {
       return store.get(cacheKey);
     },
-    async set(cacheKey: string, value: any, ttl?: number) {
+    async set(cacheKey, value, ttl) {
       store.set(cacheKey, value, { ttl });
     },
-    async delete(cacheKey: string) {
+    async delete(cacheKey) {
       return store.delete(cacheKey);
     },
   };
@@ -350,7 +351,7 @@ describe('when the `vary` header is present, different versions should be cached
         });
       },
     });
-    let req = new Request(TEST_URL, {
+    const req = new Request(TEST_URL, {
       headers: {
         'accept-language': 'en-us',
       },
@@ -395,8 +396,7 @@ test('when etag and last-modified headers are set it should cache those values',
   const store = createCacheStore();
   const cache = new SharedCache(store);
   const fetch = createSharedCacheFetch(cache, {
-    async fetch(input, init) {
-      const req = new Request(input, init);
+    async fetch() {
       return new Response('lol', {
         headers: {
           'cache-control': 'max-age=1',
@@ -449,8 +449,7 @@ test('`s-maxage` should be used first as cache expiration time', async () => {
   const store = createCacheStore();
   const cache = new SharedCache(store);
   const fetch = createSharedCacheFetch(cache, {
-    async fetch(input, init) {
-      const req = new Request(input, init);
+    async fetch() {
       return new Response('lol', {
         headers: {
           'cache-control': 'max-age=3, s-maxage=1',
@@ -773,7 +772,7 @@ describe('stale while revalidate', () => {
 
     test('step 4: the updated cache should be used', async () => {
       const req = new Request(TEST_URL);
-      let res = await fetch(req);
+      const res = await fetch(req);
 
       expect(res.status).toBe(200);
       expect(res.headers.get('x-cache-status')).toBe(HIT);
