@@ -1,5 +1,12 @@
 # @web-widget/shared-cache
 
+## 1.0.0-next.1
+
+### Patch Changes
+
+- 98bdedb: - The stale-while-revalidate and stale-if-error directives are not supported when using the cache.put or cache.match methods.
+  - Support HEAD requests.
+
 ## 1.0.0-next.0
 
 ### Major Changes
