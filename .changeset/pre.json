@@ -5,6 +5,7 @@
     "@web-widget/shared-cache": "0.4.2"
   },
   "changesets": [
+    "khaki-dots-sleep",
     "six-socks-kick"
   ]
 }
