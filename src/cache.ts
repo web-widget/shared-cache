@@ -18,15 +18,13 @@ import {
   STALE,
 } from './constants';
 
-const ORIGINAL_FETCH = globalThis.fetch;
-
 export class SharedCache implements Cache {
   #cacheKeyGenerator: (
     request: Request,
     options?: SharedCacheQueryOptions
   ) => Promise<string>;
   #cacheKeyRules?: SharedCacheKeyRules;
-  #fetch: typeof fetch;
+  #fetch?: typeof fetch;
   #logger?: Logger;
   #storage: KVStorage;
   #waitUntil: (promise: Promise<unknown>) => void;
@@ -48,7 +46,7 @@ export class SharedCache implements Cache {
       resolveOptions.cacheKeyPartDefiners
     );
     this.#cacheKeyRules = resolveOptions.cacheKeyRules;
-    this.#fetch = resolveOptions.fetch ?? ORIGINAL_FETCH;
+    this.#fetch = resolveOptions.fetch;
     this.#logger = resolveOptions.logger;
     this.#storage = storage;
     this.#waitUntil = resolveOptions.waitUntil;
@@ -56,12 +54,12 @@ export class SharedCache implements Cache {
 
   /** @private */
   async add(_request: RequestInfo): Promise<void> {
-    throw new Error('Not Implemented.');
+    throw new Error('Not implemented.');
   }
 
   /** @private */
   async addAll(_requests: RequestInfo[]): Promise<void> {
-    throw new Error('Not Implemented.');
+    throw new Error('Not implemented.');
   }
 
   /**
@@ -111,7 +109,7 @@ export class SharedCache implements Cache {
     _request?: RequestInfo,
     _options?: SharedCacheQueryOptions
   ): Promise<readonly Request[]> {
-    throw new Error('Not Implemented.');
+    throw new Error('Not implemented.');
   }
 
   /**
@@ -160,23 +158,29 @@ export class SharedCache implements Cache {
     }
 
     const fetch = options?._fetch ?? this.#fetch;
-    const forceCache = options?.forceCache;
-    const { body, status, statusText } = cacheItem.response;
     const policy = CachePolicy.fromObject(cacheItem.policy);
+
+    const { body, status, statusText } = cacheItem.response;
     const headers = policy.responseHeaders();
-    let response = new Response(body, {
+    const stale = policy.stale();
+    const response = new Response(body, {
       status,
       statusText,
       headers,
     });
 
     if (
-      !forceCache &&
       !policy.satisfiesWithoutRevalidation(r, {
+        ignoreRequestCacheControl: options?.ignoreRequestCacheControl,
+        ignoreMethod: true,
         ignoreSearch: true,
-      })
+        ignoreVary: true,
+      }) ||
+      stale
     ) {
-      if (policy.stale() && policy.useStaleWhileRevalidate()) {
+      if (!fetch) {
+        return;
+      } else if (stale && policy.useStaleWhileRevalidate()) {
         // Well actually, in this case it's fine to return the stale response.
         // But we'll update the cache in the background.
         this.#waitUntil(
@@ -192,8 +196,9 @@ export class SharedCache implements Cache {
           )
         );
         this.#setCacheStatus(response, STALE);
+        return response;
       } else {
-        response = await this.#revalidate(
+        return this.#revalidate(
           r,
           {
             response,
@@ -204,10 +209,9 @@ export class SharedCache implements Cache {
           options
         );
       }
-    } else {
-      this.#setCacheStatus(response, HIT);
     }
 
+    this.#setCacheStatus(response, HIT);
     return response;
   }
 
@@ -216,7 +220,7 @@ export class SharedCache implements Cache {
     _request?: RequestInfo,
     _options?: SharedCacheQueryOptions
   ): Promise<readonly Response[]> {
-    throw new Error('Not Implemented.');
+    throw new Error('Not implemented.');
   }
 
   /**
@@ -263,7 +267,7 @@ export class SharedCache implements Cache {
       !urlIsHttpHttpsScheme(innerRequest.url) ||
       innerRequest.method !== 'GET'
     ) {
-      new TypeError(
+      throw new TypeError(
         `Cache.put: Expected an http/s scheme when method is not GET.`
       );
     }
@@ -300,6 +304,8 @@ export class SharedCache implements Cache {
 
     // 9.
     const clonedResponse = innerResponse.clone();
+
+    // TODO: 10. - 19.
 
     const policy = new CachePolicy(innerRequest, clonedResponse);
     const ttl = policy.timeToLive();
@@ -343,10 +349,10 @@ export class SharedCache implements Cache {
   ): Promise<Response> {
     const revalidationRequest = new Request(request, {
       headers: resolveCacheItem.policy.revalidationHeaders(request, {
-        ignoreRequestCacheControl: options?.ignoreRequestCacheControl ?? true,
+        ignoreRequestCacheControl: options?.ignoreRequestCacheControl,
         ignoreMethod: true,
         ignoreSearch: true,
-        ignoreVary: false,
+        ignoreVary: true,
       }),
     });
     let revalidationResponse: Response;

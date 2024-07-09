@@ -13,17 +13,17 @@ export class SharedCacheStorage implements CacheStorage {
 
   /** @private */
   async delete(_cacheName: string): Promise<boolean> {
-    throw new Error('Not Implemented.');
+    throw new Error('Not implemented.');
   }
 
   /** @private */
   async has(_cacheName: string): Promise<boolean> {
-    throw new Error('Not Implemented.');
+    throw new Error('Not implemented.');
   }
 
   /** @private */
   async keys(): Promise<string[]> {
-    throw new Error('Not Implemented.');
+    throw new Error('Not implemented.');
   }
 
   /** @private */
@@ -31,7 +31,7 @@ export class SharedCacheStorage implements CacheStorage {
     _request: RequestInfo,
     _options?: MultiCacheQueryOptions
   ): Promise<Response | undefined> {
-    throw new Error('Not Implemented.');
+    throw new Error('Not implemented.');
   }
 
   /**
