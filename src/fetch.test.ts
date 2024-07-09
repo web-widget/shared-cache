@@ -136,7 +136,7 @@ describe('multiple duplicate requests', () => {
     });
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('text/lol; charset=utf-8');
-    expect(res.headers.get('x-cache-status')).toBe(MISS);
+    expect(res.headers.get('x-cache-status')).toBe(DYNAMIC);
     expect(res.headers.get('etag')).toBe('"v1"');
     expect(await res.text()).toBe('lol');
   });
@@ -194,7 +194,7 @@ test('when no cache control is set the latest content should be loaded', async (
   expect(await res.text()).toBe('lol');
 });
 
-test('should respect cache control directives from requests', async () => {
+test.only('should respect cache control directives from requests', async () => {
   const store = createCacheStore();
   const cache = new SharedCache(store);
   const fetch = createSharedCacheFetch(cache, {
@@ -210,6 +210,9 @@ test('should respect cache control directives from requests', async () => {
     headers: {
       'cache-control': 'no-cache',
     },
+    sharedCache: {
+      ignoreRequestCacheControl: false,
+    },
   });
 
   expect(res.status).toBe(200);
@@ -221,6 +224,9 @@ test('should respect cache control directives from requests', async () => {
   res = await fetch(TEST_URL, {
     headers: {
       'cache-control': 'no-cache',
+    },
+    sharedCache: {
+      ignoreRequestCacheControl: false,
     },
   });
 
@@ -251,6 +257,34 @@ test('when body is a string it should cache the response', async () => {
   expect(await cachedRes?.text()).toBe('lol');
 });
 
+test('when the method is HEAD, it should read the cache of the GET request', async () => {
+  const store = createCacheStore();
+  const cache = new SharedCache(store);
+  const fetch = createSharedCacheFetch(cache, {
+    async fetch(input, init) {
+      const req = new Request(input, init);
+      return new Response(req.method, {
+        headers: {
+          'cache-control': 'max-age=300',
+        },
+      });
+    },
+  });
+  const get = new Request(TEST_URL, {
+    method: 'GET',
+  });
+  await fetch(get);
+  const head = new Request(TEST_URL, {
+    method: 'HEAD',
+  });
+  const res = await fetch(head);
+
+  expect(res.status).toBe(200);
+  expect(await res.text()).toBe('GET');
+  expect(res.headers.get('x-cache-status')).toBe(HIT);
+  expect(await cache.match(head)).toBeUndefined();
+});
+
 test('when the method is POST it should not cache the response', async () => {
   const store = createCacheStore();
   const cache = new SharedCache(store);
@@ -275,7 +309,7 @@ test('when the method is POST it should not cache the response', async () => {
 
   expect(res.status).toBe(200);
   expect(await res.text()).toBe('POST');
-  expect(res.headers.get('x-cache-status')).toBe(MISS);
+  expect(res.headers.get('x-cache-status')).toBe(DYNAMIC);
   expect(await cache.match(post)).toBeUndefined();
 });
 

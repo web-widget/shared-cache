@@ -25,7 +25,7 @@ export interface SharedCacheOptions {
   waitUntil?: (promise: Promise<unknown>) => void;
 
   /**
-   * @default globalThis.fetch
+   * Method to initiate a request after cache expiration.
    */
   fetch?: typeof fetch;
 
@@ -71,10 +71,6 @@ export type SharedCacheStatus =
 
 export type SharedCacheQueryOptions = {
   cacheKeyRules?: SharedCacheKeyRules;
-  /**
-   * Force cache to be used even if it's stale.
-   */
-  forceCache?: boolean;
   ignoreRequestCacheControl?: boolean;
   ignoreMethod?: boolean;
   /** @private */

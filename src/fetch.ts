@@ -39,28 +39,24 @@ export function createSharedCacheFetch(
     const request = new Request(input, init);
     const requestCache = getRequestCacheMode(request, init?.cache);
     const sharedCache = init?.sharedCache;
+    const ignoreRequestCacheControl =
+      sharedCache?.ignoreRequestCacheControl ?? true;
     const interceptor = createInterceptor(fetcher, sharedCache);
 
-    if (requestCache === 'no-store') {
-      const fetchedResponse = await interceptor(input, init);
-      setCacheStatus(fetchedResponse, BYPASS);
-      return fetchedResponse;
+    if (requestCache) {
+      throw new Error(`Not implemented: "cache" option.`);
     }
 
     const cachedResponse = await cache.match(request, {
       ...sharedCache,
       _fetch: interceptor,
-      forceCache:
-        requestCache === 'force-cache' || requestCache === 'only-if-cached',
+      ignoreMethod: request.method === 'HEAD',
+      ignoreRequestCacheControl,
     });
 
     if (cachedResponse) {
       setCacheStatus(cachedResponse, HIT);
       return cachedResponse;
-    }
-
-    if (requestCache === 'only-if-cached') {
-      throw TypeError('Failed to fetch.');
     }
 
     const fetchedResponse = await interceptor(request);

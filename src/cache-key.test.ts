@@ -37,13 +37,12 @@ test('should support built-in rules', async () => {
           include: ['x-id'],
         },
         host: true,
-        method: true,
         pathname: true,
         search: true,
       },
     }
   );
-  expect(key).toBe('localhost/?a=1#a=356a19:desktop:x-id=a9993e:GET');
+  expect(key).toBe('localhost/?a=1#a=356a19:desktop:x-id=a9993e');
 });
 
 test('should support filtering', async () => {
@@ -407,51 +406,6 @@ describe('should support host', () => {
       },
     });
     expect(key).toBe('');
-  });
-});
-
-describe('should support method', () => {
-  test('basic', async () => {
-    const keyGenerator = createCacheKeyGenerator();
-    const key = await keyGenerator(new Request('http://localhost/'), {
-      cacheKeyRules: {
-        method: true,
-      },
-    });
-    expect(key).toBe('#GET');
-  });
-
-  test('should support filtering', async () => {
-    const keyGenerator = createCacheKeyGenerator();
-    const key = await keyGenerator(
-      new Request('http://localhost/', { method: 'POST' }),
-      {
-        cacheKeyRules: {
-          method: { include: ['GET'] },
-        },
-      }
-    );
-    expect(key).toBe('');
-  });
-
-  test('the body of the POST, PATCH and PUT methods should be used as part of the key', async () => {
-    await Promise.all(
-      ['POST', 'PATCH', 'PUT'].map(async (method) => {
-        const keyGenerator = createCacheKeyGenerator();
-        const key = await keyGenerator(
-          new Request('http://localhost/', {
-            method,
-            body: 'hello',
-          }),
-          {
-            cacheKeyRules: {
-              method: true,
-            },
-          }
-        );
-        expect(key).toBe(`#${method}=aaf4c6`);
-      })
-    );
   });
 });
 

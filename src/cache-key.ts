@@ -20,8 +20,6 @@ export interface SharedCacheKeyRules {
   header?: FilterOptions | boolean;
   /** Use host as part of cache key. */
   host?: FilterOptions | boolean;
-  /** Use method as part of cache key. */
-  method?: FilterOptions | boolean;
   /** Use pathname as part of cache key. */
   pathname?: FilterOptions | boolean;
   /** Use search as part of cache key. */
@@ -121,18 +119,6 @@ export function host(url: URL, options?: FilterOptions) {
     .join('');
 }
 
-export async function method(request: Request, options?: FilterOptions) {
-  const hasBody =
-    request.body && ['POST', 'PATCH', 'PUT'].includes(request.method);
-  return (
-    await Promise.all(
-      filter([[request.method, '']], options).map(async ([key]) =>
-        hasBody ? `${key}=${await shortHash(request.body)}` : key
-      )
-    )
-  ).join('');
-}
-
 export function pathname(url: URL, options?: FilterOptions) {
   const pathname = url.pathname;
   return filter([[pathname, '']], options)
@@ -218,12 +204,10 @@ const BUILT_IN_EXPANDED_PART_DEFINERS: BuiltInExpandedCacheKeyPartDefiners = {
   cookie,
   device,
   header,
-  method,
 };
 
 export const DEFAULT_CACHE_KEY_RULES: SharedCacheKeyRules = {
   host: true,
-  method: true,
   pathname: true,
   search: true,
 };
@@ -250,10 +234,6 @@ export function createCacheKeyGenerator(
       : '';
     const urlRules: SharedCacheKeyRules = { host, pathname, search };
     const url = new URL(request.url);
-
-    if (options.ignoreMethod) {
-      fragmentRules.method = false;
-    }
 
     const urlPart: string[] = BUILT_IN_URL_PART_KEYS.filter(
       (name) => urlRules[name]
@@ -306,6 +286,6 @@ export function createCacheKeyGenerator(
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function notImplemented(options: any, name: string) {
   if (name in options) {
-    throw new Error(`Not Implemented: "${name}" option.`);
+    throw new Error(`Not implemented: "${name}" option.`);
   }
 }
