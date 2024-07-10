@@ -43,7 +43,7 @@ export function createSharedCacheFetch(
       sharedCache?.ignoreRequestCacheControl ?? true;
     const interceptor = createInterceptor(fetcher, sharedCache);
 
-    if (requestCache) {
+    if (requestCache && requestCache !== 'default') {
       throw new Error(`Not implemented: "cache" option.`);
     }
 
