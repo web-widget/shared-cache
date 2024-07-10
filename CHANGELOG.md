@@ -1,5 +1,11 @@
 # @web-widget/shared-cache
 
+## 1.0.0-next.2
+
+### Patch Changes
+
+- b3761de: Fix Request.cache equal to "default" will cause exception.
+
 ## 1.0.0-next.1
 
 ### Patch Changes
