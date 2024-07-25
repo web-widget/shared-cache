@@ -139,7 +139,6 @@ const res = await fetch('https://httpbin.org/response-headers', {
     varyOverride: 'accept-language',
     cacheKeyRules: {
       host: true,
-      method: true,
       pathname: true,
       search: false,
       device: true,
@@ -255,7 +254,6 @@ Default value:
 ```ts
 {
   host: true,
-  method: true,
   pathname: true,
   search: true,
 }
@@ -264,7 +262,6 @@ Default value:
 List of built-in supported parts:
 
 - `host`
-- `method`
 - `pathname`
 - `search`
 - `cookie`
