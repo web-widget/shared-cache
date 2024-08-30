@@ -194,7 +194,7 @@ test('when no cache control is set the latest content should be loaded', async (
   expect(await res.text()).toBe('lol');
 });
 
-test.only('should respect cache control directives from requests', async () => {
+test('should respect cache control directives from requests', async () => {
   const store = createCacheStore();
   const cache = new SharedCache(store);
   const fetch = createSharedCacheFetch(cache, {
@@ -270,19 +270,32 @@ test('when the method is HEAD, it should read the cache of the GET request', asy
       });
     },
   });
-  const get = new Request(TEST_URL, {
-    method: 'GET',
-  });
-  await fetch(get);
-  const head = new Request(TEST_URL, {
+
+  const head1 = new Request(TEST_URL, {
     method: 'HEAD',
   });
-  const res = await fetch(head);
+  const head1Res = await fetch(head1);
 
-  expect(res.status).toBe(200);
-  expect(await res.text()).toBe('GET');
-  expect(res.headers.get('x-cache-status')).toBe(HIT);
-  expect(await cache.match(head)).toBeUndefined();
+  expect(head1Res.status).toBe(200);
+  expect(await head1Res.text()).toBe('HEAD');
+  expect(head1Res.headers.get('x-cache-status')).toBe(DYNAMIC);
+  expect(await cache.match(head1)).toBeUndefined();
+
+  await fetch(
+    new Request(TEST_URL, {
+      method: 'GET',
+    })
+  );
+
+  const head2 = new Request(TEST_URL, {
+    method: 'HEAD',
+  });
+  const head2Res = await fetch(head2);
+
+  expect(head2Res.status).toBe(200);
+  expect(await head2Res.text()).toBe('GET');
+  expect(head2Res.headers.get('x-cache-status')).toBe(HIT);
+  expect(await cache.match(head2)).toBeUndefined();
 });
 
 test('when the method is POST it should not cache the response', async () => {
