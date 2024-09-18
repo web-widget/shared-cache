@@ -69,29 +69,29 @@ export type SharedCacheStatus =
   | 'REVALIDATED'
   | 'DYNAMIC';
 
-export type SharedCacheQueryOptions = {
+export type SharedCacheQueryOptions = CacheQueryOptions;
+
+export type SharedCacheFetch = typeof fetch;
+
+export interface SharedCacheRequestInitProperties {
+  cacheControlOverride?: string;
   cacheKeyRules?: SharedCacheKeyRules;
   ignoreRequestCacheControl?: boolean;
-  ignoreMethod?: boolean;
-  /** @private */
-  ignoreSearch?: never;
-  /** @private */
-  ignoreVary?: never;
-  /**
-   * Method to initiate a request after cache expiration.
-   * @private
-   */
-  _fetch?: typeof fetch;
-} & CacheQueryOptions;
-
-export type SharedCacheFetch = (
-  input: RequestInfo | URL,
-  init?: {
-    sharedCache?: SharedCacheRequestInitProperties;
-  } & RequestInit
-) => Promise<Response>;
-
-export type SharedCacheRequestInitProperties = {
-  cacheControlOverride?: string;
+  ignoreVary?: boolean;
   varyOverride?: string;
-} & SharedCacheQueryOptions;
+}
+
+declare global {
+  interface Request {
+    sharedCache?: SharedCacheRequestInitProperties;
+  }
+  interface RequestInit {
+    sharedCache?: SharedCacheRequestInitProperties;
+  }
+  interface CacheQueryOptions {
+    /** @private */
+    _ignoreRequestCacheControl?: boolean;
+    /** @private */
+    _fetch?: typeof fetch;
+  }
+}

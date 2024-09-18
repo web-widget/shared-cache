@@ -8,11 +8,7 @@ import {
   HIT,
   MISS,
 } from './constants';
-import {
-  SharedCacheStatus,
-  SharedCacheFetch,
-  SharedCacheRequestInitProperties,
-} from './types';
+import { SharedCacheStatus, SharedCacheFetch } from './types';
 
 const ORIGINAL_FETCH = globalThis.fetch;
 
@@ -38,20 +34,28 @@ export function createSharedCacheFetch(
 
     const request = new Request(input, init);
     const requestCache = getRequestCacheMode(request, init?.cache);
-    const sharedCache = init?.sharedCache;
+    const sharedCacheOptions = (request.sharedCache = {
+      ...request.sharedCache,
+      ...init?.sharedCache,
+    });
+
+    const interceptor = createInterceptor(
+      fetcher,
+      sharedCacheOptions.cacheControlOverride,
+      sharedCacheOptions.varyOverride
+    );
     const ignoreRequestCacheControl =
-      sharedCache?.ignoreRequestCacheControl ?? true;
-    const interceptor = createInterceptor(fetcher, sharedCache);
+      sharedCacheOptions?.ignoreRequestCacheControl ?? true;
 
     if (requestCache && requestCache !== 'default') {
       throw new Error(`Not implemented: "cache" option.`);
     }
 
     const cachedResponse = await cache.match(request, {
-      ...sharedCache,
-      _fetch: interceptor,
       ignoreMethod: request.method === 'HEAD',
-      ignoreRequestCacheControl,
+      ignoreVary: sharedCacheOptions?.ignoreVary,
+      _ignoreRequestCacheControl: ignoreRequestCacheControl,
+      _fetch: interceptor,
     });
 
     if (cachedResponse) {
@@ -66,7 +70,7 @@ export function createSharedCacheFetch(
       if (bypassCache(cacheControl)) {
         setCacheStatus(fetchedResponse, BYPASS);
       } else {
-        const ok = await cache.put(request, fetchedResponse, sharedCache).then(
+        const ok = await cache.put(request, fetchedResponse).then(
           () => true,
           () => false
         );
@@ -91,17 +95,18 @@ function setCacheStatus(response: Response, status: SharedCacheStatus) {
 
 function createInterceptor(
   fetcher: typeof fetch,
-  sharedCache?: SharedCacheRequestInitProperties
+  cacheControlOverride: string | undefined,
+  varyOverride: string | undefined
 ): typeof fetch {
   return async function fetch(...args) {
     const response = await fetcher(...args);
     const headers = response.headers;
     if (response.ok) {
-      if (sharedCache?.cacheControlOverride) {
-        cacheControl(headers, sharedCache.cacheControlOverride);
+      if (cacheControlOverride) {
+        cacheControl(headers, cacheControlOverride);
       }
-      if (sharedCache?.varyOverride) {
-        vary(headers, sharedCache.varyOverride);
+      if (varyOverride) {
+        vary(headers, varyOverride);
       }
     }
     return response;

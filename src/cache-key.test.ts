@@ -8,11 +8,9 @@ import {
 test('base: host + pathname + search', async () => {
   const keyGenerator = createCacheKeyGenerator();
   const key = await keyGenerator(new Request('http://localhost/?a=1'), {
-    cacheKeyRules: {
-      host: true,
-      pathname: true,
-      search: true,
-    },
+    host: true,
+    pathname: true,
+    search: true,
   });
   expect(key).toBe('localhost/?a=1');
 });
@@ -30,16 +28,14 @@ test('should support built-in rules', async () => {
       },
     }),
     {
-      cacheKeyRules: {
-        cookie: true,
-        device: true,
-        header: {
-          include: ['x-id'],
-        },
-        host: true,
-        pathname: true,
-        search: true,
+      cookie: true,
+      device: true,
+      header: {
+        include: ['x-id'],
       },
+      host: true,
+      pathname: true,
+      search: true,
     }
   );
   expect(key).toBe('localhost/?a=1#a=356a19:desktop:x-id=a9993e');
@@ -55,14 +51,12 @@ test('should support filtering', async () => {
       },
     }),
     {
-      cacheKeyRules: {
-        host: {
-          include: ['localhost'],
-        },
-        pathname: true,
-        search: { include: ['a'] },
-        header: { include: ['x-id'] },
+      host: {
+        include: ['localhost'],
       },
+      pathname: true,
+      search: { include: ['a'] },
+      header: { include: ['x-id'] },
     }
   );
   expect(key).toBe('localhost/?a=1#x-id=a9993e');
@@ -71,11 +65,9 @@ test('should support filtering', async () => {
 test('should support presence or absence without including its actual value', async () => {
   const keyGenerator = createCacheKeyGenerator();
   const key = await keyGenerator(new Request('http://localhost/?a=1&b=2'), {
-    cacheKeyRules: {
-      host: true,
-      pathname: true,
-      search: { include: ['a', 'b'], checkPresence: ['a'] },
-    },
+    host: true,
+    pathname: true,
+    search: { include: ['a', 'b'], checkPresence: ['a'] },
   });
   expect(key).toBe('localhost/?a&b=2');
 });
@@ -84,11 +76,9 @@ describe('should support cacheName', () => {
   test('"default" value should be overridden to empty', async () => {
     const keyGenerator = createCacheKeyGenerator('default');
     const key = await keyGenerator(new Request('http://localhost/?a=1&b=2'), {
-      cacheKeyRules: {
-        host: true,
-        pathname: true,
-        search: { include: ['a', 'b'], checkPresence: ['a'] },
-      },
+      host: true,
+      pathname: true,
+      search: { include: ['a', 'b'], checkPresence: ['a'] },
     });
     expect(key).toBe('localhost/?a&b=2');
   });
@@ -96,11 +86,9 @@ describe('should support cacheName', () => {
   test('cacheName should appear in the prefix', async () => {
     const keyGenerator = createCacheKeyGenerator('custom');
     const key = await keyGenerator(new Request('http://localhost/?a=1&b=2'), {
-      cacheKeyRules: {
-        host: true,
-        pathname: true,
-        search: { include: ['a', 'b'], checkPresence: ['a'] },
-      },
+      host: true,
+      pathname: true,
+      search: { include: ['a', 'b'], checkPresence: ['a'] },
     });
     expect(key).toBe('custom/localhost/?a&b=2');
   });
@@ -116,9 +104,7 @@ describe('should support cookie', () => {
         },
       }),
       {
-        cacheKeyRules: {
-          cookie: true,
-        },
+        cookie: true,
       }
     );
     expect(key).toBe('#a=aaf4c6');
@@ -133,9 +119,7 @@ describe('should support cookie', () => {
         },
       }),
       {
-        cacheKeyRules: {
-          cookie: true,
-        },
+        cookie: true,
       }
     );
     expect(key).toBe('#a=356a19&b=da4b92&c=77de68');
@@ -150,9 +134,7 @@ describe('should support cookie', () => {
           },
         }),
         {
-          cacheKeyRules: {
-            cookie: { include: ['a'] },
-          },
+          cookie: { include: ['a'] },
         }
       )
     ).toBe('#a=356a19');
@@ -165,9 +147,7 @@ describe('should support cookie', () => {
           },
         }),
         {
-          cacheKeyRules: {
-            cookie: { exclude: ['a'] },
-          },
+          cookie: { exclude: ['a'] },
         }
       )
     ).toBe('#b=da4b92&c=77de68');
@@ -182,9 +162,7 @@ describe('should support cookie', () => {
         },
       }),
       {
-        cacheKeyRules: {
-          cookie: { include: ['a', 'b', 'c'], checkPresence: ['a'] },
-        },
+        cookie: { include: ['a', 'b', 'c'], checkPresence: ['a'] },
       }
     );
     expect(key).toBe('#a&b=da4b92&c=77de68');
@@ -195,9 +173,7 @@ describe('should support device', () => {
   test('default device type', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(new Request('http://localhost/'), {
-      cacheKeyRules: {
-        device: true,
-      },
+      device: true,
     });
     expect(key).toBe('#desktop');
   });
@@ -212,9 +188,7 @@ describe('should support device', () => {
         },
       }),
       {
-        cacheKeyRules: {
-          device: true,
-        },
+        device: true,
       }
     );
     expect(key).toBe('#desktop');
@@ -230,9 +204,7 @@ describe('should support device', () => {
         },
       }),
       {
-        cacheKeyRules: {
-          device: true,
-        },
+        device: true,
       }
     );
     expect(key).toBe('#mobile');
@@ -248,9 +220,7 @@ describe('should support device', () => {
         },
       }),
       {
-        cacheKeyRules: {
-          device: true,
-        },
+        device: true,
       }
     );
     expect(key).toBe('#tablet');
@@ -267,9 +237,7 @@ describe('should support header', () => {
         },
       }),
       {
-        cacheKeyRules: {
-          header: true,
-        },
+        header: true,
       }
     );
     expect(key).toBe('#a=aaf4c6');
@@ -286,9 +254,7 @@ describe('should support header', () => {
         },
       }),
       {
-        cacheKeyRules: {
-          header: true,
-        },
+        header: true,
       }
     );
     expect(key).toBe('#a=356a19&b=da4b92&c=77de68');
@@ -305,9 +271,7 @@ describe('should support header', () => {
           },
         }),
         {
-          cacheKeyRules: {
-            header: { include: ['a'] },
-          },
+          header: { include: ['a'] },
         }
       )
     ).toBe('#a=356a19');
@@ -322,9 +286,7 @@ describe('should support header', () => {
           },
         }),
         {
-          cacheKeyRules: {
-            header: { exclude: ['a'] },
-          },
+          header: { exclude: ['a'] },
         }
       )
     ).toBe('#b=da4b92&c=77de68');
@@ -341,9 +303,7 @@ describe('should support header', () => {
         },
       }),
       {
-        cacheKeyRules: {
-          header: { include: ['a', 'b', 'c'], checkPresence: ['a'] },
-        },
+        header: { include: ['a', 'b', 'c'], checkPresence: ['a'] },
       }
     );
     expect(key).toBe('#a&b=da4b92&c=77de68');
@@ -359,9 +319,7 @@ describe('should support header', () => {
         },
       }),
       {
-        cacheKeyRules: {
-          header: true,
-        },
+        header: true,
       }
     );
     expect(key).toBe('#a=ca9fd0&x-id=a9993e');
@@ -377,9 +335,7 @@ describe('should support header', () => {
             },
           }),
           {
-            cacheKeyRules: {
-              header: { include: [key] },
-            },
+            header: { include: [key] },
           }
         )
       ).rejects.toThrow(`Cannot include header: ${key}`);
@@ -391,9 +347,7 @@ describe('should support host', () => {
   test('basic', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(new Request('http://localhost/'), {
-      cacheKeyRules: {
-        host: true,
-      },
+      host: true,
     });
     expect(key).toBe('localhost');
   });
@@ -401,9 +355,7 @@ describe('should support host', () => {
   test('should support filtering', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(new Request('http://localhost:8080/'), {
-      cacheKeyRules: {
-        host: { include: ['localhost'] },
-      },
+      host: { include: ['localhost'] },
     });
     expect(key).toBe('');
   });
@@ -413,9 +365,7 @@ describe('should support pathname', () => {
   test('basic', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(new Request('http://localhost/a/b/c'), {
-      cacheKeyRules: {
-        pathname: true,
-      },
+      pathname: true,
     });
     expect(key).toBe('/a/b/c');
   });
@@ -423,9 +373,7 @@ describe('should support pathname', () => {
   test('should support filtering', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(new Request('http://localhost:8080/a/b/c'), {
-      cacheKeyRules: {
-        pathname: { include: ['/a/b/c'] },
-      },
+      pathname: { include: ['/a/b/c'] },
     });
     expect(key).toBe('/a/b/c');
   });
@@ -437,9 +385,7 @@ describe('should support search', () => {
     const key = await keyGenerator(
       new Request('http://localhost/?b=2&a=1&c=3'),
       {
-        cacheKeyRules: {
-          search: true,
-        },
+        search: true,
       }
     );
     expect(key).toBe('?a=1&b=2&c=3');
@@ -448,9 +394,7 @@ describe('should support search', () => {
   test('question marks should not be generated if there are no query parameters', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(new Request('http://localhost/'), {
-      cacheKeyRules: {
-        search: true,
-      },
+      search: true,
     });
     expect(key).toBe('');
   });
@@ -460,9 +404,7 @@ describe('should support search', () => {
     const key = await keyGenerator(
       new Request('http://localhost/?a=1&b=2&c=3'),
       {
-        cacheKeyRules: {
-          search: { include: ['a'] },
-        },
+        search: { include: ['a'] },
       }
     );
     expect(key).toBe('?a=1');
@@ -473,9 +415,7 @@ describe('should support search', () => {
     const key = await keyGenerator(
       new Request('http://localhost/?a=1&b=2&c=3'),
       {
-        cacheKeyRules: {
-          search: { include: ['a', 'b', 'c'], checkPresence: ['a'] },
-        },
+        search: { include: ['a', 'b', 'c'], checkPresence: ['a'] },
       }
     );
     expect(key).toBe('?a&b=2&c=3');
@@ -494,9 +434,7 @@ describe('should support custom key', () => {
         },
       }),
       {
-        cacheKeyRules: {
-          foo: true,
-        },
+        foo: true,
       }
     );
     expect(key).toBe('#custom');
@@ -506,9 +444,7 @@ describe('should support custom key', () => {
     const keyGenerator = createCacheKeyGenerator();
     await expect(() =>
       keyGenerator(new Request('http://localhost/'), {
-        cacheKeyRules: {
-          foo: true,
-        },
+        foo: true,
       })
     ).rejects.toThrow('Unknown custom part: "foo".');
   });
@@ -524,11 +460,9 @@ describe('should support custom key', () => {
         },
       }),
       {
-        cacheKeyRules: {
-          foo: true,
-          header: {
-            include: ['x-id'],
-          },
+        foo: true,
+        header: {
+          include: ['x-id'],
         },
       }
     );

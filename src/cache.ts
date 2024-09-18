@@ -8,8 +8,12 @@ import type {
   SharedCacheStatus,
   Logger,
 } from './types';
-import { createCacheKeyGenerator, vary as getVary } from './cache-key';
-import type { SharedCacheKeyRules, FilterOptions } from './cache-key';
+import {
+  createCacheKeyGenerator,
+  DEFAULT_CACHE_KEY_RULES,
+  vary as getVary,
+} from './cache-key';
+import type { FilterOptions } from './cache-key';
 import {
   CACHE_STATUS_HEADERS_NAME,
   EXPIRED,
@@ -19,11 +23,7 @@ import {
 } from './constants';
 
 export class SharedCache implements Cache {
-  #cacheKeyGenerator: (
-    request: Request,
-    options?: SharedCacheQueryOptions
-  ) => Promise<string>;
-  #cacheKeyRules?: SharedCacheKeyRules;
+  #cacheKeyGenerator: (request: Request) => Promise<string>;
   #fetch?: typeof fetch;
   #logger?: Logger;
   #storage: KVStorage;
@@ -41,11 +41,16 @@ export class SharedCache implements Cache {
       ...options,
     };
 
-    this.#cacheKeyGenerator = createCacheKeyGenerator(
+    const cacheKeyGenerator = createCacheKeyGenerator(
       resolveOptions._cacheName,
       resolveOptions.cacheKeyPartDefiners
     );
-    this.#cacheKeyRules = resolveOptions.cacheKeyRules;
+    this.#cacheKeyGenerator = async (request) =>
+      cacheKeyGenerator(request, {
+        ...DEFAULT_CACHE_KEY_RULES,
+        ...resolveOptions.cacheKeyRules,
+        ...request.sharedCache?.cacheKeyRules,
+      });
     this.#fetch = resolveOptions.fetch;
     this.#logger = resolveOptions.logger;
     this.#storage = storage;
@@ -75,7 +80,7 @@ export class SharedCache implements Cache {
    */
   async delete(
     request: RequestInfo,
-    options?: SharedCacheQueryOptions
+    options?: CacheQueryOptions
   ): Promise<boolean> {
     // 1.
     let r: Request | null = null;
@@ -96,18 +101,21 @@ export class SharedCache implements Cache {
 
     r = r!;
 
-    const cacheKey = await this.#cacheKeyGenerator(r, {
-      cacheKeyRules: this.#cacheKeyRules,
-      ...options,
-    });
+    this.#verifyCacheQueryOptions(options);
+    const cacheKey = await this.#cacheKeyGenerator(r);
 
-    return deleteCacheItem(r, this.#storage, cacheKey);
+    return deleteCacheItem(
+      r,
+      this.#storage,
+      cacheKey,
+      options?.ignoreVary ?? false
+    );
   }
 
   /** @private */
   async keys(
     _request?: RequestInfo,
-    _options?: SharedCacheQueryOptions
+    _options?: CacheQueryOptions
   ): Promise<readonly Request[]> {
     throw new Error('Not implemented.');
   }
@@ -124,7 +132,7 @@ export class SharedCache implements Cache {
    */
   async match(
     request: RequestInfo,
-    options?: SharedCacheQueryOptions
+    options?: CacheQueryOptions
   ): Promise<Response | undefined> {
     // 1.
     let r: Request | null = null;
@@ -147,11 +155,15 @@ export class SharedCache implements Cache {
 
     r = r!;
 
-    const cacheKey = await this.#cacheKeyGenerator(r, {
-      cacheKeyRules: this.#cacheKeyRules,
-      ...options,
-    });
-    const cacheItem = await getCacheItem(r, this.#storage, cacheKey);
+    this.#verifyCacheQueryOptions(options);
+    const cacheKey = await this.#cacheKeyGenerator(r);
+    const ignoreVary = options?.ignoreVary ?? false;
+    const cacheItem = await getCacheItem(
+      r,
+      this.#storage,
+      cacheKey,
+      ignoreVary
+    );
 
     if (!cacheItem) {
       return;
@@ -171,7 +183,7 @@ export class SharedCache implements Cache {
 
     if (
       !policy.satisfiesWithoutRevalidation(r, {
-        ignoreRequestCacheControl: options?.ignoreRequestCacheControl,
+        ignoreRequestCacheControl: options?._ignoreRequestCacheControl,
         ignoreMethod: true,
         ignoreSearch: true,
         ignoreVary: true,
@@ -190,6 +202,7 @@ export class SharedCache implements Cache {
               response: response.clone(),
               policy,
             },
+            ignoreVary,
             cacheKey,
             fetch,
             options
@@ -204,6 +217,7 @@ export class SharedCache implements Cache {
             response,
             policy,
           },
+          ignoreVary,
           cacheKey,
           fetch,
           options
@@ -218,7 +232,7 @@ export class SharedCache implements Cache {
   /** @private */
   async matchAll(
     _request?: RequestInfo,
-    _options?: SharedCacheQueryOptions
+    _options?: CacheQueryOptions
   ): Promise<readonly Response[]> {
     throw new Error('Not implemented.');
   }
@@ -228,14 +242,9 @@ export class SharedCache implements Cache {
    * to the current Cache object.
    * @param request The Request object or URL that you want to add to the cache.
    * @param response The Response you want to match up to the request.
-   * @param options An object that sets options for the put operation.
    */
-  async put(
-    request: RequestInfo,
-    response: Response,
-    options?: SharedCacheQueryOptions
-  ): Promise<void> {
-    return this.#putWithCustomCacheKey(request, response, options).catch(
+  async put(request: RequestInfo, response: Response): Promise<void> {
+    return this.#putWithCustomCacheKey(request, response, false).catch(
       (error) => {
         this.#logger?.error('Cache.put: Failed to cache response.', {
           url: request instanceof Request ? request.url : request,
@@ -249,6 +258,7 @@ export class SharedCache implements Cache {
   async #putWithCustomCacheKey(
     request: RequestInfo,
     response: Response,
+    ignoreVary: boolean,
     cacheKey?: string | SharedCacheQueryOptions
   ): Promise<void> {
     // 1.
@@ -324,10 +334,7 @@ export class SharedCache implements Cache {
     };
 
     if (typeof cacheKey !== 'string') {
-      cacheKey = await this.#cacheKeyGenerator(innerRequest, {
-        cacheKeyRules: this.#cacheKeyRules,
-        ...cacheKey,
-      });
+      cacheKey = await this.#cacheKeyGenerator(innerRequest);
     }
 
     await setCacheItem(
@@ -336,20 +343,22 @@ export class SharedCache implements Cache {
       cacheItem,
       ttl,
       innerRequest,
-      clonedResponse
+      clonedResponse,
+      ignoreVary
     );
   }
 
   async #revalidate(
     request: Request,
     resolveCacheItem: PolicyResponse,
+    ignoreVary: boolean,
     cacheKey: string,
     fetch: typeof globalThis.fetch,
     options: SharedCacheQueryOptions | undefined
   ): Promise<Response> {
     const revalidationRequest = new Request(request, {
       headers: resolveCacheItem.policy.revalidationHeaders(request, {
-        ignoreRequestCacheControl: options?.ignoreRequestCacheControl,
+        ignoreRequestCacheControl: options?._ignoreRequestCacheControl,
         ignoreMethod: true,
         ignoreSearch: true,
         ignoreVary: true,
@@ -385,7 +394,7 @@ export class SharedCache implements Cache {
       ? revalidationResponse
       : resolveCacheItem.response;
 
-    await this.#putWithCustomCacheKey(request, response, cacheKey);
+    await this.#putWithCustomCacheKey(request, response, ignoreVary, cacheKey);
 
     const clonedResponse = new Response(response.body, {
       status: response.status,
@@ -405,42 +414,50 @@ export class SharedCache implements Cache {
   #setCacheStatus(response: Response, status: SharedCacheStatus) {
     response.headers.set(CACHE_STATUS_HEADERS_NAME, status);
   }
+
+  #verifyCacheQueryOptions(options: CacheQueryOptions | undefined) {
+    if (options) {
+      if ('ignoreSearch' in options) {
+        throw new Error(`Not implemented: "ignoreSearch" option.`);
+      }
+    }
+  }
 }
 
 async function getCacheItem(
   request: Request,
   storage: KVStorage,
-  customCacheKey: string
+  customCacheKey: string,
+  ignoreVary: boolean
 ): Promise<CacheItem | undefined> {
-  const varyKey = getVaryCacheKey(customCacheKey);
-  const varyFilterOptions = (await storage.get(varyKey)) as
-    | FilterOptions
-    | undefined;
-  const varyPart = varyFilterOptions
-    ? await getVary(request, varyFilterOptions)
-    : undefined;
-  const cacheKey = varyPart ? `${customCacheKey}:${varyPart}` : customCacheKey;
-  const cacheItem = (await storage.get(cacheKey)) as CacheItem | undefined;
-  return cacheItem;
+  let cacheKey = customCacheKey;
+
+  if (!ignoreVary) {
+    cacheKey = await getEffectiveCacheKey(request, storage, customCacheKey);
+  }
+
+  return (await storage.get(cacheKey)) as CacheItem | undefined;
 }
 
 async function deleteCacheItem(
   request: Request,
   storage: KVStorage,
-  customCacheKey: string
+  customCacheKey: string,
+  ignoreVary: boolean
 ): Promise<boolean> {
-  const varyKey = getVaryCacheKey(customCacheKey);
-  const varyFilterOptions = (await storage.get(varyKey)) as
-    | FilterOptions
-    | undefined;
-  const varyPart = varyFilterOptions
-    ? await getVary(request, varyFilterOptions)
-    : undefined;
-  const cacheKey = varyPart ? `${customCacheKey}:${varyPart}` : customCacheKey;
+  let cacheKey = customCacheKey;
 
-  return varyFilterOptions
-    ? (await storage.delete(varyKey)) && (await storage.delete(cacheKey))
-    : storage.delete(cacheKey);
+  if (!ignoreVary) {
+    cacheKey = await getEffectiveCacheKey(request, storage, customCacheKey);
+  }
+
+  if (cacheKey === customCacheKey) {
+    return storage.delete(cacheKey);
+  } else {
+    return (
+      (await storage.delete(cacheKey)) && (await storage.delete(customCacheKey))
+    );
+  }
 }
 
 async function setCacheItem(
@@ -449,46 +466,84 @@ async function setCacheItem(
   cacheItem: CacheItem,
   ttl: number,
   request: Request,
-  response: Response
+  response: Response,
+  ignoreVary: boolean
 ): Promise<void> {
-  const vary = response.headers.get('vary');
-  if (vary) {
-    const varyKey = getVaryCacheKey(customCacheKey);
-    const varyFilterOptions: FilterOptions | undefined =
-      vary === '*'
-        ? undefined
-        : { include: vary.split(',').map((field) => field.trim()) };
-    const varyPart = await getVary(request, varyFilterOptions);
-    const cacheKey = `${customCacheKey}:${varyPart}`;
-    await storage.set(varyKey, varyFilterOptions, ttl);
-    await storage.set(cacheKey, cacheItem, ttl);
-  } else {
-    await storage.set(customCacheKey, cacheItem, ttl);
+  let cacheKey = customCacheKey;
+  if (!ignoreVary) {
+    const vary = response.headers.get('vary');
+    const varyFilterOptions = await getAndSaveVaryFilterOptions(
+      storage,
+      customCacheKey,
+      ttl,
+      vary
+    );
+    cacheKey = await getVaryCacheKey(
+      request,
+      customCacheKey,
+      varyFilterOptions
+    );
   }
+
+  await storage.set(cacheKey, cacheItem, ttl);
 }
 
-function getVaryCacheKey(customCacheKey: string) {
-  return `${customCacheKey}:vary`;
+async function getEffectiveCacheKey(
+  request: Request,
+  storage: KVStorage,
+  customCacheKey: string
+): Promise<string> {
+  const varyFilterOptions = await getVaryFilterOptions(storage, customCacheKey);
+  return getVaryCacheKey(request, customCacheKey, varyFilterOptions);
+}
+
+async function getVaryFilterOptions(
+  storage: KVStorage,
+  customCacheKey: string
+): Promise<FilterOptions | undefined> {
+  const varyKey = `${customCacheKey}:vary`;
+  return (await storage.get(varyKey)) as FilterOptions | undefined;
+}
+
+async function getAndSaveVaryFilterOptions(
+  storage: KVStorage,
+  customCacheKey: string,
+  ttl: number,
+  vary: string | null
+): Promise<FilterOptions | undefined> {
+  if (!vary || vary === '*') {
+    return;
+  }
+  const varyKey = `${customCacheKey}:vary`;
+  const varyFilterOptions: FilterOptions = {
+    include: vary.split(',').map((field) => field.trim()),
+  };
+  await storage.set(varyKey, varyFilterOptions, ttl);
+  return varyFilterOptions;
+}
+
+async function getVaryCacheKey(
+  request: Request,
+  customCacheKey: string,
+  varyFilterOptions: FilterOptions | undefined
+): Promise<string> {
+  if (!varyFilterOptions) {
+    return customCacheKey;
+  }
+  const varyPart = await getVary(request, varyFilterOptions);
+  return varyPart ? `${customCacheKey}:${varyPart}` : customCacheKey;
 }
 
 /**
  * @see https://fetch.spec.whatwg.org/#http-scheme
  */
-function urlIsHttpHttpsScheme(url: string) {
+function urlIsHttpHttpsScheme(url: string): boolean {
   return /^https?:/.test(url);
 }
 
 /**
  * @see https://github.com/chromium/chromium/blob/694d20d134cb553d8d89e5500b9148012b1ba299/content/browser/cache_storage/cache_storage_cache.cc#L260-L262
  */
-function getFieldValues(header: string) {
-  const values = [];
-
-  for (let value of header.split(',')) {
-    value = value.trim();
-
-    values.push(value);
-  }
-
-  return values;
+function getFieldValues(header: string): string[] {
+  return header.split(',').map((value) => value.trim());
 }
