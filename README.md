@@ -336,9 +336,9 @@ Like `search` or `header`, `cookie` controls which cookies appear in the Cache K
 
 Classifies a request as `mobile`, `desktop`, or `tablet` based on the User Agent.
 
-### ~~`ignoreMethod`~~
+### `ignoreMethod`
 
-`SharedCache` didn't implement it.
+When `true`, the request is considered to be a GET request regardless of its actual value.
 
 ### ~~`ignoreSearch`~~
 

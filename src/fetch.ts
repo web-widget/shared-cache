@@ -35,6 +35,8 @@ export function createSharedCacheFetch(
     const request = new Request(input, init);
     const requestCache = getRequestCacheMode(request, init?.cache);
     const sharedCacheOptions = (request.sharedCache = {
+      ignoreRequestCacheControl: true,
+      ignoreVary: false,
       ...request.sharedCache,
       ...init?.sharedCache,
     });
@@ -44,8 +46,6 @@ export function createSharedCacheFetch(
       sharedCacheOptions.cacheControlOverride,
       sharedCacheOptions.varyOverride
     );
-    const ignoreRequestCacheControl =
-      sharedCacheOptions?.ignoreRequestCacheControl ?? true;
 
     if (requestCache && requestCache !== 'default') {
       throw new Error(`Not implemented: "cache" option.`);
@@ -53,8 +53,7 @@ export function createSharedCacheFetch(
 
     const cachedResponse = await cache.match(request, {
       ignoreMethod: request.method === 'HEAD',
-      ignoreVary: sharedCacheOptions?.ignoreVary,
-      _ignoreRequestCacheControl: ignoreRequestCacheControl,
+      _ignoreRequestCacheControl: sharedCacheOptions.ignoreRequestCacheControl,
       _fetch: interceptor,
     });
 

@@ -104,12 +104,7 @@ export class SharedCache implements Cache {
     this.#verifyCacheQueryOptions(options);
     const cacheKey = await this.#cacheKeyGenerator(r);
 
-    return deleteCacheItem(
-      r,
-      this.#storage,
-      cacheKey,
-      options?.ignoreVary ?? false
-    );
+    return deleteCacheItem(r, this.#storage, cacheKey);
   }
 
   /** @private */
@@ -157,13 +152,7 @@ export class SharedCache implements Cache {
 
     this.#verifyCacheQueryOptions(options);
     const cacheKey = await this.#cacheKeyGenerator(r);
-    const ignoreVary = options?.ignoreVary ?? false;
-    const cacheItem = await getCacheItem(
-      r,
-      this.#storage,
-      cacheKey,
-      ignoreVary
-    );
+    const cacheItem = await getCacheItem(r, this.#storage, cacheKey);
 
     if (!cacheItem) {
       return;
@@ -202,7 +191,6 @@ export class SharedCache implements Cache {
               response: response.clone(),
               policy,
             },
-            ignoreVary,
             cacheKey,
             fetch,
             options
@@ -217,7 +205,6 @@ export class SharedCache implements Cache {
             response,
             policy,
           },
-          ignoreVary,
           cacheKey,
           fetch,
           options
@@ -244,21 +231,18 @@ export class SharedCache implements Cache {
    * @param response The Response you want to match up to the request.
    */
   async put(request: RequestInfo, response: Response): Promise<void> {
-    return this.#putWithCustomCacheKey(request, response, false).catch(
-      (error) => {
-        this.#logger?.error('Cache.put: Failed to cache response.', {
-          url: request instanceof Request ? request.url : request,
-          error,
-        });
-        throw error;
-      }
-    );
+    return this.#putWithCustomCacheKey(request, response).catch((error) => {
+      this.#logger?.error('Cache.put: Failed to cache response.', {
+        url: request instanceof Request ? request.url : request,
+        error,
+      });
+      throw error;
+    });
   }
 
   async #putWithCustomCacheKey(
     request: RequestInfo,
     response: Response,
-    ignoreVary: boolean,
     cacheKey?: string | SharedCacheQueryOptions
   ): Promise<void> {
     // 1.
@@ -343,15 +327,13 @@ export class SharedCache implements Cache {
       cacheItem,
       ttl,
       innerRequest,
-      clonedResponse,
-      ignoreVary
+      clonedResponse
     );
   }
 
   async #revalidate(
     request: Request,
     resolveCacheItem: PolicyResponse,
-    ignoreVary: boolean,
     cacheKey: string,
     fetch: typeof globalThis.fetch,
     options: SharedCacheQueryOptions | undefined
@@ -394,7 +376,7 @@ export class SharedCache implements Cache {
       ? revalidationResponse
       : resolveCacheItem.response;
 
-    await this.#putWithCustomCacheKey(request, response, ignoreVary, cacheKey);
+    await this.#putWithCustomCacheKey(request, response, cacheKey);
 
     const clonedResponse = new Response(response.body, {
       status: response.status,
@@ -417,9 +399,11 @@ export class SharedCache implements Cache {
 
   #verifyCacheQueryOptions(options: CacheQueryOptions | undefined) {
     if (options) {
-      if ('ignoreSearch' in options) {
-        throw new Error(`Not implemented: "ignoreSearch" option.`);
-      }
+      ['ignoreSearch', 'ignoreVary'].forEach((option) => {
+        if (option in options) {
+          throw new Error(`Not implemented: "${option}" option.`);
+        }
+      });
     }
   }
 }
@@ -427,10 +411,10 @@ export class SharedCache implements Cache {
 async function getCacheItem(
   request: Request,
   storage: KVStorage,
-  customCacheKey: string,
-  ignoreVary: boolean
+  customCacheKey: string
 ): Promise<CacheItem | undefined> {
   let cacheKey = customCacheKey;
+  const ignoreVary = request.sharedCache?.ignoreVary;
 
   if (!ignoreVary) {
     cacheKey = await getEffectiveCacheKey(request, storage, customCacheKey);
@@ -442,10 +426,10 @@ async function getCacheItem(
 async function deleteCacheItem(
   request: Request,
   storage: KVStorage,
-  customCacheKey: string,
-  ignoreVary: boolean
+  customCacheKey: string
 ): Promise<boolean> {
   let cacheKey = customCacheKey;
+  const ignoreVary = request.sharedCache?.ignoreVary;
 
   if (!ignoreVary) {
     cacheKey = await getEffectiveCacheKey(request, storage, customCacheKey);
@@ -466,10 +450,10 @@ async function setCacheItem(
   cacheItem: CacheItem,
   ttl: number,
   request: Request,
-  response: Response,
-  ignoreVary: boolean
+  response: Response
 ): Promise<void> {
   let cacheKey = customCacheKey;
+  const ignoreVary = request.sharedCache?.ignoreVary;
   if (!ignoreVary) {
     const vary = response.headers.get('vary');
     const varyFilterOptions = await getAndSaveVaryFilterOptions(
