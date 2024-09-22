@@ -383,40 +383,75 @@ describe('when the `vary` header is present, different versions should be cached
     expect(res.headers.get('vary')).toBe('accept-language');
     expect(await res.text()).toBe('en-us');
   });
+});
 
-  test('case should be ignored', async () => {
-    const store = createCacheStore();
-    const cache = new SharedCache(store);
-    const fetch = createSharedCacheFetch(cache, {
-      async fetch(input, init) {
-        const req = new Request(input, init);
-        return new Response(req.headers.get('accept-language'), {
-          headers: {
-            'cache-control': 'max-age=300',
-            vary: 'Accept-Language',
-          },
-        });
-      },
-    });
-    const req = new Request(TEST_URL, {
-      headers: {
-        'accept-language': 'en-us',
-      },
-    });
-    let res = await fetch(req);
-
-    expect(res.status).toBe(200);
-    expect(res.headers.get('x-cache-status')).toBe(MISS);
-    expect(res.headers.get('vary')).toBe('Accept-Language');
-    expect(await res.text()).toBe('en-us');
-
-    res = await fetch(req);
-
-    expect(res.status).toBe(200);
-    expect(res.headers.get('x-cache-status')).toBe(HIT);
-    expect(res.headers.get('vary')).toBe('Accept-Language');
-    expect(await res.text()).toBe('en-us');
+test('it should be possible to turn off the `vary` feature', async () => {
+  const store = createCacheStore();
+  const cache = new SharedCache(store);
+  const fetch = createSharedCacheFetch(cache, {
+    async fetch(input, init) {
+      const req = new Request(input, init);
+      return new Response(req.headers.get('accept-language'), {
+        headers: {
+          'cache-control': 'max-age=300',
+          vary: 'accept-language',
+        },
+      });
+    },
   });
+  let req = new Request(TEST_URL, {
+    headers: {
+      'accept-language': 'en-us',
+    },
+  });
+  let res = await fetch(req, {
+    sharedCache: {
+      ignoreVary: true,
+    },
+  });
+
+  expect(res.status).toBe(200);
+  expect(res.headers.get('x-cache-status')).toBe(MISS);
+  expect(res.headers.get('vary')).toBe('accept-language');
+  expect(await res.text()).toBe('en-us');
+
+  res = await fetch(req, {
+    sharedCache: {
+      ignoreVary: true,
+    },
+  });
+  expect(res.headers.get('x-cache-status')).toBe(HIT);
+
+  req = new Request(TEST_URL, {
+    headers: {
+      'accept-language': 'tr-tr',
+    },
+  });
+  res = await fetch(req, {
+    sharedCache: {
+      ignoreVary: true,
+    },
+  });
+
+  expect(res.status).toBe(200);
+  expect(res.headers.get('x-cache-status')).toBe(HIT);
+  expect(res.headers.get('vary')).toBe('accept-language');
+  expect(await res.text()).toBe('en-us');
+
+  res = await fetch(req);
+  expect(res.headers.get('x-cache-status')).toBe(HIT);
+
+  req = new Request(TEST_URL, {
+    headers: {
+      'accept-language': 'en-us',
+    },
+  });
+  res = await fetch(req);
+
+  expect(res.status).toBe(200);
+  expect(res.headers.get('x-cache-status')).toBe(HIT);
+  expect(res.headers.get('vary')).toBe('accept-language');
+  expect(await res.text()).toBe('en-us');
 });
 
 test('when the response code is not 200 it should not cache the response', async () => {

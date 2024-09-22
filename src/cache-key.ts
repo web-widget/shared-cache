@@ -218,14 +218,8 @@ export function createCacheKeyGenerator(
 ) {
   return async function cacheKeyGenerator(
     request: Request,
-    options: {
-      cacheKeyRules?: SharedCacheKeyRules;
-    } & CacheQueryOptions = {}
+    cacheKeyRules: SharedCacheKeyRules = DEFAULT_CACHE_KEY_RULES
   ): Promise<string> {
-    notImplemented(options, 'ignoreVary');
-    notImplemented(options, 'ignoreSearch');
-
-    const { cacheKeyRules = DEFAULT_CACHE_KEY_RULES } = options;
     const { host, pathname, search, ...fragmentRules } = cacheKeyRules;
     const prefix = cacheName
       ? cacheName === 'default'
@@ -281,11 +275,4 @@ export function createCacheKeyGenerator(
       ? `${prefix}${urlPart.join('')}#${fragmentPart.join(':')}`
       : `${prefix}${urlPart.join('')}`;
   };
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function notImplemented(options: any, name: string) {
-  if (name in options) {
-    throw new Error(`Not implemented: "${name}" option.`);
-  }
 }

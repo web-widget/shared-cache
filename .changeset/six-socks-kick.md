@@ -1,7 +1,7 @@
 ---
-"@web-widget/shared-cache": major
+'@web-widget/shared-cache': major
 ---
 
 - Support ignoreMethod option.
-- support ignoreRequestCacheContro option.
+- Support ignoreRequestCacheControl option.
 - Ignore spaces in cache keys.
