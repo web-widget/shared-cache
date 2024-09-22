@@ -5,6 +5,7 @@
     "@web-widget/shared-cache": "0.4.2"
   },
   "changesets": [
+    "hungry-wombats-clean",
     "khaki-dots-sleep",
     "poor-rice-tell",
     "six-socks-kick"

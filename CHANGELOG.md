@@ -1,5 +1,11 @@
 # @web-widget/shared-cache
 
+## 1.0.0-next.3
+
+### Minor Changes
+
+- 80b5a4b: Added `ignoreVary` option.
+
 ## 1.0.0-next.2
 
 ### Patch Changes

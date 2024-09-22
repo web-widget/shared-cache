@@ -1,6 +1,6 @@
 {
   "name": "@web-widget/shared-cache",
-  "version": "1.0.0-next.2",
+  "version": "1.0.0-next.3",
   "description": "An implementation of the web Cache API using LRU",
   "keywords": [
     "Cache",
