@@ -159,7 +159,94 @@ You can use override vary values.
 
 #### `cacheKeyRules`
 
-Custom cache key. See also [`CacheQueryOptions`](#cachequeryoptions).
+Custom cache key generation rules.
+
+Default value:
+
+```ts
+{
+  host: true,
+  pathname: true,
+  search: true,
+}
+```
+
+List of built-in supported parts:
+
+- `host`
+- `pathname`
+- `search`
+- `cookie`
+- `device`
+- `header`
+
+##### Search
+
+The query string controls which URL query string parameters go into the Cache Key. You can `include` specific query string parameters or `exclude` them using the respective fields. When you include a query string parameter, the `value` of the query string parameter is used in the Cache Key.
+
+###### Example
+
+If you include the query string foo in a URL like `https://www.example.com/?foo=bar`, then bar appears in the Cache Key. Exactly one of `include` or `exclude` is expected.
+
+```ts
+{
+  search: {
+    include: ['foo'],
+  },
+}
+```
+
+###### Usage notes
+
+- To include all query string parameters (the default behavior), use `search: true`
+- To ignore query strings, use `search: false`
+- To include most query string parameters but exclude a few, use the exclude field which assumes the other query string parameters are included.
+
+##### Headers
+
+Headers control which headers go into the Cache Key. Similar to Query String, you can include specific headers or exclude default headers.
+
+When you include a header, the header value is included in the Cache Key. For example, if an HTTP request contains an HTTP header like `X-Auth-API-key: 12345`, and you include the `X-Auth-API-Key header` in your Cache Key Template, then `12345` appears in the Cache Key.
+
+To check for the presence of a header without including its actual value, use the `checkPresence` option.
+
+Currently, you can only exclude the `Origin` header. The `Origin` header is always included unless explicitly excluded. Including the [Origin header](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin) in the Cache Key is important to enforce [CORS](https://developer.mozilla.org/en-US/docs/Glossary/CORS). Additionally, you cannot include the following headers:
+
+- Headers that have high cardinality and risk sharding the cache
+  - `accept`
+  - `accept-charset`
+  - `accept-encoding`
+  - `accept-datetime`
+  - `accept-language`
+  - `referer`
+  - `user-agent`
+- Headers that re-implement cache or proxy features
+  - `connection`
+  - `content-length`
+  - `cache-control`
+  - `if-match`
+  - `if-modified-since`
+  - `if-none-match`
+  - `if-unmodified-since`
+  - `range`
+  - `upgrade`
+- Headers that are covered by other Cache Key features
+  - `cookie`
+  - `host`
+- Headers that cache status
+  - `x-cache-status`
+
+##### Host
+
+Host determines which host header to include in the Cache Key.
+
+##### Cookie
+
+Like `search` or `header`, `cookie` controls which cookies appear in the Cache Key. You can either include the cookie value or check for the presence of a particular cookie.
+
+##### Device
+
+Classifies a request as `mobile`, `desktop`, or `tablet` based on the User Agent.
 
 ## `CacheStorage` class
 
@@ -218,7 +305,6 @@ It has extra protections beyond the specification. For example, a response that 
 
 - `request` The Request object or URL that you want to add to the cache. See also [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request)
 - `response` The Response you want to match up to the request. See also [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response)
-- `options` An object that sets options for the put operation. See also [`CacheQueryOptions`](#cachequeryoptions)
 
 ### `delete(request, options)`
 
@@ -244,97 +330,6 @@ Finds the Cache entry whose key is the request, returning a Promise that resolve
 ## `CacheQueryOptions`
 
 This is an option for query caching which extends the specification.
-
-### `cacheKeyRules`
-
-Custom cache key generation rules.
-
-Default value:
-
-```ts
-{
-  host: true,
-  pathname: true,
-  search: true,
-}
-```
-
-List of built-in supported parts:
-
-- `host`
-- `pathname`
-- `search`
-- `cookie`
-- `device`
-- `header`
-
-#### Search
-
-The query string controls which URL query string parameters go into the Cache Key. You can `include` specific query string parameters or `exclude` them using the respective fields. When you include a query string parameter, the `value` of the query string parameter is used in the Cache Key.
-
-##### Example
-
-If you include the query string foo in a URL like `https://www.example.com/?foo=bar`, then bar appears in the Cache Key. Exactly one of `include` or `exclude` is expected.
-
-```ts
-{
-  search: {
-    include: ['foo'],
-  },
-}
-```
-
-##### Usage notes
-
-- To include all query string parameters (the default behavior), use `search: true`
-- To ignore query strings, use `search: false`
-- To include most query string parameters but exclude a few, use the exclude field which assumes the other query string parameters are included.
-
-#### Headers
-
-Headers control which headers go into the Cache Key. Similar to Query String, you can include specific headers or exclude default headers.
-
-When you include a header, the header value is included in the Cache Key. For example, if an HTTP request contains an HTTP header like `X-Auth-API-key: 12345`, and you include the `X-Auth-API-Key header` in your Cache Key Template, then `12345` appears in the Cache Key.
-
-To check for the presence of a header without including its actual value, use the `checkPresence` option.
-
-Currently, you can only exclude the `Origin` header. The `Origin` header is always included unless explicitly excluded. Including the [Origin header](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin) in the Cache Key is important to enforce [CORS](https://developer.mozilla.org/en-US/docs/Glossary/CORS). Additionally, you cannot include the following headers:
-
-- Headers that have high cardinality and risk sharding the cache
-  - `accept`
-  - `accept-charset`
-  - `accept-encoding`
-  - `accept-datetime`
-  - `accept-language`
-  - `referer`
-  - `user-agent`
-- Headers that re-implement cache or proxy features
-  - `connection`
-  - `content-length`
-  - `cache-control`
-  - `if-match`
-  - `if-modified-since`
-  - `if-none-match`
-  - `if-unmodified-since`
-  - `range`
-  - `upgrade`
-- Headers that are covered by other Cache Key features
-  - `cookie`
-  - `host`
-- Headers that cache status
-  - `x-cache-status`
-
-#### Host
-
-Host determines which host header to include in the Cache Key.
-
-#### Cookie
-
-Like `search` or `header`, `cookie` controls which cookies appear in the Cache Key. You can either include the cookie value or check for the presence of a particular cookie.
-
-#### Device
-
-Classifies a request as `mobile`, `desktop`, or `tablet` based on the User Agent.
 
 ### `ignoreMethod`
 
