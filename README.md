@@ -295,7 +295,7 @@ Checks the cache to see if it includes the response to the given request. If it 
 - `request` The Request for which you are attempting to find responses in the Cache. See also [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request)
 - `options` An object that sets options for the match operation. See also [`CacheQueryOptions`](#cachequeryoptions)
 
-### `put(request, response, options)`
+### `put(request, response)`
 
 Takes both a request and its response and adds it to the given cache if allowed. This method deviates from the specification in a few ways:
 
