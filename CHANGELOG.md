@@ -1,5 +1,24 @@
 # @web-widget/shared-cache
 
+## 1.0.0
+
+### Major Changes
+
+- 0adbc60: Reduce the deviation from the mainstream edge worker environment's Cache API implementation.
+- 8682fd6: - Support ignoreMethod option.
+  - Support ignoreRequestCacheControl option.
+  - Ignore spaces in cache keys.
+
+### Minor Changes
+
+- 80b5a4b: Added `ignoreVary` option.
+
+### Patch Changes
+
+- 98bdedb: - The stale-while-revalidate and stale-if-error directives are not supported when using the cache.put or cache.match methods.
+  - Support HEAD requests.
+- b3761de: Fix Request.cache equal to "default" will cause exception.
+
 ## 1.0.0-next.3
 
 ### Minor Changes
