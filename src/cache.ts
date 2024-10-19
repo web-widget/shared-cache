@@ -24,10 +24,8 @@ import {
 
 export class SharedCache implements Cache {
   #cacheKeyGenerator: (request: Request) => Promise<string>;
-  #fetch?: typeof fetch;
   #logger?: Logger;
   #storage: KVStorage;
-  #waitUntil: (promise: Promise<unknown>) => void;
 
   constructor(storage: KVStorage, options?: SharedCacheOptions) {
     if (!storage) {
@@ -35,9 +33,6 @@ export class SharedCache implements Cache {
     }
 
     const resolveOptions = {
-      async waitUntil(promise: Promise<unknown>) {
-        await promise.catch(console.error);
-      },
       ...options,
     };
 
@@ -51,10 +46,8 @@ export class SharedCache implements Cache {
         ...resolveOptions.cacheKeyRules,
         ...request.sharedCache?.cacheKeyRules,
       });
-    this.#fetch = resolveOptions.fetch;
     this.#logger = resolveOptions.logger;
     this.#storage = storage;
-    this.#waitUntil = resolveOptions.waitUntil;
   }
 
   /** @private */
@@ -158,7 +151,7 @@ export class SharedCache implements Cache {
       return;
     }
 
-    const fetch = options?._fetch ?? this.#fetch;
+    const fetch = options?._fetch;
     const policy = CachePolicy.fromObject(cacheItem.policy);
 
     const { body, status, statusText } = cacheItem.response;
@@ -182,9 +175,14 @@ export class SharedCache implements Cache {
       if (!fetch) {
         return;
       } else if (stale && policy.useStaleWhileRevalidate()) {
+        const waitUntil =
+          options?._waitUntil ??
+          ((promise: Promise<unknown>) => {
+            promise.catch(this.#logger?.error);
+          });
         // Well actually, in this case it's fine to return the stale response.
         // But we'll update the cache in the background.
-        this.#waitUntil(
+        waitUntil(
           this.#revalidate(
             r,
             {

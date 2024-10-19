@@ -22,13 +22,6 @@ export interface SharedCacheOptions {
    */
   cacheKeyPartDefiners?: SharedCacheKeyPartDefiners;
 
-  waitUntil?: (promise: Promise<unknown>) => void;
-
-  /**
-   * Method to initiate a request after cache expiration.
-   */
-  fetch?: typeof fetch;
-
   /**
    * Custom logger.
    */
@@ -79,6 +72,7 @@ export interface SharedCacheRequestInitProperties {
   ignoreRequestCacheControl?: boolean;
   ignoreVary?: boolean;
   varyOverride?: string;
+  waitUntil?: (promise: Promise<unknown>) => void;
 }
 
 declare global {
@@ -93,5 +87,7 @@ declare global {
     _ignoreRequestCacheControl?: boolean;
     /** @private */
     _fetch?: typeof fetch;
+    /** @private */
+    _waitUntil?: (promise: Promise<unknown>) => void;
   }
 }
