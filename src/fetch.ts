@@ -52,9 +52,10 @@ export function createSharedCacheFetch(
     }
 
     const cachedResponse = await cache.match(request, {
-      ignoreMethod: request.method === 'HEAD',
-      _ignoreRequestCacheControl: sharedCacheOptions.ignoreRequestCacheControl,
       _fetch: interceptor,
+      _ignoreRequestCacheControl: sharedCacheOptions.ignoreRequestCacheControl,
+      _waitUntil: sharedCacheOptions.waitUntil,
+      ignoreMethod: request.method === 'HEAD',
     });
 
     if (cachedResponse) {
