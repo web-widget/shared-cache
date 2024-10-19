@@ -1,5 +1,11 @@
 # @web-widget/shared-cache
 
+## 1.1.0
+
+### Minor Changes
+
+- 5ea20fb: The `waitUntil` option can be used to extend the life of background tasks.
+
 ## 1.0.0
 
 ### Major Changes
