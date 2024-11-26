@@ -343,6 +343,10 @@ When `true`, the request is considered to be a GET request regardless of its act
 
 `SharedCache` didn't implement it.
 
+## Who is using this
+
+- [Web Widget: Cache middleware](https://github.com/web-widget/web-widget/blob/main/packages/middlewares/src/cache.ts)
+
 ## Thanks
 
 The birth of `SharedCache` is inseparable from the inspiration of the following projects:
