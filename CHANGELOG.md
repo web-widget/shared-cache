@@ -1,5 +1,11 @@
 # @web-widget/shared-cache
 
+## 1.2.0
+
+### Minor Changes
+
+- b5b9258: Update dependencies.
+
 ## 1.1.0
 
 ### Minor Changes
