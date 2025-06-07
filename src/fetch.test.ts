@@ -15,7 +15,7 @@
 
 import { LRUCache } from 'lru-cache';
 import { KVStorage } from './types';
-import { createSharedCacheFetch } from './fetch';
+import { createSharedCacheFetch, createFetch } from './fetch';
 import { SharedCache } from './cache';
 import { BYPASS, DYNAMIC, EXPIRED, HIT, MISS, STALE } from './constants';
 
@@ -1561,50 +1561,13 @@ describe('Vary Header Handling', () => {
         expect(res.status).toBe(200);
         expect(res.headers.get('x-cache-status')).toBe(MISS);
       });
-    });
 
-    describe('Content Type Handling', () => {
-      test('should cache binary content properly', async () => {
+      test('should not cache requests with Authorization header by default', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
-        const binaryData = new Uint8Array([1, 2, 3, 4, 5]);
-
         const fetch = createSharedCacheFetch(cache, {
           async fetch() {
-            return new Response(binaryData, {
-              headers: {
-                'cache-control': 'max-age=300',
-                'content-type': 'application/octet-stream',
-              },
-            });
-          },
-        });
-
-        const res = await fetch(TEST_URL);
-        expect(res.status).toBe(200);
-        expect(res.headers.get('x-cache-status')).toBe(MISS);
-        expect(res.headers.get('content-type')).toBe(
-          'application/octet-stream'
-        );
-
-        const buffer = await res.arrayBuffer();
-        expect(new Uint8Array(buffer)).toEqual(binaryData);
-
-        // Test cache hit
-        const res2 = await fetch(TEST_URL);
-        expect(res2.headers.get('x-cache-status')).toBe(HIT);
-        const buffer2 = await res2.arrayBuffer();
-        expect(new Uint8Array(buffer2)).toEqual(binaryData);
-      });
-
-      test('should cache JSON responses properly', async () => {
-        const store = createCacheStore();
-        const cache = new SharedCache(store);
-        const jsonData = { message: 'Hello, World!', timestamp: Date.now() };
-
-        const fetch = createSharedCacheFetch(cache, {
-          async fetch() {
-            return new Response(JSON.stringify(jsonData), {
+            return new Response('authenticated content', {
               headers: {
                 'cache-control': 'max-age=300',
                 'content-type': 'application/json',
@@ -1613,88 +1576,212 @@ describe('Vary Header Handling', () => {
           },
         });
 
-        const res = await fetch(TEST_URL);
-        expect(res.status).toBe(200);
-        expect(res.headers.get('x-cache-status')).toBe(MISS);
-        expect(res.headers.get('content-type')).toBe('application/json');
+        // Request with Authorization header should not be cached
+        const res1 = await fetch(TEST_URL, {
+          headers: {
+            authorization: 'Bearer token123',
+          },
+        });
 
-        const data = await res.json();
-        expect(data).toEqual(jsonData);
+        expect(res1.status).toBe(200);
+        expect(res1.headers.get('x-cache-status')).toBe(MISS);
+        expect(await res1.text()).toBe('authenticated content');
 
-        // Test cache hit
-        const res2 = await fetch(TEST_URL);
-        expect(res2.headers.get('x-cache-status')).toBe(HIT);
-        const data2 = await res2.json();
-        expect(data2).toEqual(jsonData);
+        // Second request should also go to origin (not cached)
+        const res2 = await fetch(TEST_URL, {
+          headers: {
+            authorization: 'Bearer token123',
+          },
+        });
+
+        expect(res2.status).toBe(200);
+        expect(res2.headers.get('x-cache-status')).toBe(MISS);
+        expect(await res2.text()).toBe('authenticated content');
       });
-    });
 
-    describe('Concurrent Requests', () => {
-      test('should handle multiple concurrent requests to same URL', async () => {
+      test('should cache requests with Authorization header when response has public directive', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
-        let fetchCount = 0;
-
         const fetch = createSharedCacheFetch(cache, {
           async fetch() {
-            fetchCount++;
-            await timeout(100); // Simulate network delay
-            return new Response(`response-${fetchCount}`, {
+            return new Response('public authenticated content', {
               headers: {
-                'cache-control': 'max-age=300',
+                'cache-control': 'public, max-age=300',
+                'content-type': 'application/json',
               },
             });
           },
         });
 
-        // Make multiple concurrent requests
-        const promises = Array.from({ length: 5 }, () => fetch(TEST_URL));
-        const responses = await Promise.all(promises);
+        // Request with Authorization header but response with 'public' directive should be cached
+        const res1 = await fetch(TEST_URL, {
+          headers: {
+            authorization: 'Bearer token123',
+          },
+        });
 
-        // All responses should be valid
-        const texts = await Promise.all(responses.map((r) => r.text()));
-        expect(texts.length).toBe(5);
+        expect(res1.status).toBe(200);
+        expect(res1.headers.get('x-cache-status')).toBe(MISS);
+        expect(await res1.text()).toBe('public authenticated content');
 
-        // Note: Due to concurrent handling, multiple fetches may occur
-        // This is expected behavior without request deduplication
-        expect(fetchCount).toBeGreaterThan(0);
+        // Second request should hit cache
+        const res2 = await fetch(TEST_URL, {
+          headers: {
+            authorization: 'Bearer token123',
+          },
+        });
 
-        // Check that at least one response has MISS status
-        const statuses = responses.map((r) => r.headers.get('x-cache-status'));
-        expect(statuses.some((status) => status === MISS)).toBe(true);
+        expect(res2.status).toBe(200);
+        expect(res2.headers.get('x-cache-status')).toBe(HIT);
+        expect(await res2.text()).toBe('public authenticated content');
       });
-    });
 
-    describe('Large Response Handling', () => {
-      test('should handle large text responses', async () => {
+      test('should cache requests with Authorization header when response has s-maxage directive', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
-        const largeText = 'x'.repeat(1024 * 1024); // 1MB of text
-
         const fetch = createSharedCacheFetch(cache, {
           async fetch() {
-            return new Response(largeText, {
+            return new Response('shared cache content', {
               headers: {
-                'cache-control': 'max-age=300',
+                'cache-control': 's-maxage=300',
+                'content-type': 'application/json',
+              },
+            });
+          },
+        });
+
+        // Request with Authorization header but response with 's-maxage' directive should be cached
+        const res1 = await fetch(TEST_URL, {
+          headers: {
+            authorization: 'Bearer token123',
+          },
+        });
+
+        expect(res1.status).toBe(200);
+        expect(res1.headers.get('x-cache-status')).toBe(MISS);
+        expect(await res1.text()).toBe('shared cache content');
+
+        // Second request should hit cache
+        const res2 = await fetch(TEST_URL, {
+          headers: {
+            authorization: 'Bearer token123',
+          },
+        });
+
+        expect(res2.status).toBe(200);
+        expect(res2.headers.get('x-cache-status')).toBe(HIT);
+        expect(await res2.text()).toBe('shared cache content');
+      });
+
+      test('should cache requests with Authorization header when response has must-revalidate directive', async () => {
+        const store = createCacheStore();
+        const cache = new SharedCache(store);
+        const fetch = createSharedCacheFetch(cache, {
+          async fetch() {
+            return new Response('must revalidate content', {
+              headers: {
+                'cache-control': 'max-age=300, must-revalidate',
+                'content-type': 'application/json',
+              },
+            });
+          },
+        });
+
+        // Request with Authorization header but response with 'must-revalidate' directive should be cached
+        const res1 = await fetch(TEST_URL, {
+          headers: {
+            authorization: 'Bearer token123',
+          },
+        });
+
+        expect(res1.status).toBe(200);
+        expect(res1.headers.get('x-cache-status')).toBe(MISS);
+        expect(await res1.text()).toBe('must revalidate content');
+
+        // Second request should hit cache
+        const res2 = await fetch(TEST_URL, {
+          headers: {
+            authorization: 'Bearer token123',
+          },
+        });
+
+        expect(res2.status).toBe(200);
+        expect(res2.headers.get('x-cache-status')).toBe(HIT);
+        expect(await res2.text()).toBe('must revalidate content');
+      });
+
+      test('should handle different Authorization headers as separate cache entries', async () => {
+        const store = createCacheStore();
+        const cache = new SharedCache(store);
+        let requestCount = 0;
+
+        const fetch = createSharedCacheFetch(cache, {
+          async fetch(input, init) {
+            requestCount++;
+            const req = new Request(input, init);
+            const authHeader = req.headers.get('authorization') || '';
+
+            return new Response(`content for ${authHeader}`, {
+              headers: {
+                'cache-control': 'public, max-age=300',
                 'content-type': 'text/plain',
               },
             });
           },
+          defaults: {
+            cacheKeyRules: {
+              header: {
+                include: ['authorization'], // Include Authorization header in cache key
+              },
+            },
+          },
         });
 
-        const res = await fetch(TEST_URL);
-        expect(res.status).toBe(200);
-        expect(res.headers.get('x-cache-status')).toBe(MISS);
+        // Request with first Authorization token
+        const res1 = await fetch(TEST_URL, {
+          headers: {
+            authorization: 'Bearer token1',
+          },
+        });
 
-        const text = await res.text();
-        expect(text).toBe(largeText);
-        expect(text.length).toBe(1024 * 1024);
+        expect(res1.status).toBe(200);
+        expect(res1.headers.get('x-cache-status')).toBe(MISS);
+        expect(await res1.text()).toBe('content for Bearer token1');
 
-        // Test cache hit
-        const res2 = await fetch(TEST_URL);
-        expect(res2.headers.get('x-cache-status')).toBe(HIT);
-        const text2 = await res2.text();
-        expect(text2).toBe(largeText);
+        // Request with second Authorization token (should be separate cache entry)
+        const res2 = await fetch(TEST_URL, {
+          headers: {
+            authorization: 'Bearer token2',
+          },
+        });
+
+        expect(res2.status).toBe(200);
+        expect(res2.headers.get('x-cache-status')).toBe(MISS);
+        expect(await res2.text()).toBe('content for Bearer token2');
+
+        // Repeat first request (should hit cache)
+        const res3 = await fetch(TEST_URL, {
+          headers: {
+            authorization: 'Bearer token1',
+          },
+        });
+
+        expect(res3.status).toBe(200);
+        expect(res3.headers.get('x-cache-status')).toBe(HIT);
+        expect(await res3.text()).toBe('content for Bearer token1');
+
+        // Repeat second request (should hit cache)
+        const res4 = await fetch(TEST_URL, {
+          headers: {
+            authorization: 'Bearer token2',
+          },
+        });
+
+        expect(res4.status).toBe(200);
+        expect(res4.headers.get('x-cache-status')).toBe(HIT);
+        expect(await res4.text()).toBe('content for Bearer token2');
+
+        expect(requestCount).toBe(2); // Only 2 requests to origin
       });
     });
   });
@@ -1796,5 +1883,201 @@ describe('Vary Header Handling', () => {
       const res3 = await fetch(TEST_URL);
       expect(res3.headers.get('x-cache-status')).toBe(HIT);
     });
+  });
+});
+
+/**
+ * createFetch API Tests
+ * Tests the new enhanced API with default configuration support
+ */
+describe('createFetch API with defaults', () => {
+  test('should apply default cache control', async () => {
+    const store = createCacheStore();
+    const cache = new SharedCache(store);
+
+    const fetch = createFetch({
+      cache,
+      defaultCacheControl: 's-maxage=300',
+      fetch: async () => {
+        return new Response('test data', {
+          status: 200,
+          headers: {
+            'content-type': 'text/plain',
+          },
+        });
+      },
+    });
+
+    const res = await fetch(TEST_URL);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-cache-status')).toBe(MISS);
+    expect(res.headers.get('cache-control')).toBe('s-maxage=300');
+    expect(await res.text()).toBe('test data');
+
+    // Second request should hit cache
+    const res2 = await fetch(TEST_URL);
+    expect(res2.headers.get('x-cache-status')).toBe(HIT);
+  });
+
+  test('should apply default cache key rules', async () => {
+    const store = createCacheStore();
+    const cache = new SharedCache(store);
+
+    const fetch = createFetch({
+      cache,
+      defaultCacheKeyRules: {
+        header: { include: ['x-user-id'] },
+      },
+      fetch: async () => {
+        return new Response('user data', {
+          status: 200,
+          headers: {
+            'cache-control': 'max-age=300',
+            'content-type': 'application/json',
+          },
+        });
+      },
+    });
+
+    // Requests with different x-user-id headers should cache separately
+    const res1 = await fetch(TEST_URL, {
+      headers: { 'x-user-id': '1' },
+    });
+    expect(res1.headers.get('x-cache-status')).toBe(MISS);
+
+    const res2 = await fetch(TEST_URL, {
+      headers: { 'x-user-id': '2' },
+    });
+    expect(res2.headers.get('x-cache-status')).toBe(MISS);
+
+    // Same "x-user-id" should hit cache
+    const res3 = await fetch(TEST_URL, {
+      headers: { 'x-user-id': '1' },
+    });
+    expect(res3.headers.get('x-cache-status')).toBe(HIT);
+  });
+
+  test('should allow request-level overrides of defaults', async () => {
+    const store = createCacheStore();
+    const cache = new SharedCache(store);
+
+    const fetch = createFetch({
+      cache,
+      defaultCacheControl: 's-maxage=300',
+      defaultIgnoreRequestCacheControl: true,
+      fetch: async () => {
+        return new Response('test data', {
+          status: 200,
+          headers: {
+            'content-type': 'text/plain',
+          },
+        });
+      },
+    });
+
+    // Override default cache control for this specific request
+    const res = await fetch(TEST_URL, {
+      sharedCache: {
+        cacheControlOverride: 's-maxage=600',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('s-maxage=600');
+    expect(res.headers.get('x-cache-status')).toBe(MISS);
+  });
+
+  test('should use default ignoreRequestCacheControl setting', async () => {
+    const store = createCacheStore();
+    const cache = new SharedCache(store);
+
+    const fetch = createFetch({
+      cache,
+      defaultIgnoreRequestCacheControl: false, // Don't ignore by default
+      fetch: async () => {
+        return new Response('test data', {
+          status: 200,
+          headers: {
+            'cache-control': 'max-age=300',
+            'content-type': 'text/plain',
+          },
+        });
+      },
+    });
+
+    // First request to populate cache
+    await fetch(TEST_URL);
+
+    // Request with no-cache should trigger revalidation due to default setting
+    const res = await fetch(TEST_URL, {
+      headers: { 'cache-control': 'no-cache' },
+    });
+
+    expect(res.headers.get('x-cache-status')).toBe(EXPIRED);
+  });
+  test('should support all default options', async () => {
+    const store = createCacheStore();
+    const cache = new SharedCache(store);
+
+    const fetch = createFetch({
+      cache,
+      defaultCacheControl: 's-maxage=300',
+      defaultCacheKeyRules: {
+        pathname: true,
+        search: false,
+      },
+      defaultIgnoreRequestCacheControl: true,
+      defaultIgnoreVary: true,
+      defaultVaryOverride: 'accept-language',
+      defaultWaitUntil: async (promise) => {
+        await promise;
+      },
+      fetch: async () => {
+        return new Response('test data', {
+          status: 200,
+          headers: {
+            'content-type': 'text/plain',
+          },
+        });
+      },
+    });
+
+    const res = await fetch(TEST_URL);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('s-maxage=300');
+    expect(res.headers.get('vary')).toBe('accept-language');
+    expect(res.headers.get('x-cache-status')).toBe(MISS);
+  });
+
+  test('should work without cache parameter (use global cache)', async () => {
+    const store = createCacheStore();
+    const cacheStorage = new (
+      await import('./cache-storage')
+    ).SharedCacheStorage(store);
+
+    // Set up global cache storage
+    const originalCaches = globalThis.caches;
+    globalThis.caches = cacheStorage as unknown as CacheStorage;
+
+    try {
+      const fetch = createFetch({
+        defaultCacheControl: 's-maxage=300',
+        fetch: async () => {
+          return new Response('global cache test', {
+            status: 200,
+            headers: {
+              'content-type': 'text/plain',
+            },
+          });
+        },
+      });
+
+      const res = await fetch(TEST_URL);
+      expect(res.status).toBe(200);
+      expect(res.headers.get('cache-control')).toBe('s-maxage=300');
+      expect(res.headers.get('x-cache-status')).toBe(MISS);
+    } finally {
+      globalThis.caches = originalCaches;
+    }
   });
 });

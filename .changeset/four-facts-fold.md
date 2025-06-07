@@ -2,4 +2,4 @@
 '@web-widget/shared-cache': minor
 ---
 
-Update docs.
+Use new `createFetch` interface and mark `createSharedCacheFetch` as deprecated.

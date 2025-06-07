@@ -19,9 +19,15 @@
  * // Open named cache
  * const cache = await cacheStorage.open('api-v1');
  *
- * // Create fetch with caching
- * const fetch = createFetch(cache);
- * const response = await fetch('/api/data');
+ * // Create fetch with caching and default configuration
+ * const fetch = createFetch({
+ *   cache,
+ *   defaultCacheControl: 's-maxage=300',
+ *   defaultCacheKeyRules: {
+ *     header: { include: ['x-user-id'] }
+ *   }
+ * });
+ * const response = await fetch('/api/data', { headers: { 'x-user-id': '123' } });
  * ```
  */
 
@@ -31,8 +37,10 @@ export { SharedCacheStorage as CacheStorage } from './cache-storage';
 
 // Fetch integration
 export {
-  createSharedCacheFetch as createFetch,
+  createFetch,
+  createSharedCacheFetch,
   sharedCacheFetch as fetch,
+  type CreateFetchOptions,
 } from './fetch';
 
 // Cache key utilities

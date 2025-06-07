@@ -22,6 +22,7 @@ The library intelligently determines when HTTP responses can be reused from cach
 - [💡 Examples](#-examples)
 - [🏗️ Production Deployment](#️-production-deployment)
 - [📋 Standards Compliance](#-standards-compliance)
+- [❓ Frequently Asked Questions](#-frequently-asked-questions)
 - [🤝 Who's Using SharedCache](#-whos-using-sharedcache)
 - [🙏 Acknowledgments](#-acknowledgments)
 - [📄 License](#-license)
@@ -67,7 +68,7 @@ Here's a simple example to get you started with SharedCache:
 ```typescript
 import {
   CacheStorage,
-  createSharedCacheFetch,
+  createFetch,
   type KVStorage,
 } from '@web-widget/shared-cache';
 import { LRUCache } from 'lru-cache';
@@ -89,12 +90,17 @@ const createLRUCache = (): KVStorage => {
   };
 };
 
-// Initialize cache storage and create cached fetch
+// Initialize cache storage
 const caches = new CacheStorage(createLRUCache());
 
 async function example() {
   const cache = await caches.open('api-cache-v1');
-  const fetch = createSharedCacheFetch(cache);
+  
+  // Create fetch with default configuration (recommended approach)
+  const fetch = createFetch({
+    cache,
+    defaultCacheControl: 's-maxage=300', // 5 minutes default caching
+  });
   
   // First request - will hit the network
   console.time('First request');
@@ -116,6 +122,20 @@ async function example() {
 
 example();
 ```
+
+### Legacy API Support
+
+The older `createSharedCacheFetch` API is still supported for backward compatibility but not recommended for new projects:
+
+```typescript
+import { createSharedCacheFetch } from '@web-widget/shared-cache';
+
+// Legacy approach - more verbose
+const cache = await caches.open('api-cache-v1');
+const fetch = createSharedCacheFetch(cache);
+```
+
+> **⚠️ Deprecation Notice**: `createSharedCacheFetch` is deprecated. Use `createFetch` for better API design with default configuration support.
 
 ## 🌐 Global Setup
 
@@ -163,21 +183,48 @@ globalThis.caches = caches;
 Once the global `caches` is configured, you can also register a globally cached `fetch`:
 
 ```typescript
-import { createGlobalFetch, type Fetch } from '@web-widget/shared-cache';
+import { createFetch } from '@web-widget/shared-cache';
 
-declare global {
-  interface WindowOrWorkerGlobalScope {
-    fetch: Fetch;
-  }
-}
-
-// Replace global fetch with cached version
-globalThis.fetch = createGlobalFetch();
+// Replace global fetch with cached version using the new API
+globalThis.fetch = createFetch({
+  defaultCacheControl: 's-maxage=60', // 1 minute default for global fetch
+});
 ```
 
 ## 🎛️ Advanced Usage
 
-### Enhanced Fetch API
+### Enhanced Fetch API with Default Configuration
+
+The new `createFetch` API allows you to set default cache configuration at creation time, reducing repetition:
+
+```typescript
+import { createFetch } from '@web-widget/shared-cache';
+
+const cache = await caches.open('api-cache');
+
+// Create fetch with comprehensive defaults
+const fetch = createFetch({
+  cache,
+  defaultCacheControl: 's-maxage=300',
+  defaultCacheKeyRules: {
+    header: { include: ['x-api-version'] }
+  },
+  defaultIgnoreRequestCacheControl: true,
+  defaultIgnoreVary: false,
+});
+
+// Use with defaults applied automatically
+const response1 = await fetch('/api/data');
+
+// Override defaults for specific requests
+const response2 = await fetch('/api/data', {
+  sharedCache: {
+    cacheControlOverride: 's-maxage=600', // Override default
+  }
+});
+```
+
+### Legacy Enhanced Fetch API
 
 SharedCache extends the standard fetch API with powerful caching options via the `sharedCache` parameter:
 
@@ -186,7 +233,7 @@ const response = await fetch('https://api.example.com/data', {
   // Standard fetch options
   method: 'GET',
   headers: {
-    'Authorization': 'Bearer token',
+    'x-user-id': '1024',
   },
   
   // SharedCache-specific options
@@ -201,7 +248,7 @@ const response = await fetch('https://api.example.com/data', {
       search: false,
       device: true,
       header: {
-        include: ['authorization']
+        include: ['x-user-id']
       }
     },
   },
@@ -275,7 +322,7 @@ sharedCache: {
       include: ['session_id', 'user_pref']
     },
     header: {             // Include specific headers
-      include: ['authorization', 'x-api-key'],
+      include: ['x-api-key'],
       checkPresence: ['x-mobile-app']
     }
   }
@@ -350,7 +397,7 @@ Include request headers in the cache key:
 ```typescript
 cacheKeyRules: {
   header: {
-    include: ['authorization', 'x-api-version'],
+    include: ['x-api-version'],
     checkPresence: ['x-feature-flag']
   }
 }
@@ -358,11 +405,74 @@ cacheKeyRules: {
 
 **Restricted Headers:** For security and performance, certain headers cannot be included:
 
-- High-cardinality headers: `accept`, `accept-charset`, `accept-encoding`, `accept-language`, `user-agent`, `referer`
-- Cache/proxy headers: `cache-control`, `if-*`, `range`, `connection`
-- Headers handled by other features: `cookie`, `host`
+- **High-cardinality headers**: `accept`, `accept-charset`, `accept-encoding`, `accept-language`, `user-agent`, `referer`
+- **Cache/proxy headers**: `cache-control`, `if-*`, `range`, `connection`
+- **Authentication headers**: `authorization`, `cookie` (handled separately by cookie rules)
+- **Headers handled by other features**: `host`
+
+**⚠️ Important for Shared Caches**: According to HTTP specifications (RFC 7234), responses to requests containing an `Authorization` header must not be stored in shared caches unless explicitly allowed by cache control directives like `public`, `s-maxage`, or `must-revalidate`. This library correctly handles this restriction automatically.
+
+**🔒 Security Note**: SharedCache automatically enforces HTTP caching security rules. Requests containing `Authorization` headers will not be cached unless the response explicitly allows it with directives like `public`, `s-maxage`, or `must-revalidate`.
 
 ## 📚 API Reference
+
+### createFetch Function (Recommended)
+
+Creates a fetch function with default shared cache configuration. This is the recommended approach for new projects.
+
+```typescript
+function createFetch(options: CreateFetchOptions): SharedCacheFetch
+```
+
+**Parameters:**
+
+```typescript
+interface CreateFetchOptions {
+  cache?: SharedCache;                          // Cache instance
+  fetch?: typeof fetch;                         // Custom fetch implementation
+  defaultCacheControl?: string;                 // Default cache control directive
+  defaultCacheKeyRules?: SharedCacheKeyRules;   // Default cache key rules
+  defaultIgnoreRequestCacheControl?: boolean;   // Default: true
+  defaultIgnoreVary?: boolean;                  // Default: false
+  defaultVaryOverride?: string;                 // Default vary header
+  defaultWaitUntil?: (promise: Promise<unknown>) => void; // Background operation handler
+}
+```
+
+**Example:**
+
+```typescript
+const fetch = createFetch({
+  cache: await caches.open('my-cache'),
+  defaultCacheControl: 's-maxage=300',
+  defaultCacheKeyRules: {
+    header: { include: ['x-api-version'] }
+  }
+});
+```
+
+### Migration Guide
+
+**From legacy API to `createFetch`:**
+
+```typescript
+// Old way (legacy) - deprecated
+const fetch = createSharedCacheFetch(cache, {
+  defaults: {
+    cacheControlOverride: 's-maxage=300',
+    ignoreRequestCacheControl: true,
+  }
+});
+
+// New way (recommended)
+const fetch = createFetch({
+  cache,
+  defaultCacheControl: 's-maxage=300',
+  defaultIgnoreRequestCacheControl: true,
+});
+```
+
+> **Migration Benefits**: The new `createFetch` API provides better type safety, cleaner parameter naming, and more intuitive default configuration.
 
 ### CacheStorage Class
 
@@ -390,7 +500,7 @@ const cache = await caches.open('api-cache-v1');
 
 **Note:** Unlike the Web API, other CacheStorage methods (`delete`, `match`, `has`, `keys`) are not implemented.
 
-### Cache Class  
+### SharedCache Class  
 
 Implements a subset of the [Web Cache API](https://developer.mozilla.org/en-US/docs/Web/API/Cache) with server-side optimizations.
 
@@ -466,11 +576,43 @@ Attempting to use these options will throw a "Not implemented" error.
 
 ## 💡 Examples
 
+### Modern API with Default Configuration
+
+```typescript
+import { createFetch, CacheStorage } from '@web-widget/shared-cache';
+import { LRUCache } from 'lru-cache';
+
+// Set up cache storage
+const caches = new CacheStorage(createLRUCache());
+const cache = await caches.open('api-cache-v1');
+
+// Create fetch with comprehensive defaults
+const fetch = createFetch({
+  cache,
+  defaultCacheControl: 's-maxage=300',
+  defaultCacheKeyRules: {
+    header: { include: ['x-api-version'] },
+    search: { exclude: ['timestamp'] }
+  },
+  defaultIgnoreRequestCacheControl: true,
+});
+
+// Simple usage - defaults applied automatically
+const userData = await fetch('/api/user/profile');
+
+// Override defaults when needed
+const realtimeData = await fetch('/api/realtime', {
+  sharedCache: {
+    cacheControlOverride: 's-maxage=30', // Shorter cache time
+  }
+});
+```
+
 ### Redis Storage Backend
 
 ```typescript
 import Redis from 'ioredis';
-import { CacheStorage, type KVStorage } from '@web-widget/shared-cache';
+import { CacheStorage, createFetch, type KVStorage } from '@web-widget/shared-cache';
 
 const createRedisStorage = (): KVStorage => {
   const redis = new Redis(process.env.REDIS_URL);
@@ -497,26 +639,48 @@ const createRedisStorage = (): KVStorage => {
 };
 
 const caches = new CacheStorage(createRedisStorage());
+const cache = await caches.open('distributed-cache');
+
+// Create fetch with Redis backend
+const fetch = createFetch({
+  cache,
+  defaultCacheControl: 's-maxage=600', // 10 minutes default
+  defaultCacheKeyRules: {
+    header: { include: ['x-tenant-id'] } // Multi-tenant support
+  }
+});
 ```
 
-### API Response Caching
+### API Response Caching with Enhanced Configuration
 
 ```typescript
-import { createSharedCacheFetch } from '@web-widget/shared-cache';
+import { createFetch } from '@web-widget/shared-cache';
 
 const cache = await caches.open('api-responses');
-const fetch = createSharedCacheFetch(cache);
 
-// Cache API responses with custom rules
+// Create API-specific fetch with defaults
+const apiFetch = createFetch({
+  cache,
+  defaultCacheControl: 's-maxage=300', // 5 minutes for API responses
+  defaultCacheKeyRules: {
+    header: { include: ['x-user-id', 'x-api-version'] },
+    search: { exclude: ['_t', 'timestamp'] } // Ignore cache-busting params
+  },
+  defaultIgnoreRequestCacheControl: true, // Server controls caching
+});
+
+// Simple API calls with automatic caching
 async function fetchUserData(userId: string) {
-  return fetch(`https://api.example.com/users/${userId}`, {
+  return apiFetch(`/api/users/${userId}`, {
+    headers: { 'x-user-id': userId }
+  });
+}
+
+// Override defaults for specific endpoints
+async function fetchRealtimeData() {
+  return apiFetch('/api/realtime', {
     sharedCache: {
-      cacheControlOverride: 's-maxage=300', // Cache for 5 minutes
-      cacheKeyRules: {
-        header: {
-          include: ['authorization'] // Separate cache per user
-        }
-      }
+      cacheControlOverride: 's-maxage=30', // Shorter cache for realtime data
     }
   });
 }
@@ -525,25 +689,78 @@ async function fetchUserData(userId: string) {
 ### Device-Specific Caching
 
 ```typescript
-// Different cache entries for mobile vs desktop
-const response = await fetch('https://api.example.com/content', {
+// Modern approach with defaults
+const deviceAwareFetch = createFetch({
+  cache: await caches.open('content-cache'),
+  defaultCacheControl: 's-maxage=600',
+  defaultCacheKeyRules: {
+    device: true, // Separate cache for mobile/desktop/tablet
+    search: { exclude: ['timestamp'] }
+  }
+});
+
+// Simple usage - device detection automatic
+const response = await deviceAwareFetch('/api/content');
+```
+
+### Shared Cache Security Considerations
+
+```typescript
+// ✅ Good: Public API responses can be cached
+const publicFetch = createFetch({
+  cache: await caches.open('public-api'),
+  defaultCacheControl: 's-maxage=300',
+});
+
+const publicData = await publicFetch('/api/public/data');
+
+// ✅ Good: Authenticated requests with explicit cache control
+const response = await fetch('/api/user/data', {
+  headers: {
+    'Authorization': 'Bearer token123'
+  },
   sharedCache: {
-    cacheKeyRules: {
-      device: true, // Separate cache for mobile/desktop/tablet
-      search: {
-        exclude: ['timestamp'] // Ignore timestamp in cache key
-      }
-    }
+    // Only cache if the response explicitly allows it
+    // The library automatically handles authorization header restrictions
+  }
+});
+
+// ⚠️ Note: Responses to requests with Authorization headers
+// are automatically excluded from shared cache unless the response
+// includes cache control directives like 'public' or 's-maxage'
+
+// ✅ Good: User-specific cache key for personalized content
+const userSpecificFetch = createFetch({
+  cache: await caches.open('user-content'),
+  defaultCacheKeyRules: {
+    header: { include: ['x-user-id'] } // Safe alternative to authorization
   }
 });
 ```
 
 ## 🏗️ Production Deployment
 
+### Performance Benefits
+
+SharedCache provides significant performance improvements in production environments:
+
+```typescript
+// Before: Without caching
+const response = await fetch('/api/data'); // ~400ms every time
+
+// After: With SharedCache
+const cachedFetch = createFetch({
+  cache: await caches.open('prod-cache'),
+  defaultCacheControl: 's-maxage=300',
+});
+const response = await cachedFetch('/api/data'); // First: ~400ms, Subsequent: ~2ms
+```
+
 ### Memory Management
 
 ```typescript
 import { LRUCache } from 'lru-cache';
+import { createFetch } from '@web-widget/shared-cache';
 
 const createProductionCache = (): KVStorage => {
   const store = new LRUCache<string, any>({
@@ -565,25 +782,91 @@ const createProductionCache = (): KVStorage => {
     },
   };
 };
+
+// Production-ready fetch with optimized caching
+const productionFetch = createFetch({
+  cache: await new CacheStorage(createProductionCache()).open('prod-cache'),
+  defaultCacheControl: 's-maxage=300',
+  defaultIgnoreRequestCacheControl: true,
+});
 ```
 
-### Monitoring Cache Performance
+### Error Handling and Monitoring
 
 ```typescript
-const cache = await caches.open('monitored-cache');
-const fetch = createSharedCacheFetch(cache);
+import { createFetch } from '@web-widget/shared-cache';
 
-// Wrap fetch to add monitoring
-const monitoredFetch = async (url: string, options: any) => {
+const monitoredFetch = createFetch({
+  cache: await caches.open('monitored-cache'),
+  defaultCacheControl: 's-maxage=300',
+  defaultWaitUntil: async (promise) => {
+    // Handle background operations (like stale-while-revalidate)
+    try {
+      await promise;
+      console.log('Background cache operation completed');
+    } catch (error) {
+      console.error('Background cache operation failed:', error);
+      // Report to monitoring service
+    }
+  }
+});
+
+// Wrap fetch to add detailed monitoring
+const instrumentedFetch = async (url: string, options?: any) => {
   const start = Date.now();
-  const response = await fetch(url, options);
-  const duration = Date.now() - start;
-  const cacheStatus = response.headers.get('x-cache-status');
-  
-  console.log(`${cacheStatus}: ${url} (${duration}ms)`);
-  
-  return response;
+  try {
+    const response = await monitoredFetch(url, options);
+    const duration = Date.now() - start;
+    const cacheStatus = response.headers.get('x-cache-status');
+    
+    console.log(`${cacheStatus}: ${url} (${duration}ms)`);
+    
+    // Log cache efficiency metrics
+    if (cacheStatus === 'HIT') {
+      console.log('✅ Cache hit - served from cache');
+    } else if (cacheStatus === 'MISS') {
+      console.log('❌ Cache miss - fetched from origin');
+    } else if (cacheStatus === 'STALE') {
+      console.log('⚡ Stale response served while revalidating');
+    }
+    
+    return response;
+  } catch (error) {
+    console.error(`❌ Request failed: ${url}`, error);
+    throw error;
+  }
 };
+```
+
+### Cache Warming Strategies
+
+```typescript
+// Pre-warm critical cache entries
+async function warmCache() {
+  const criticalEndpoints = [
+    '/api/config',
+    '/api/user/settings',
+    '/api/navigation'
+  ];
+  
+  const warmingFetch = createFetch({
+    cache: await caches.open('warm-cache'),
+    defaultCacheControl: 's-maxage=3600', // Long cache for config data
+  });
+  
+  await Promise.allSettled(
+    criticalEndpoints.map(endpoint => 
+      warmingFetch(endpoint).catch(err => 
+        console.warn(`Failed to warm cache for ${endpoint}:`, err)
+      )
+    )
+  );
+  
+  console.log('Cache warming completed');
+}
+
+// Call during application startup
+warmCache();
 ```
 
 ## 📋 Standards Compliance
@@ -675,14 +958,74 @@ interface SharedCacheQueryOptions {
 - **Robust Error Handling**: Comprehensive exception handling with graceful degradation
 - **Performance Optimized**: Efficient storage backends with configurable TTL and cleanup strategies
 
-### 🔧 Security & Best Practices
+### 🛡️ Security & Best Practices
 
 - **Privacy Compliance**: Correct handling of `private` directive for user-specific content
 - **Shared Cache Optimization**: Priority given to `s-maxage` over `max-age` for multi-user environments
-- **Cache Isolation**: Proper separation of cached content based on authentication and authorization headers
+- **Authorization Header Handling**: Automatic compliance with HTTP specification - responses to requests with `Authorization` headers are not cached in shared caches unless explicitly permitted by response cache control directives
+- **Cache Isolation**: Proper separation of cached content based on user context and authentication state
 - **Secure Defaults**: Conservative caching policies with explicit opt-in for sensitive operations
 
+**🔒 Important Security Note**: SharedCache automatically enforces HTTP caching security rules. Requests containing `Authorization` headers will not be cached unless the response explicitly allows it with directives like `public`, `s-maxage`, or `must-revalidate`. This ensures compliance with shared cache security requirements.
+
 **SharedCache is production-ready and battle-tested**, providing enterprise-grade HTTP caching with full standards compliance for server-side applications.
+
+## ❓ Frequently Asked Questions
+
+### Q: Can I use SharedCache with Next.js?
+
+**A:** Yes! SharedCache works perfectly with Next.js applications, especially in API routes and middleware:
+
+```typescript
+// pages/api/data.ts or app/api/data/route.ts
+import { createFetch } from '@web-widget/shared-cache';
+
+const cachedFetch = createFetch({
+  cache: await caches.open('nextjs-api'),
+  defaultCacheControl: 's-maxage=300',
+});
+
+export async function GET() {
+  const data = await cachedFetch('https://external-api.com/data');
+  return Response.json(await data.json());
+}
+```
+
+### Q: How do I handle cache invalidation?
+
+**A:** Use the cache's `delete` method or set short TTLs for frequently changing data:
+
+```typescript
+// Manual invalidation
+await cache.delete('/api/user/profile');
+
+// Or use shorter cache times for dynamic content
+const fetch = createFetch({
+  cache,
+  defaultCacheControl: 's-maxage=30', // 30 seconds for dynamic data
+});
+```
+
+### Q: Can I use different storage backends in production?
+
+**A:** Absolutely! SharedCache supports any storage backend that implements the `KVStorage` interface:
+
+```typescript
+// Redis example
+const redisStorage: KVStorage = {
+  async get(key) { return JSON.parse(await redis.get(key) || 'null'); },
+  async set(key, value, ttl) { await redis.setex(key, ttl/1000, JSON.stringify(value)); },
+  async delete(key) { return await redis.del(key) > 0; }
+};
+```
+
+### Q: How does SharedCache handle concurrent requests?
+
+**A:** SharedCache handles concurrent requests to the same resource efficiently by serving existing cache entries and avoiding duplicate network requests during cache misses.
+
+### Q: Is SharedCache compatible with edge runtimes?
+
+**A:** Yes! SharedCache is built for WinterCG compliance and works with Cloudflare Workers, Vercel Edge Runtime, Deno Deploy, and other edge environments.
 
 ## 🤝 Who's Using SharedCache
 

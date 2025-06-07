@@ -2,6 +2,7 @@ import CachePolicy, {
   CachePolicyObject,
 } from '@web-widget/http-cache-semantics';
 import { SharedCacheKeyPartDefiners, SharedCacheKeyRules } from './cache-key';
+import { SharedCache } from './cache';
 
 export { SharedCacheKeyRules, SharedCacheKeyPartDefiners };
 
@@ -141,6 +142,62 @@ export type SharedCacheQueryOptions = CacheQueryOptions;
  * Type alias for fetch function compatible with shared cache.
  */
 export type SharedCacheFetch = typeof fetch;
+
+/**
+ * Configuration options for creating a fetch function with default cache settings.
+ * This provides a more convenient API for setting up cached fetch with global defaults.
+ */
+export interface CreateFetchOptions {
+  /**
+   * The SharedCache instance to use for caching.
+   * If not provided, will attempt to use global cache storage.
+   */
+  cache?: SharedCache;
+
+  /**
+   * Custom fetch implementation to use as the underlying fetcher.
+   * Defaults to globalThis.fetch if not provided.
+   */
+  fetch?: typeof fetch;
+
+  /**
+   * Default cache control directive to apply to responses.
+   * Can be overridden on a per-request basis.
+   */
+  defaultCacheControl?: string;
+
+  /**
+   * Default cache key rules for generating cache keys.
+   * Can be overridden on a per-request basis.
+   */
+  defaultCacheKeyRules?: SharedCacheKeyRules;
+
+  /**
+   * Default setting for ignoring request cache control headers.
+   * When true, request cache control directives are ignored.
+   * Defaults to true for server-side shared caching.
+   */
+  defaultIgnoreRequestCacheControl?: boolean;
+
+  /**
+   * Default setting for ignoring Vary header processing.
+   * When true, Vary header is not considered for cache key generation.
+   * Defaults to false.
+   */
+  defaultIgnoreVary?: boolean;
+
+  /**
+   * Default vary header override for responses.
+   * Can be overridden on a per-request basis.
+   */
+  defaultVaryOverride?: string;
+
+  /**
+   * Default function to handle background operations (like stale-while-revalidate).
+   * Called with promises that should be awaited in the background.
+   */
+  defaultWaitUntil?: (promise: Promise<unknown>) => void;
+}
 
 /**
  * Shared cache specific request properties.
