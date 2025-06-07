@@ -1,52 +1,83 @@
 # SharedCache
 
 [![CI](https://github.com/web-widget/shared-cache/actions/workflows/test.yml/badge.svg?event=push)](https://github.com/web-widget/shared-cache/actions/workflows/test.yml?query=event%3Apush)
+[![npm version](https://badge.fury.io/js/@web-widget%2Fshared-cache.svg)](https://badge.fury.io/js/@web-widget%2Fshared-cache)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
 
-An http cache following http header semantics. It implements the [Cache Interface](https://developer.mozilla.org/en-US/docs/Web/API/Cache), but different.
+**A standards-compliant HTTP cache implementation for server-side applications.**
 
-`SharedCache` tells when responses can be reused from a cache, taking into account [HTTP RFC 7234](http://httpwg.org/specs/rfc7234.html) rules for user agents and shared caches.
+SharedCache is a sophisticated HTTP caching library that follows Web Standards and HTTP specifications. It implements a cache interface similar to the [Web Cache API](https://developer.mozilla.org/en-US/docs/Web/API/Cache) but optimized for server-side shared caching scenarios.
 
-## Features
+The library intelligently determines when HTTP responses can be reused from cache, strictly adhering to [RFC 7234](http://httpwg.org/specs/rfc7234.html) caching rules for both user agents and shared caches.
 
-- Implements [RFC 5861](https://tools.ietf.org/html/rfc5861), implements "stale-if-error" and "stale-while-revalidate"
-- It's aware of many tricky details such as the `vary` header, proxy revalidation, and authenticated responses
-- Supports inserting external storage, such as using memory or Redis database
-- It extends the caching capabilities of the `fetch` function
-- Support custom Cache Key, for example, you can cache specific members of device types, cookies and headers
-- For HTTP's `cache-control` header, `SharedCache` prefers `s-maxage`
+## 📋 Table of Contents
 
-The project works in a [WinterCG](https://wintercg.org/) compatible runtime environment.
+- [✨ Key Features](#-key-features)
+- [🤔 Why SharedCache?](#-why-sharedcache)
+- [📦 Installation](#-installation)
+- [🚀 Quick Start](#-quick-start)
+- [🌐 Global Setup](#-global-setup)
+- [🎛️ Advanced Usage](#️-advanced-usage)
+- [📚 API Reference](#-api-reference)
+- [💡 Examples](#-examples)
+- [🏗️ Production Deployment](#️-production-deployment)
+- [🤝 Who's Using SharedCache](#-whos-using-sharedcache)
+- [🙏 Acknowledgments](#-acknowledgments)
+- [📄 License](#-license)
 
-## Why `SharedCache`
+## ✨ Key Features
 
-Although the use of the Web `fetch` API has become very common on the server side, there is still a lack of standardized caching API on the server side. The Web `Cache` API was a priority, but we needed to carefully handle server-side scenarios and browser differences, so that was the motivation for creating this project.
+- **📋 RFC Compliance**: Full implementation of [RFC 5861](https://tools.ietf.org/html/rfc5861) with support for `stale-if-error` and `stale-while-revalidate` directives
+- **🎯 Smart Caching**: Intelligently handles complex HTTP caching scenarios including `Vary` headers, proxy revalidation, and authenticated responses  
+- **🔧 Flexible Storage**: Pluggable storage backend supporting memory, Redis, or any custom key-value store
+- **🚀 Enhanced Fetch**: Extends the standard `fetch` API with powerful caching capabilities while maintaining full compatibility
+- **🎛️ Custom Cache Keys**: Advanced cache key customization supporting device types, cookies, headers, and URL components
+- **⚡ Shared Cache Optimization**: Prioritizes `s-maxage` over `max-age` for optimal shared cache performance
+- **🌍 Universal Runtime**: Compatible with [WinterCG](https://wintercg.org/) environments including Node.js, Deno, Bun, and Edge Runtime
 
-Since a browser's cache is typically targeted to a single user, while a server's cache typically serves all users, this is why the project is called `SharedCache`.
+## 🤔 Why SharedCache?
 
-## Installation
+While the Web `fetch` API has become ubiquitous in server-side JavaScript, there's been a lack of standardized caching solutions for server environments. Existing browser Cache APIs are designed for single-user scenarios, but server-side applications need **shared caches** that serve multiple users efficiently.
 
+SharedCache bridges this gap by providing:
+
+- **Server-Optimized Caching**: Designed specifically for multi-user server environments
+- **Standards Compliance**: Follows HTTP specifications while handling server-specific edge cases
+- **Production Ready**: Battle-tested patterns from CDN and proxy server implementations
+
+## 📦 Installation
+
+```bash
+npm install @web-widget/shared-cache
 ```
-npm i @web-widget/shared-cache
+
+```bash
+# Using yarn
+yarn add @web-widget/shared-cache
+
+# Using pnpm  
+pnpm add @web-widget/shared-cache
 ```
 
-## Usage
+## 🚀 Quick Start
 
-```ts
+Here's a simple example to get you started with SharedCache:
+
+```typescript
 import {
   CacheStorage,
-  createFetch,
+  createSharedCacheFetch,
   type KVStorage,
 } from '@web-widget/shared-cache';
 import { LRUCache } from 'lru-cache';
 
-// Optionally provide a settings for the LRU cache. Options are defined here:
-// https://www.npmjs.com/package/lru-cache
+// Create a storage backend using LRU cache
 const createLRUCache = (): KVStorage => {
   const store = new LRUCache<string, any>({ max: 1024 });
 
   return {
     async get(cacheKey: string) {
-      return store.get(cacheKey) as any | undefined;
+      return store.get(cacheKey);
     },
     async set(cacheKey: string, value: any, ttl?: number) {
       store.set(cacheKey, value, { ttl });
@@ -57,37 +88,45 @@ const createLRUCache = (): KVStorage => {
   };
 };
 
+// Initialize cache storage and create cached fetch
 const caches = new CacheStorage(createLRUCache());
 
-async function run() {
-  const cache = await caches.open('v1');
-  const fetch = createFetch(cache);
-  // Make a request
-  // Logs "response1: 425.793ms"
-  console.time('response1');
+async function example() {
+  const cache = await caches.open('api-cache-v1');
+  const fetch = createSharedCacheFetch(cache);
+  
+  // First request - will hit the network
+  console.time('First request');
   const response1 = await fetch(
     'https://httpbin.org/response-headers?cache-control=max-age%3D604800'
   );
-  console.timeEnd('response1');
-  // Make a request to the same location
-  // Logs "response2: 1.74ms" because the response was cached
-  console.time('response2');
+  console.timeEnd('First request'); // ~400ms
+  
+  // Second request - served from cache
+  console.time('Cached request');
   const response2 = await fetch(
     'https://httpbin.org/response-headers?cache-control=max-age%3D604800'
   );
-  console.timeEnd('response2');
+  console.timeEnd('Cached request'); // ~2ms
+  
+  // Check cache status
+  console.log('Cache status:', response2.headers.get('x-cache-status')); // "HIT"
 }
-run();
+
+example();
 ```
 
-## Create global `caches` and `fetch`
+## 🌐 Global Setup
 
-The global `caches` object needs to be defined beforehand. The `caches` object is a global instance of the `CacheStorage` class.
+### Setting up Global Cache Storage
 
-```ts
+For applications that need a global cache instance, you can set up the `caches` object:
+
+```typescript
 import { CacheStorage, type KVStorage } from '@web-widget/shared-cache';
 import { LRUCache } from 'lru-cache';
 
+// Extend global types for TypeScript support
 declare global {
   interface WindowOrWorkerGlobalScope {
     caches: CacheStorage;
@@ -95,11 +134,14 @@ declare global {
 }
 
 const createLRUCache = (): KVStorage => {
-  const store = new LRUCache<string, any>({ max: 1024 });
+  const store = new LRUCache<string, any>({ 
+    max: 1024,
+    ttl: 1000 * 60 * 60 // 1 hour default TTL
+  });
 
   return {
     async get(cacheKey: string) {
-      return store.get(cacheKey) as any | undefined;
+      return store.get(cacheKey);
     },
     async set(cacheKey: string, value: any, ttl?: number) {
       store.set(cacheKey, value, { ttl });
@@ -110,14 +152,17 @@ const createLRUCache = (): KVStorage => {
   };
 };
 
+// Set up global cache storage
 const caches = new CacheStorage(createLRUCache());
 globalThis.caches = caches;
 ```
 
-When the above global `caches` object is ready, you can also register the globally registered cacheable `fetch`:
+### Setting up Global Fetch
 
-```ts
-import { fetch, type Fetch } from '@web-widget/shared-cache';
+Once the global `caches` is configured, you can also register a globally cached `fetch`:
+
+```typescript
+import { createGlobalFetch, type Fetch } from '@web-widget/shared-cache';
 
 declare global {
   interface WindowOrWorkerGlobalScope {
@@ -125,45 +170,120 @@ declare global {
   }
 }
 
-globalThis.fetch = fetch;
+// Replace global fetch with cached version
+globalThis.fetch = createGlobalFetch();
 ```
 
-## `fetch` function
+## 🎛️ Advanced Usage
 
-The `SharedCache` project creates a `fetch` function that conforms to the definition of the Web [fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API), but extends it.
+### Enhanced Fetch API
 
-```ts
-const res = await fetch('https://httpbin.org/response-headers', {
+SharedCache extends the standard fetch API with powerful caching options via the `sharedCache` parameter:
+
+```typescript
+const response = await fetch('https://api.example.com/data', {
+  // Standard fetch options
+  method: 'GET',
+  headers: {
+    'Authorization': 'Bearer token',
+  },
+  
+  // SharedCache-specific options
   sharedCache: {
     cacheControlOverride: 's-maxage=120',
     varyOverride: 'accept-language',
+    ignoreRequestCacheControl: true,
+    ignoreVary: false,
     cacheKeyRules: {
       host: true,
       pathname: true,
       search: false,
       device: true,
+      header: {
+        include: ['authorization']
+      }
     },
   },
 });
 ```
 
-### `sharedCache` options
+### SharedCache Options
 
 #### `cacheControlOverride`
 
-Since many APIs do not configure cache headers correctly, you can use override cache control values.
+Override or extend cache control directives when APIs don't provide optimal caching headers:
+
+```typescript
+// Add shared cache directive
+sharedCache: {
+  cacheControlOverride: 's-maxage=3600'
+}
+
+// Combine multiple directives  
+sharedCache: {
+  cacheControlOverride: 's-maxage=3600, must-revalidate'
+}
+```
 
 #### `varyOverride`
 
-You can use override vary values.
+Add additional Vary headers to ensure proper cache segmentation:
+
+```typescript
+sharedCache: {
+  varyOverride: 'accept-language, user-agent'
+}
+```
+
+#### `ignoreRequestCacheControl`
+
+Control whether to honor cache-control directives from the request:
+
+```typescript
+// Ignore client cache-control headers (default: true)
+sharedCache: {
+  ignoreRequestCacheControl: false
+}
+```
+
+#### `ignoreVary`
+
+Disable Vary header processing for simplified caching:
+
+```typescript
+sharedCache: {
+  ignoreVary: true // Cache regardless of Vary headers
+}
+```
 
 #### `cacheKeyRules`
 
-Custom cache key generation rules.
+Customize how cache keys are generated to optimize cache hit rates and handle different caching scenarios:
 
-Default value:
+```typescript
+sharedCache: {
+  cacheKeyRules: {
+    // URL components
+    host: true,           // Include hostname  
+    pathname: true,       // Include URL path
+    search: true,         // Include query parameters (default)
+    
+    // Request context
+    device: false,        // Classify by device type
+    cookie: {             // Include specific cookies
+      include: ['session_id', 'user_pref']
+    },
+    header: {             // Include specific headers
+      include: ['authorization', 'x-api-key'],
+      checkPresence: ['x-mobile-app']
+    }
+  }
+}
+```
 
-```ts
+**Default cache key rules:**
+
+```typescript
 {
   host: true,
   pathname: true,
@@ -171,191 +291,307 @@ Default value:
 }
 ```
 
-List of built-in supported parts:
+### Cache Key Components
 
-- `host`
-- `pathname`
-- `search`
-- `cookie`
-- `device`
-- `header`
+#### **URL Components**
 
-##### Search
+- **`host`**: Include the hostname in the cache key
+- **`pathname`**: Include the URL path
+- **`search`**: Control query parameter inclusion
 
-The query string controls which URL query string parameters go into the Cache Key. You can `include` specific query string parameters or `exclude` them using the respective fields. When you include a query string parameter, the `value` of the query string parameter is used in the Cache Key.
+**Query Parameter Control:**
 
-###### Example
+```typescript
+// Include all query parameters (default)
+search: true
 
-If you include the query string foo in a URL like `https://www.example.com/?foo=bar`, then bar appears in the Cache Key. Exactly one of `include` or `exclude` is expected.
+// Exclude all query parameters  
+search: false
 
-```ts
-{
-  search: {
-    include: ['foo'],
-  },
+// Include specific parameters
+search: {
+  include: ['category', 'page']
+}
+
+// Include all except specific parameters
+search: {
+  exclude: ['timestamp', 'nonce']
 }
 ```
 
-###### Usage notes
+#### **Device Classification**
 
-- To include all query string parameters (the default behavior), use `search: true`
-- To ignore query strings, use `search: false`
-- To include most query string parameters but exclude a few, use the exclude field which assumes the other query string parameters are included.
+Automatically classify requests as `mobile`, `desktop`, or `tablet` based on User-Agent:
 
-##### Headers
-
-Headers control which headers go into the Cache Key. Similar to Query String, you can include specific headers or exclude default headers.
-
-When you include a header, the header value is included in the Cache Key. For example, if an HTTP request contains an HTTP header like `X-Auth-API-key: 12345`, and you include the `X-Auth-API-Key header` in your Cache Key Template, then `12345` appears in the Cache Key.
-
-To check for the presence of a header without including its actual value, use the `checkPresence` option.
-
-Currently, you can only exclude the `Origin` header. The `Origin` header is always included unless explicitly excluded. Including the [Origin header](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin) in the Cache Key is important to enforce [CORS](https://developer.mozilla.org/en-US/docs/Glossary/CORS). Additionally, you cannot include the following headers:
-
-- Headers that have high cardinality and risk sharding the cache
-  - `accept`
-  - `accept-charset`
-  - `accept-encoding`
-  - `accept-datetime`
-  - `accept-language`
-  - `referer`
-  - `user-agent`
-- Headers that re-implement cache or proxy features
-  - `connection`
-  - `content-length`
-  - `cache-control`
-  - `if-match`
-  - `if-modified-since`
-  - `if-none-match`
-  - `if-unmodified-since`
-  - `range`
-  - `upgrade`
-- Headers that are covered by other Cache Key features
-  - `cookie`
-  - `host`
-- Headers that cache status
-  - `x-cache-status`
-
-##### Host
-
-Host determines which host header to include in the Cache Key.
-
-##### Cookie
-
-Like `search` or `header`, `cookie` controls which cookies appear in the Cache Key. You can either include the cookie value or check for the presence of a particular cookie.
-
-##### Device
-
-Classifies a request as `mobile`, `desktop`, or `tablet` based on the User Agent.
-
-## `CacheStorage` class
-
-The `CacheStorage` class implements [CacheStorage](https://developer.mozilla.org/en-US/docs/Web/API/CacheStorage) interface, but does not implement its specification. It deviates from it in a few ways.
-
-### `constructor`
-
-```ts
-new CacheStorage(storage);
+```typescript
+cacheKeyRules: {
+  device: true  // Separate cache for different device types
+}
 ```
 
-#### Parameters
+#### **Cookie-Based Caching**
 
-- `storage` Custom external storage
+Include specific cookies in the cache key:
 
-### `open`
+```typescript
+cacheKeyRules: {
+  cookie: {
+    include: ['user_id', 'session_token'],
+    checkPresence: ['is_premium']  // Check existence without value
+  }
+}
+```
 
-Returns a Promise that resolves to the Cache object matching the cacheName (a new cache is created if it doesn't already exist.) This method follows the specification.
+#### **Header-Based Caching**
 
-### ~~`delete`~~
+Include request headers in the cache key:
 
-`SharedCache` didn't implement it.
+```typescript
+cacheKeyRules: {
+  header: {
+    include: ['authorization', 'x-api-version'],
+    checkPresence: ['x-feature-flag']
+  }
+}
+```
 
-### ~~`match`~~
+**Restricted Headers:** For security and performance, certain headers cannot be included:
 
-`SharedCache` didn't implement it.
+- High-cardinality headers: `accept`, `accept-charset`, `accept-encoding`, `accept-language`, `user-agent`, `referer`
+- Cache/proxy headers: `cache-control`, `if-*`, `range`, `connection`
+- Headers handled by other features: `cookie`, `host`
 
-### ~~`has`~~
+## 📚 API Reference
 
-`SharedCache` didn't implement it.
+### CacheStorage Class
 
-### ~~`keys`~~
+Implements a subset of the [Web CacheStorage API](https://developer.mozilla.org/en-US/docs/Web/API/CacheStorage), optimized for server-side caching.
 
-`SharedCache` didn't implement it.
+#### Constructor
 
-## `Cache` class
+```typescript
+new CacheStorage(storage: KVStorage)
+```
 
-The `Cache` class implements [Cache](https://developer.mozilla.org/en-US/docs/Web/API/Cache) interface, but does not implement its specification. It deviates from it in a few ways.
+**Parameters:**
 
-### `match(request, options)`
+- `storage` - Custom storage backend implementing the `KVStorage` interface
 
-Checks the cache to see if it includes the response to the given request. If it does and the response isn't stale, it returns the response. Otherwise, it will make a fetch, cache the response, and return the response.
+#### Methods
 
-#### Parameters
+##### `open(cacheName: string): Promise<Cache>`
 
-- `request` The Request for which you are attempting to find responses in the Cache. See also [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request)
-- `options` An object that sets options for the match operation. See also [`CacheQueryOptions`](#cachequeryoptions)
+Opens or creates a named cache instance.
 
-### `put(request, response)`
+```typescript
+const cache = await caches.open('api-cache-v1');
+```
 
-Takes both a request and its response and adds it to the given cache if allowed. This method deviates from the specification in a few ways:
+**Note:** Unlike the Web API, other CacheStorage methods (`delete`, `match`, `has`, `keys`) are not implemented.
 
-It has extra protections beyond the specification. For example, a response that includes the `cahce-control: no-cache` will not be stored in this library, but would be stored in a specification compliant library.
+### Cache Class  
 
-#### Parameters
+Implements a subset of the [Web Cache API](https://developer.mozilla.org/en-US/docs/Web/API/Cache) with server-side optimizations.
 
-- `request` The Request object or URL that you want to add to the cache. See also [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request)
-- `response` The Response you want to match up to the request. See also [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response)
+#### `match(request, options?): Promise<Response | undefined>`
 
-### `delete(request, options)`
+Retrieves a cached response or fetches and caches a new one.
 
-Finds the Cache entry whose key is the request, returning a Promise that resolves to true if a matching Cache entry is found and deleted. If no Cache entry is found, the promise resolves to false. This method follows the specification.
+**Parameters:**
 
-#### Parameters
+- `request` - The Request object or URL string
+- `options` - Optional cache query options
 
-- `request` The Request you are looking to delete. See also [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request)
-- `options` An object whose properties control how matching is done in the delete operation. See also [`CacheQueryOptions`](#cachequeryoptions)
+**Returns:** Cached Response if available and fresh, undefined otherwise
 
-### ~~`add`~~
+```typescript
+const cachedResponse = await cache.match('https://api.example.com/data');
+```
 
-`SharedCache` didn't implement it.
+#### `put(request, response): Promise<void>`
 
-### ~~`addAll`~~
+Stores a request/response pair in the cache.
 
-`SharedCache` didn't implement it.
+**Parameters:**
 
-### ~~`keys`~~
+- `request` - The Request object or URL string  
+- `response` - The Response to cache
 
-`SharedCache` didn't implement it.
+**Note:** Only cacheable responses are stored (based on HTTP caching rules).
 
-## `CacheQueryOptions`
+```typescript
+await cache.put(request, response);
+```
 
-This is an option for query caching which extends the specification.
+#### `delete(request, options?): Promise<boolean>`
 
-### `ignoreMethod`
+Removes a cached entry.
 
-When `true`, the request is considered to be a GET request regardless of its actual value.
+**Parameters:**
 
-### ~~`ignoreSearch`~~
+- `request` - The Request object or URL string
+- `options` - Optional cache query options
 
-`SharedCache` didn't implement it.
+**Returns:** `true` if entry was deleted, `false` if not found
 
-### ~~`ignoreVary`~~
+```typescript
+const deleted = await cache.delete('https://api.example.com/data');
+```
 
-`SharedCache` didn't implement it.
+### CacheQueryOptions
 
-## Who is using this
+Extended options for cache operations:
+
+```typescript
+interface CacheQueryOptions {
+  ignoreMethod?: boolean;  // Treat request as GET regardless of actual method
+}
+```
+
+#### `ignoreMethod`
+
+When `true`, the request is treated as a GET request for cache operations, regardless of its actual HTTP method.
+
+## 💡 Examples
+
+### Redis Storage Backend
+
+```typescript
+import Redis from 'ioredis';
+import { CacheStorage, type KVStorage } from '@web-widget/shared-cache';
+
+const createRedisStorage = (): KVStorage => {
+  const redis = new Redis(process.env.REDIS_URL);
+  
+  return {
+    async get(key: string) {
+      const value = await redis.get(key);
+      return value ? JSON.parse(value) : undefined;
+    },
+    
+    async set(key: string, value: any, ttl?: number) {
+      const serialized = JSON.stringify(value);
+      if (ttl) {
+        await redis.setex(key, Math.ceil(ttl / 1000), serialized);
+      } else {
+        await redis.set(key, serialized);
+      }
+    },
+    
+    async delete(key: string) {
+      return (await redis.del(key)) > 0;
+    },
+  };
+};
+
+const caches = new CacheStorage(createRedisStorage());
+```
+
+### API Response Caching
+
+```typescript
+import { createSharedCacheFetch } from '@web-widget/shared-cache';
+
+const cache = await caches.open('api-responses');
+const fetch = createSharedCacheFetch(cache);
+
+// Cache API responses with custom rules
+async function fetchUserData(userId: string) {
+  return fetch(`https://api.example.com/users/${userId}`, {
+    sharedCache: {
+      cacheControlOverride: 's-maxage=300', // Cache for 5 minutes
+      cacheKeyRules: {
+        header: {
+          include: ['authorization'] // Separate cache per user
+        }
+      }
+    }
+  });
+}
+```
+
+### Device-Specific Caching
+
+```typescript
+// Different cache entries for mobile vs desktop
+const response = await fetch('https://api.example.com/content', {
+  sharedCache: {
+    cacheKeyRules: {
+      device: true, // Separate cache for mobile/desktop/tablet
+      search: {
+        exclude: ['timestamp'] // Ignore timestamp in cache key
+      }
+    }
+  }
+});
+```
+
+## 🏗️ Production Deployment
+
+### Memory Management
+
+```typescript
+import { LRUCache } from 'lru-cache';
+
+const createProductionCache = (): KVStorage => {
+  const store = new LRUCache<string, any>({
+    max: 10000,                    // Maximum 10k entries
+    ttl: 1000 * 60 * 60 * 24,    // 24 hour default TTL
+    updateAgeOnGet: true,          // Refresh TTL on access
+    allowStale: true,             // Serve stale during updates
+  });
+  
+  return {
+    async get(key: string) {
+      return store.get(key);
+    },
+    async set(key: string, value: any, ttl?: number) {
+      store.set(key, value, { ttl: ttl || undefined });
+    },
+    async delete(key: string) {
+      return store.delete(key);
+    },
+  };
+};
+```
+
+### Monitoring Cache Performance
+
+```typescript
+const cache = await caches.open('monitored-cache');
+const fetch = createSharedCacheFetch(cache);
+
+// Wrap fetch to add monitoring
+const monitoredFetch = async (url: string, options: any) => {
+  const start = Date.now();
+  const response = await fetch(url, options);
+  const duration = Date.now() - start;
+  const cacheStatus = response.headers.get('x-cache-status');
+  
+  console.log(`${cacheStatus}: ${url} (${duration}ms)`);
+  
+  return response;
+};
+```
+
+## 🤝 Who's Using SharedCache
 
 - [Web Widget: Cache middleware](https://github.com/web-widget/web-widget/blob/main/packages/middlewares/src/cache.ts)
 
-## Thanks
+## 🙏 Acknowledgments
 
-The birth of `SharedCache` is inseparable from the inspiration of the following projects:
+SharedCache draws inspiration from industry-leading caching implementations:
 
-- [Cloudflare Cache Key](https://developers.cloudflare.com/cache/how-to/cache-keys/)
-- [Next Data Cache](https://nextjs.org/docs/app/building-your-application/caching#data-cache)
-- [nodejs/undici](https://github.com/nodejs/undici/blob/main/lib/web/cache/cache.js)
-- [o-development/http-cache-lru](https://github.com/o-development/http-cache-lru/)
-- [cloudflare/miniflare](https://github.com/cloudflare/miniflare/blob/master/packages/cache/src/cache.ts)
-- [cloudflare/workers-sdk](https://github.com/cloudflare/workers-sdk/blob/main/packages/miniflare/src/workers/cache/cache.worker.ts)
-- [natemoo-re/ultrafetch](https://github.com/natemoo-re/ultrafetch)
-- [island.is/island.is](https://github.com/island-is/island.is/blob/main/libs/clients/middlewares/src/lib/withCache/withCache.ts)
+- [Cloudflare Cache Key](https://developers.cloudflare.com/cache/how-to/cache-keys/) - Cache key customization patterns
+- [Next.js Data Cache](https://nextjs.org/docs/app/building-your-application/caching#data-cache) - Server-side caching strategies  
+- [nodejs/undici](https://github.com/nodejs/undici/blob/main/lib/web/cache/cache.js) - Web Standards implementation
+- [http-cache-lru](https://github.com/o-development/http-cache-lru/) - HTTP cache semantics
+- [Cloudflare Miniflare](https://github.com/cloudflare/miniflare/blob/master/packages/cache/src/cache.ts) - Edge runtime patterns
+- [Cloudflare Workers SDK](https://github.com/cloudflare/workers-sdk/blob/main/packages/miniflare/src/workers/cache/cache.worker.ts) - Worker environment optimizations
+- [ultrafetch](https://github.com/natemoo-re/ultrafetch) - Fetch API extensions
+- [island.is Cache Middleware](https://github.com/island-is/island.is/blob/main/libs/clients/middlewares/src/lib/withCache/withCache.ts) - Production caching patterns
+- [make-fetch-happen](https://github.com/npm/make-fetch-happen) - HTTP caching with retry and offline support
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file for details.
