@@ -548,9 +548,9 @@ import { LRUCache } from 'lru-cache';
 const createProductionCache = (): KVStorage => {
   const store = new LRUCache<string, any>({
     max: 10000,                    // Maximum 10k entries
-    ttl: 1000 * 60 * 60 * 24,    // 24 hour default TTL
+    ttl: 1000 * 60 * 60 * 24,      // 24 hour default TTL
     updateAgeOnGet: true,          // Refresh TTL on access
-    allowStale: true,             // Serve stale during updates
+    allowStale: true,              // Serve stale during updates
   });
   
   return {
