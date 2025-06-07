@@ -338,7 +338,9 @@ describe('should support header', () => {
             header: { include: [key] },
           }
         )
-      ).rejects.toThrow(`Cannot include header: ${key}`);
+      ).rejects.toThrow(
+        `Cannot include header "${key}" in cache key. This header is excluded to prevent cache fragmentation or conflicts with other cache features.`
+      );
     });
   });
 });
@@ -446,7 +448,9 @@ describe('should support custom key', () => {
       keyGenerator(new Request('http://localhost/'), {
         foo: true,
       })
-    ).rejects.toThrow('Unknown custom part: "foo".');
+    ).rejects.toThrow(
+      'Unknown cache key part: "foo". Register a custom part definer or use a built-in part (cookie, device, header).'
+    );
   });
 
   test('empty parts should be ignored', async () => {
