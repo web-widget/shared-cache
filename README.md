@@ -18,6 +18,7 @@ The library intelligently determines when HTTP responses can be reused from cach
 - [🚀 Quick Start](#-quick-start)
 - [🌐 Global Setup](#-global-setup)
 - [🎛️ Advanced Usage](#️-advanced-usage)
+- [📊 Cache Status Indicators](#-cache-status-indicators)
 - [📚 API Reference](#-api-reference)
 - [💡 Examples](#-examples)
 - [🏗️ Production Deployment](#️-production-deployment)
@@ -413,6 +414,91 @@ cacheKeyRules: {
 **⚠️ Important for Shared Caches**: According to HTTP specifications (RFC 7234), responses to requests containing an `Authorization` header must not be stored in shared caches unless explicitly allowed by cache control directives like `public`, `s-maxage`, or `must-revalidate`. This library correctly handles this restriction automatically.
 
 **🔒 Security Note**: SharedCache automatically enforces HTTP caching security rules. Requests containing `Authorization` headers will not be cached unless the response explicitly allows it with directives like `public`, `s-maxage`, or `must-revalidate`.
+
+## 📊 Cache Status Indicators
+
+SharedCache provides detailed cache status information through the `x-cache-status` header to help monitor and debug caching behavior. Understanding these status codes is essential for optimizing cache performance and troubleshooting issues.
+
+### Cache Status Types
+
+| Status | Description | When It Occurs |
+|--------|-------------|----------------|
+| **`HIT`** | Response served from cache without validation | The requested resource was found in cache and is still fresh according to cache control directives |
+| **`MISS`** | Response not found in cache, fetched from origin | The requested resource was not found in cache or was never cached |
+| **`EXPIRED`** | Cached response was expired, fresh response fetched | The cached response has exceeded its TTL and a fresh response was fetched from origin |
+| **`STALE`** | Stale response served (e.g., during stale-while-revalidate) | A stale cached response was served while background revalidation occurred, or served due to stale-if-error |
+| **`BYPASS`** | Cache was bypassed due to cache control directives | Caching was bypassed due to `no-store`, `no-cache`, `private`, or similar directives |
+| **`REVALIDATED`** | Cached response was revalidated and determined still fresh | The cached response was validated with the origin server (304 Not Modified) and determined to still be fresh |
+| **`DYNAMIC`** | Response is dynamic and cannot be cached | The response cannot be cached due to HTTP method, status code, or absence of cache control headers |
+
+### Status Code Examples
+
+```typescript
+import { createFetch } from '@web-widget/shared-cache';
+
+const cache = await caches.open('status-demo');
+const fetch = createFetch({
+  cache,
+  defaultCacheControl: 's-maxage=300',
+});
+
+// First request - cache miss
+const response1 = await fetch('/api/data');
+console.log(response1.headers.get('x-cache-status')); // "MISS"
+
+// Second request - cache hit
+const response2 = await fetch('/api/data');
+console.log(response2.headers.get('x-cache-status')); // "HIT"
+
+// Request with no-cache directive - bypass
+const response3 = await fetch('/api/data', {
+  headers: { 'cache-control': 'no-cache' }
+});
+console.log(response3.headers.get('x-cache-status')); // "BYPASS"
+
+// Non-GET request - dynamic
+const response4 = await fetch('/api/data', { method: 'POST' });
+console.log(response4.headers.get('x-cache-status')); // "DYNAMIC"
+```
+
+### Monitoring Cache Performance
+
+Use cache status indicators to monitor cache effectiveness:
+
+```typescript
+const monitoredFetch = createFetch({
+  cache: await caches.open('monitored-cache'),
+  defaultCacheControl: 's-maxage=300',
+  
+  // Optional: Add custom fetch wrapper for monitoring
+  fetch: async (input, init) => {
+    const response = await globalThis.fetch(input, init);
+    const cacheStatus = response.headers.get('x-cache-status');
+    
+    // Log cache performance metrics
+    if (cacheStatus === 'HIT') {
+      console.log('✅ Cache hit - served from cache');
+    } else if (cacheStatus === 'MISS') {
+      console.log('❌ Cache miss - fetched from origin');
+    } else if (cacheStatus === 'STALE') {
+      console.log('⚡ Stale response served while revalidating');
+    }
+    
+    return response;
+  }
+});
+```
+
+### Cache Status Header Details
+
+The `x-cache-status` header is automatically added to all responses processed by SharedCache:
+
+- **Header Name**: `x-cache-status` (defined in `CACHE_STATUS_HEADERS_NAME` constant)
+- **Header Values**: One of the status types listed above (`HIT`, `MISS`, `EXPIRED`, `STALE`, `BYPASS`, `REVALIDATED`, `DYNAMIC`)
+- **Always Present**: The header is always added, making it reliable for monitoring and debugging
+- **Non-Standard**: This is a custom header for debugging purposes and should not be relied upon by client applications for functionality
+
+**Note**: The cache status header helps with development and monitoring but should not be used for application logic in production code.
 
 ## 📚 API Reference
 
