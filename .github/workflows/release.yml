@@ -20,14 +20,20 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.11.1
+
       - name: Setup Cache
         uses: actions/cache@v4
         with:
           path: |
-            ~/.pnpm-store
+            ~/.local/share/pnpm
             node_modules/.cache/turbo
-            node_modules/.pnpm
-          key: ${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-pnpm-${{ env.NODE_VERSION }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-${{ env.NODE_VERSION }}-
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -36,7 +42,10 @@ jobs:
 
       - run: corepack enable && pnpm --version
 
-      - run: pnpm install --recursive --no-frozen-lockfile --loglevel=error
+      - name: Clean and install dependencies
+        run: |
+          pnpm store prune
+          pnpm install --frozen-lockfile --prefer-offline
 
       - run: pnpm build
 
