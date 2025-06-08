@@ -11,71 +11,18 @@ import {
 import {
   SharedCacheStatus,
   SharedCacheFetch,
-  SharedCacheKeyRules,
   SharedCacheRequestInitProperties,
+  SharedCacheRequest,
 } from './types';
-
-/**
- * Configuration options for creating a fetch function with default cache settings.
- * This provides a more convenient API for setting up cached fetch with global defaults.
- */
-export interface CreateFetchOptions {
-  /**
-   * The SharedCache instance to use for caching.
-   * If not provided, will attempt to use global cache storage.
-   */
-  cache?: SharedCache;
-
-  /**
-   * Custom fetch implementation to use as the underlying fetcher.
-   * Defaults to globalThis.fetch if not provided.
-   */
-  fetch?: typeof fetch;
-
-  /**
-   * Default cache control directive to apply to responses.
-   * Can be overridden on a per-request basis.
-   */
-  defaultCacheControl?: string;
-
-  /**
-   * Default cache key rules for generating cache keys.
-   * Can be overridden on a per-request basis.
-   */
-  defaultCacheKeyRules?: SharedCacheKeyRules;
-
-  /**
-   * Default setting for ignoring request cache control headers.
-   * When true, request cache control directives are ignored.
-   * Defaults to true for server-side shared caching.
-   */
-  defaultIgnoreRequestCacheControl?: boolean;
-
-  /**
-   * Default setting for ignoring Vary header processing.
-   * When true, Vary header is not considered for cache key generation.
-   * Defaults to false.
-   */
-  defaultIgnoreVary?: boolean;
-
-  /**
-   * Default vary header override for responses.
-   * Can be overridden on a per-request basis.
-   */
-  defaultVaryOverride?: string;
-
-  /**
-   * Default function to handle background operations (like stale-while-revalidate).
-   * Called with promises that should be awaited in the background.
-   */
-  defaultWaitUntil?: (promise: Promise<unknown>) => void;
-}
 
 /** Reference to the original global fetch function */
 const ORIGINAL_FETCH = globalThis.fetch;
 
 /**
  * Creates a fetch function with shared caching capabilities.
+ *
+ * This is the internal implementation that powers the `createFetch` export.
+ * Users should import and use `createFetch` instead of this function directly.
  *
  * This function implements HTTP caching semantics on top of the standard fetch API,
  * providing automatic cache management with support for:
@@ -87,7 +34,6 @@ const ORIGINAL_FETCH = globalThis.fetch;
  * The returned fetch function is compatible with the standard fetch API while
  * adding transparent caching capabilities.
  *
- * @deprecated Use `createFetch` instead for better API design with default configuration support.
  * @param cache - Optional SharedCache instance (defaults to global cache if available)
  * @param options - Configuration options
  * @param options.fetch - Custom fetch implementation (defaults to global fetch)
@@ -96,19 +42,31 @@ const ORIGINAL_FETCH = globalThis.fetch;
  *
  * @example
  * ```typescript
- * // Deprecated usage
- * const cachedFetch = createSharedCacheFetch(myCache);
+ * import { createFetch, CacheStorage } from '@web-widget/shared-cache';
+ * import { LRUCache } from 'lru-cache';
  *
- * // Recommended: Use createFetch instead
- * const fetch = createFetch({ cache: myCache });
+ * // Set up cache storage
+ * const caches = new CacheStorage(createLRUStorage());
+ * const cache = await caches.open('api-cache');
+ *
+ * // Create cached fetch with default options
+ * const fetch = createFetch(cache, {
+ *   defaults: {
+ *     cacheControlOverride: 's-maxage=300',
+ *     ignoreRequestCacheControl: true,
+ *   }
+ * });
+ *
+ * // Use the cached fetch
  * const response = await fetch('/api/data');
+ * console.log(response.headers.get('x-cache-status')); // "MISS" or "HIT"
  * ```
  */
 export function createSharedCacheFetch(
   cache?: SharedCache,
   options?: {
     /** Custom fetch implementation to use as the underlying fetcher */
-    fetch?: typeof fetch;
+    fetch?: typeof globalThis.fetch;
     /** Default shared cache options to apply to all requests */
     defaults?: Partial<SharedCacheRequestInitProperties>;
   }
@@ -125,12 +83,12 @@ export function createSharedCacheFetch(
     // Validate cache availability
     if (!cache) {
       throw new TypeError(
-        'SharedCache is required. Provide a cache instance or ensure globalThis.caches is available.'
+        'Cache is required. Provide a cache instance or ensure globalThis.caches is available.'
       );
     }
 
     // Create request object with proper initialization
-    const request = new Request(input, init);
+    const request = new Request(input, init) as SharedCacheRequest;
 
     // Extract and validate cache mode
     const requestCache = getRequestCacheMode(request, init?.cache);
@@ -211,18 +169,7 @@ export function createSharedCacheFetch(
  * using the default configuration. It will automatically use the global
  * cache storage if available.
  *
- * @deprecated Use `createFetch` instead for better API design with default configuration support.
- * @example
- * ```typescript
- * // Deprecated usage
- * import { sharedCacheFetch } from '@web-widget/shared-cache';
- * const response = await sharedCacheFetch('/api/data');
- *
- * // Recommended: Use createFetch instead
- * import { createFetch } from '@web-widget/shared-cache';
- * const fetch = createFetch({ cache: await caches.open('default') });
- * const response = await fetch('/api/data');
- * ```
+ * @deprecated
  */
 export const sharedCacheFetch = createSharedCacheFetch();
 
@@ -350,56 +297,4 @@ function getRequestCacheMode(
   }
 }
 
-/**
- * Creates a fetch function with default shared cache configuration.
- *
- * This is an enhanced version of createSharedCacheFetch that allows setting
- * default cache options at creation time, reducing the need to specify
- * the same configuration on every request.
- *
- * @param options - Configuration options with default settings
- * @returns A fetch function with caching capabilities and default configuration
- *
- * @example
- * ```typescript
- * const cache = await caches.open('api-cache');
- * const fetch = createFetch({
- *   cache,
- *   defaultCacheControl: 's-maxage=300',
- *   defaultCacheKeyRules: {
- *     header: { include: ['x-user-id'] }
- *   }
- * });
- * // Use with defaults
- * const response1 = await fetch('/api/data', { headers: { 'x-user-id': '123' } });
- *
- * // Override specific options
- * const response2 = await fetch('/api/data', {
- *   sharedCache: { cacheControlOverride: 's-maxage=600' }
- * });
- * ```
- */
-export function createFetch(options: CreateFetchOptions): SharedCacheFetch {
-  const {
-    cache,
-    fetch: customFetch,
-    defaultCacheControl,
-    defaultCacheKeyRules,
-    defaultIgnoreRequestCacheControl = true,
-    defaultIgnoreVary = false,
-    defaultVaryOverride,
-    defaultWaitUntil,
-  } = options;
-
-  return createSharedCacheFetch(cache, {
-    fetch: customFetch,
-    defaults: {
-      cacheControlOverride: defaultCacheControl,
-      cacheKeyRules: defaultCacheKeyRules,
-      ignoreRequestCacheControl: defaultIgnoreRequestCacheControl,
-      ignoreVary: defaultIgnoreVary,
-      varyOverride: defaultVaryOverride,
-      waitUntil: defaultWaitUntil,
-    },
-  });
-}
+export { createSharedCacheFetch as createFetch, sharedCacheFetch as fetch };

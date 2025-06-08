@@ -97,10 +97,12 @@ const caches = new CacheStorage(createLRUCache());
 async function example() {
   const cache = await caches.open('api-cache-v1');
   
-  // Create fetch with default configuration (recommended approach)
-  const fetch = createFetch({
-    cache,
-    defaultCacheControl: 's-maxage=300', // 5 minutes default caching
+  // Create fetch with default configuration
+  const fetch = createFetch(cache, {
+    defaults: {
+      cacheControlOverride: 's-maxage=300', // 5 minutes default caching
+      ignoreRequestCacheControl: true
+    }
   });
   
   // First request - will hit the network
@@ -124,19 +126,21 @@ async function example() {
 example();
 ```
 
-### Legacy API Support
+### API Notes
 
-The older `createSharedCacheFetch` API is still supported for backward compatibility but not recommended for new projects:
+This package exports `createFetch` as the main API function. Internally, it's implemented as `createSharedCacheFetch`, but only `createFetch` is available for import:
 
 ```typescript
-import { createSharedCacheFetch } from '@web-widget/shared-cache';
+import { createFetch } from '@web-widget/shared-cache';
 
-// Legacy approach - more verbose
 const cache = await caches.open('api-cache-v1');
-const fetch = createSharedCacheFetch(cache);
+const fetch = createFetch(cache, {
+  defaults: {
+    cacheControlOverride: 's-maxage=300',
+    ignoreRequestCacheControl: true
+  }
+});
 ```
-
-> **⚠️ Deprecation Notice**: `createSharedCacheFetch` is deprecated. Use `createFetch` for better API design with default configuration support.
 
 ## 🌐 Global Setup
 
@@ -186,9 +190,11 @@ Once the global `caches` is configured, you can also register a globally cached 
 ```typescript
 import { createFetch } from '@web-widget/shared-cache';
 
-// Replace global fetch with cached version using the new API
-globalThis.fetch = createFetch({
-  defaultCacheControl: 's-maxage=60', // 1 minute default for global fetch
+// Replace global fetch with cached version
+globalThis.fetch = createFetch(await caches.open('default'), {
+  defaults: {
+    cacheControlOverride: 's-maxage=60', // 1 minute default for global fetch
+  }
 });
 ```
 
@@ -196,7 +202,7 @@ globalThis.fetch = createFetch({
 
 ### Enhanced Fetch API with Default Configuration
 
-The new `createFetch` API allows you to set default cache configuration at creation time, reducing repetition:
+The `createFetch` API allows you to set default cache configuration at creation time, reducing repetition:
 
 ```typescript
 import { createFetch } from '@web-widget/shared-cache';
@@ -204,14 +210,15 @@ import { createFetch } from '@web-widget/shared-cache';
 const cache = await caches.open('api-cache');
 
 // Create fetch with comprehensive defaults
-const fetch = createFetch({
-  cache,
-  defaultCacheControl: 's-maxage=300',
-  defaultCacheKeyRules: {
-    header: { include: ['x-api-version'] }
-  },
-  defaultIgnoreRequestCacheControl: true,
-  defaultIgnoreVary: false,
+const fetch = createFetch(cache, {
+  defaults: {
+    cacheControlOverride: 's-maxage=300',
+    cacheKeyRules: {
+      header: { include: ['x-api-version'] }
+    },
+    ignoreRequestCacheControl: true,
+    ignoreVary: false,
+  }
 });
 
 // Use with defaults applied automatically
@@ -437,9 +444,10 @@ SharedCache provides detailed cache status information through the `x-cache-stat
 import { createFetch } from '@web-widget/shared-cache';
 
 const cache = await caches.open('status-demo');
-const fetch = createFetch({
-  cache,
-  defaultCacheControl: 's-maxage=300',
+const fetch = createFetch(cache, {
+  defaults: {
+    cacheControlOverride: 's-maxage=300',
+  }
 });
 
 // First request - cache miss
@@ -466,11 +474,12 @@ console.log(response4.headers.get('x-cache-status')); // "DYNAMIC"
 Use cache status indicators to monitor cache effectiveness:
 
 ```typescript
-const monitoredFetch = createFetch({
-  cache: await caches.open('monitored-cache'),
-  defaultCacheControl: 's-maxage=300',
+const monitoredFetch = createFetch(await caches.open('monitored-cache'), {
+  defaults: {
+    cacheControlOverride: 's-maxage=300',
+  },
   
-  // Optional: Add custom fetch wrapper for monitoring
+  // Custom fetch wrapper for monitoring
   fetch: async (input, init) => {
     const response = await globalThis.fetch(input, init);
     const cacheStatus = response.headers.get('x-cache-status');
@@ -502,63 +511,54 @@ The `x-cache-status` header is automatically added to all responses processed by
 
 ## 📚 API Reference
 
-### createFetch Function (Recommended)
+### createFetch Function
 
-Creates a fetch function with default shared cache configuration. This is the recommended approach for new projects.
+Creates a fetch function with shared cache configuration. This is the main API for the package.
 
 ```typescript
-function createFetch(options: CreateFetchOptions): SharedCacheFetch
+function createFetch(
+  cache?: SharedCache,
+  options?: {
+    fetch?: typeof fetch;
+    defaults?: Partial<SharedCacheRequestInitProperties>;
+  }
+): SharedCacheFetch
 ```
 
 **Parameters:**
 
+- `cache` - Optional SharedCache instance (auto-discovered from globalThis.caches if not provided)
+- `options.fetch` - Custom fetch implementation to use as the underlying fetcher
+- `options.defaults` - Default shared cache options to apply to all requests
+
+**Default Options:**
+
 ```typescript
-interface CreateFetchOptions {
-  cache?: SharedCache;                          // Cache instance
-  fetch?: typeof fetch;                         // Custom fetch implementation
-  defaultCacheControl?: string;                 // Default cache control directive
-  defaultCacheKeyRules?: SharedCacheKeyRules;   // Default cache key rules
-  defaultIgnoreRequestCacheControl?: boolean;   // Default: true
-  defaultIgnoreVary?: boolean;                  // Default: false
-  defaultVaryOverride?: string;                 // Default vary header
-  defaultWaitUntil?: (promise: Promise<unknown>) => void; // Background operation handler
+interface SharedCacheRequestInitProperties {
+  cacheControlOverride?: string;         // Override cache-control header
+  cacheKeyRules?: SharedCacheKeyRules;   // Custom cache key rules
+  ignoreRequestCacheControl?: boolean;   // Default: true
+  ignoreVary?: boolean;                  // Default: false  
+  varyOverride?: string;                 // Override vary header
 }
 ```
 
 **Example:**
 
 ```typescript
-const fetch = createFetch({
-  cache: await caches.open('my-cache'),
-  defaultCacheControl: 's-maxage=300',
-  defaultCacheKeyRules: {
-    header: { include: ['x-api-version'] }
-  }
-});
-```
-
-### Migration Guide
-
-**From legacy API to `createFetch`:**
-
-```typescript
-// Old way (legacy) - deprecated
-const fetch = createSharedCacheFetch(cache, {
+const fetch = createFetch(await caches.open('my-cache'), {
   defaults: {
     cacheControlOverride: 's-maxage=300',
-    ignoreRequestCacheControl: true,
+    cacheKeyRules: {
+      header: { include: ['x-api-version'] }
+    }
   }
-});
-
-// New way (recommended)
-const fetch = createFetch({
-  cache,
-  defaultCacheControl: 's-maxage=300',
-  defaultIgnoreRequestCacheControl: true,
 });
 ```
 
-> **Migration Benefits**: The new `createFetch` API provides better type safety, cleaner parameter naming, and more intuitive default configuration.
+### Internal Implementation
+
+Internally, `createFetch` is an alias for the `createSharedCacheFetch` function, but only `createFetch` is exported from the package.
 
 ### CacheStorage Class
 
@@ -673,14 +673,15 @@ const caches = new CacheStorage(createLRUCache());
 const cache = await caches.open('api-cache-v1');
 
 // Create fetch with comprehensive defaults
-const fetch = createFetch({
-  cache,
-  defaultCacheControl: 's-maxage=300',
-  defaultCacheKeyRules: {
-    header: { include: ['x-api-version'] },
-    search: { exclude: ['timestamp'] }
-  },
-  defaultIgnoreRequestCacheControl: true,
+const fetch = createFetch(cache, {
+  defaults: {
+    cacheControlOverride: 's-maxage=300',
+    cacheKeyRules: {
+      header: { include: ['x-api-version'] },
+      search: { exclude: ['timestamp'] }
+    },
+    ignoreRequestCacheControl: true,
+  }
 });
 
 // Simple usage - defaults applied automatically
@@ -728,11 +729,12 @@ const caches = new CacheStorage(createRedisStorage());
 const cache = await caches.open('distributed-cache');
 
 // Create fetch with Redis backend
-const fetch = createFetch({
-  cache,
-  defaultCacheControl: 's-maxage=600', // 10 minutes default
-  defaultCacheKeyRules: {
-    header: { include: ['x-tenant-id'] } // Multi-tenant support
+const fetch = createFetch(cache, {
+  defaults: {
+    cacheControlOverride: 's-maxage=600', // 10 minutes default
+    cacheKeyRules: {
+      header: { include: ['x-tenant-id'] } // Multi-tenant support
+    }
   }
 });
 ```
@@ -745,14 +747,15 @@ import { createFetch } from '@web-widget/shared-cache';
 const cache = await caches.open('api-responses');
 
 // Create API-specific fetch with defaults
-const apiFetch = createFetch({
-  cache,
-  defaultCacheControl: 's-maxage=300', // 5 minutes for API responses
-  defaultCacheKeyRules: {
-    header: { include: ['x-user-id', 'x-api-version'] },
-    search: { exclude: ['_t', 'timestamp'] } // Ignore cache-busting params
-  },
-  defaultIgnoreRequestCacheControl: true, // Server controls caching
+const apiFetch = createFetch(cache, {
+  defaults: {
+    cacheControlOverride: 's-maxage=300', // 5 minutes for API responses
+    cacheKeyRules: {
+      header: { include: ['x-user-id', 'x-api-version'] },
+      search: { exclude: ['_t', 'timestamp'] } // Ignore cache-busting params
+    },
+    ignoreRequestCacheControl: true, // Server controls caching
+  }
 });
 
 // Simple API calls with automatic caching
@@ -776,12 +779,13 @@ async function fetchRealtimeData() {
 
 ```typescript
 // Modern approach with defaults
-const deviceAwareFetch = createFetch({
-  cache: await caches.open('content-cache'),
-  defaultCacheControl: 's-maxage=600',
-  defaultCacheKeyRules: {
-    device: true, // Separate cache for mobile/desktop/tablet
-    search: { exclude: ['timestamp'] }
+const deviceAwareFetch = createFetch(await caches.open('content-cache'), {
+  defaults: {
+    cacheControlOverride: 's-maxage=600',
+    cacheKeyRules: {
+      device: true, // Separate cache for mobile/desktop/tablet
+      search: { exclude: ['timestamp'] }
+    }
   }
 });
 
@@ -793,9 +797,10 @@ const response = await deviceAwareFetch('/api/content');
 
 ```typescript
 // ✅ Good: Public API responses can be cached
-const publicFetch = createFetch({
-  cache: await caches.open('public-api'),
-  defaultCacheControl: 's-maxage=300',
+const publicFetch = createFetch(await caches.open('public-api'), {
+  defaults: {
+    cacheControlOverride: 's-maxage=300',
+  }
 });
 
 const publicData = await publicFetch('/api/public/data');
@@ -870,10 +875,11 @@ const createProductionCache = (): KVStorage => {
 };
 
 // Production-ready fetch with optimized caching
-const productionFetch = createFetch({
-  cache: await new CacheStorage(createProductionCache()).open('prod-cache'),
-  defaultCacheControl: 's-maxage=300',
-  defaultIgnoreRequestCacheControl: true,
+const productionFetch = createFetch(await new CacheStorage(createProductionCache()).open('prod-cache'), {
+  defaults: {
+    cacheControlOverride: 's-maxage=300',
+    ignoreRequestCacheControl: true,
+  }
 });
 ```
 
@@ -882,17 +888,22 @@ const productionFetch = createFetch({
 ```typescript
 import { createFetch } from '@web-widget/shared-cache';
 
-const monitoredFetch = createFetch({
-  cache: await caches.open('monitored-cache'),
-  defaultCacheControl: 's-maxage=300',
-  defaultWaitUntil: async (promise) => {
-    // Handle background operations (like stale-while-revalidate)
+const monitoredFetch = createFetch(await caches.open('monitored-cache'), {
+  defaults: {
+    cacheControlOverride: 's-maxage=300',
+  },
+  fetch: async (input, init) => {
+    // Custom fetch wrapper with monitoring
     try {
-      await promise;
-      console.log('Background cache operation completed');
+      const response = await globalThis.fetch(input, init);
+      // Monitor response status, timing, etc.
+      return response;
     } catch (error) {
-      console.error('Background cache operation failed:', error);
-      // Report to monitoring service
+      console.error('Fetch operation failed:', error);
+      throw error;
+    }
+  }
+});
     }
   }
 });
@@ -935,9 +946,10 @@ async function warmCache() {
     '/api/navigation'
   ];
   
-  const warmingFetch = createFetch({
-    cache: await caches.open('warm-cache'),
-    defaultCacheControl: 's-maxage=3600', // Long cache for config data
+  const warmingFetch = createFetch(await caches.open('warm-cache'), {
+    defaults: {
+      cacheControlOverride: 's-maxage=3600', // Long cache for config data
+    }
   });
   
   await Promise.allSettled(
@@ -1066,9 +1078,10 @@ interface SharedCacheQueryOptions {
 // pages/api/data.ts or app/api/data/route.ts
 import { createFetch } from '@web-widget/shared-cache';
 
-const cachedFetch = createFetch({
-  cache: await caches.open('nextjs-api'),
-  defaultCacheControl: 's-maxage=300',
+const cachedFetch = createFetch(await caches.open('nextjs-api'), {
+  defaults: {
+    cacheControlOverride: 's-maxage=300',
+  }
 });
 
 export async function GET() {
@@ -1086,9 +1099,10 @@ export async function GET() {
 await cache.delete('/api/user/profile');
 
 // Or use shorter cache times for dynamic content
-const fetch = createFetch({
-  cache,
-  defaultCacheControl: 's-maxage=30', // 30 seconds for dynamic data
+const fetch = createFetch(cache, {
+  defaults: {
+    cacheControlOverride: 's-maxage=30', // 30 seconds for dynamic data
+  }
 });
 ```
 

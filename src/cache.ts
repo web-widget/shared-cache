@@ -1,12 +1,15 @@
 import CachePolicy from '@web-widget/http-cache-semantics';
 import type {
-  SharedCacheOptions,
-  KVStorage,
-  SharedCacheQueryOptions,
   CacheItem,
-  PolicyResponse,
-  SharedCacheStatus,
+  WebCache,
+  KVStorage,
   Logger,
+  PolicyResponse,
+  SharedCacheOptions,
+  SharedCacheQueryOptions,
+  SharedCacheRequest,
+  SharedCacheRequestInfo,
+  SharedCacheStatus,
 } from './types';
 import {
   createCacheKeyGenerator,
@@ -29,9 +32,9 @@ import {
  *
  * This implementation follows HTTP caching semantics as defined in RFC 7234 and related specifications.
  */
-export class SharedCache implements Cache {
+export class SharedCache implements WebCache {
   /** Cache key generator function for creating consistent cache keys */
-  #cacheKeyGenerator: (request: Request) => Promise<string>;
+  #cacheKeyGenerator: (request: SharedCacheRequest) => Promise<string>;
 
   /** Logger instance for debugging and monitoring */
   #logger?: Logger;
@@ -78,7 +81,7 @@ export class SharedCache implements Cache {
    * @param _request - The request to add (unused)
    * @throws {Error} Always throws as this method is not implemented
    */
-  async add(_request: RequestInfo): Promise<void> {
+  async add(_request: SharedCacheRequestInfo): Promise<void> {
     throw new Error('SharedCache.add() is not implemented. Use put() instead.');
   }
 
@@ -89,7 +92,7 @@ export class SharedCache implements Cache {
    * @param _requests - The requests to add (unused)
    * @throws {Error} Always throws as this method is not implemented
    */
-  async addAll(_requests: RequestInfo[]): Promise<void> {
+  async addAll(_requests: SharedCacheRequestInfo[]): Promise<void> {
     throw new Error(
       'SharedCache.addAll() is not implemented. Use put() for each request instead.'
     );
@@ -108,8 +111,8 @@ export class SharedCache implements Cache {
    * @returns A Promise that resolves to true if the cache entry is deleted, or false otherwise.
    */
   async delete(
-    request: RequestInfo,
-    options?: CacheQueryOptions
+    request: SharedCacheRequestInfo,
+    options?: SharedCacheQueryOptions
   ): Promise<boolean> {
     // 1. Let r be the result of calling the algorithm specified in the "Request" section
     let r: Request | null = null;
@@ -145,9 +148,9 @@ export class SharedCache implements Cache {
    * @throws {Error} Always throws as this method is not implemented
    */
   async keys(
-    _request?: RequestInfo,
-    _options?: CacheQueryOptions
-  ): Promise<readonly Request[]> {
+    _request?: SharedCacheRequestInfo,
+    _options?: SharedCacheQueryOptions
+  ): Promise<readonly SharedCacheRequest[]> {
     throw new Error('SharedCache.keys() is not implemented.');
   }
 
@@ -169,8 +172,8 @@ export class SharedCache implements Cache {
    *          or to undefined if no match is found.
    */
   async match(
-    request: RequestInfo,
-    options?: CacheQueryOptions
+    request: SharedCacheRequestInfo,
+    options?: SharedCacheQueryOptions
   ): Promise<Response | undefined> {
     // 1. Let r be the result of calling the algorithm specified in the "Request" section
     let r: Request | null = null;
@@ -275,8 +278,8 @@ export class SharedCache implements Cache {
    * @throws {Error} Always throws as this method is not implemented
    */
   async matchAll(
-    _request?: RequestInfo,
-    _options?: CacheQueryOptions
+    _request?: SharedCacheRequestInfo,
+    _options?: SharedCacheQueryOptions
   ): Promise<readonly Response[]> {
     throw new Error('SharedCache.matchAll() is not implemented.');
   }
@@ -295,9 +298,12 @@ export class SharedCache implements Cache {
    * @param response - The Response you want to match up to the request.
    * @throws {TypeError} For various validation failures as per Cache API specification
    */
-  async put(request: RequestInfo, response: Response): Promise<void> {
+  async put(
+    request: SharedCacheRequestInfo,
+    response: Response
+  ): Promise<void> {
     return this.#putWithCustomCacheKey(request, response).catch((error) => {
-      this.#logger?.error('Cache.put: Failed to cache response.', {
+      this.#logger?.error('SharedCache.put: Failed to cache response.', {
         url: request instanceof Request ? request.url : request,
         error,
       });
@@ -315,7 +321,7 @@ export class SharedCache implements Cache {
    * @throws {TypeError} For various HTTP-compliant validation failures
    */
   async #putWithCustomCacheKey(
-    request: RequestInfo,
+    request: SharedCacheRequestInfo,
     response: Response,
     cacheKey?: string | SharedCacheQueryOptions
   ): Promise<void> {
@@ -337,7 +343,7 @@ export class SharedCache implements Cache {
       innerRequest.method !== 'GET'
     ) {
       throw new TypeError(
-        `Cache.put: Expected an http/s scheme when method is not GET.`
+        `SharedCache.put: Expected an http/s scheme when method is not GET.`
       );
     }
 
@@ -346,7 +352,7 @@ export class SharedCache implements Cache {
 
     // 6. If innerResponse's status is 206, then throw a TypeError.
     if (innerResponse.status === 206) {
-      throw new TypeError(`Cache.put: Got 206 status.`);
+      throw new TypeError(`SharedCache.put: Got 206 status.`);
     }
 
     // 7. If innerResponse's headers contain a vary header, then:
@@ -360,7 +366,7 @@ export class SharedCache implements Cache {
       for (const fieldValue of fieldValues) {
         // 7.2.1. If fieldValue matches "*", then throw a TypeError.
         if (fieldValue === '*') {
-          throw new TypeError(`Cache.put: Got * vary field value.`);
+          throw new TypeError(`SharedCache.put: Got * vary field value.`);
         }
       }
     }
@@ -370,7 +376,9 @@ export class SharedCache implements Cache {
       innerResponse.body &&
       (innerResponse.bodyUsed || innerResponse.body.locked)
     ) {
-      throw new TypeError(`Cache.put: Response body is locked or disturbed.`);
+      throw new TypeError(
+        `SharedCache.put: Response body is locked or disturbed.`
+      );
     }
 
     // 9. Let clonedResponse be the result of cloning innerResponse.
@@ -452,7 +460,7 @@ export class SharedCache implements Cache {
 
     // Log server errors during revalidation
     if (revalidationResponse.status >= 500) {
-      this.#logger?.error(`Cache: Revalidation failed.`, {
+      this.#logger?.error(`SharedCache: Revalidation failed.`, {
         url: request.url,
         status: revalidationResponse.status,
         cacheKey,
@@ -509,7 +517,7 @@ export class SharedCache implements Cache {
    * @param options - Cache query options to validate
    * @throws {Error} If unsupported options are specified
    */
-  #verifyCacheQueryOptions(options: CacheQueryOptions | undefined): void {
+  #verifyCacheQueryOptions(options: SharedCacheQueryOptions | undefined): void {
     if (options) {
       ['ignoreSearch', 'ignoreVary'].forEach((option) => {
         if (option in options) {
@@ -557,7 +565,7 @@ export class SharedCache implements Cache {
  * @returns Promise resolving to cached item or undefined if not found
  */
 async function getCacheItem(
-  request: Request,
+  request: SharedCacheRequest,
   storage: KVStorage,
   customCacheKey: string
 ): Promise<CacheItem | undefined> {
@@ -587,7 +595,7 @@ async function getCacheItem(
  * @returns Promise resolving to true if item was deleted, false if not found
  */
 async function deleteCacheItem(
-  request: Request,
+  request: SharedCacheRequest,
   storage: KVStorage,
   customCacheKey: string
 ): Promise<boolean> {
@@ -633,7 +641,7 @@ async function setCacheItem(
   customCacheKey: string,
   cacheItem: CacheItem,
   ttl: number,
-  request: Request,
+  request: SharedCacheRequest,
   response: Response
 ): Promise<void> {
   let cacheKey = customCacheKey;

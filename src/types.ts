@@ -2,9 +2,15 @@ import CachePolicy, {
   CachePolicyObject,
 } from '@web-widget/http-cache-semantics';
 import { SharedCacheKeyPartDefiners, SharedCacheKeyRules } from './cache-key';
-import { SharedCache } from './cache';
 
 export { SharedCacheKeyRules, SharedCacheKeyPartDefiners };
+
+export type WebCache = globalThis.Cache;
+export type WebCacheQueryOptions = globalThis.CacheQueryOptions;
+export type WebCacheStorage = globalThis.CacheStorage;
+export type WebFetch = typeof globalThis.fetch;
+export type WebRequest = globalThis.Request;
+export type WebRequestInit = globalThis.RequestInit;
 
 /**
  * Configuration options for SharedCache instances.
@@ -134,70 +140,45 @@ export type SharedCacheStatus =
 
 /**
  * Extended cache query options for shared cache operations.
- * Extends standard CacheQueryOptions with shared cache specific options.
+ * Extends standard SharedCacheQueryOptions with shared cache specific options.
  */
-export type SharedCacheQueryOptions = CacheQueryOptions;
+export type SharedCacheQueryOptions = WebCacheQueryOptions & {
+  /**
+   * Internal option to ignore request cache control headers.
+   * @internal
+   */
+  _ignoreRequestCacheControl?: boolean;
+
+  /**
+   * Internal fetch function override.
+   * @internal
+   */
+  _fetch?: typeof globalThis.fetch;
+
+  /**
+   * Internal waitUntil function for background operations.
+   * @internal
+   */
+  _waitUntil?: (promise: Promise<unknown>) => void;
+};
 
 /**
  * Type alias for fetch function compatible with shared cache.
  */
-export type SharedCacheFetch = typeof fetch;
+export type SharedCacheFetch = (
+  input: SharedCacheRequestInfo | URL,
+  init?: SharedCacheRequestInit
+) => Promise<Response>;
 
-/**
- * Configuration options for creating a fetch function with default cache settings.
- * This provides a more convenient API for setting up cached fetch with global defaults.
- */
-export interface CreateFetchOptions {
-  /**
-   * The SharedCache instance to use for caching.
-   * If not provided, will attempt to use global cache storage.
-   */
-  cache?: SharedCache;
+export type SharedCacheRequestInfo = Request | string;
 
-  /**
-   * Custom fetch implementation to use as the underlying fetcher.
-   * Defaults to globalThis.fetch if not provided.
-   */
-  fetch?: typeof fetch;
+export type SharedCacheRequestInit = WebRequestInit & {
+  sharedCache?: SharedCacheRequestInitProperties;
+};
 
-  /**
-   * Default cache control directive to apply to responses.
-   * Can be overridden on a per-request basis.
-   */
-  defaultCacheControl?: string;
-
-  /**
-   * Default cache key rules for generating cache keys.
-   * Can be overridden on a per-request basis.
-   */
-  defaultCacheKeyRules?: SharedCacheKeyRules;
-
-  /**
-   * Default setting for ignoring request cache control headers.
-   * When true, request cache control directives are ignored.
-   * Defaults to true for server-side shared caching.
-   */
-  defaultIgnoreRequestCacheControl?: boolean;
-
-  /**
-   * Default setting for ignoring Vary header processing.
-   * When true, Vary header is not considered for cache key generation.
-   * Defaults to false.
-   */
-  defaultIgnoreVary?: boolean;
-
-  /**
-   * Default vary header override for responses.
-   * Can be overridden on a per-request basis.
-   */
-  defaultVaryOverride?: string;
-
-  /**
-   * Default function to handle background operations (like stale-while-revalidate).
-   * Called with promises that should be awaited in the background.
-   */
-  defaultWaitUntil?: (promise: Promise<unknown>) => void;
-}
+export type SharedCacheRequest = WebRequest & {
+  sharedCache?: SharedCacheRequestInitProperties;
+};
 
 /**
  * Shared cache specific request properties.
@@ -239,55 +220,4 @@ export interface SharedCacheRequestInitProperties {
    * Called with promises that should be awaited in the background.
    */
   waitUntil?: (promise: Promise<unknown>) => void;
-}
-
-/**
- * Global type augmentations for Web API interfaces.
- * These extend standard Web APIs with shared cache functionality.
- */
-declare global {
-  /**
-   * Extends the standard Request interface with shared cache properties.
-   */
-  interface Request {
-    /**
-     * Shared cache specific properties for this request.
-     * Controls cache behavior and key generation.
-     */
-    sharedCache?: SharedCacheRequestInitProperties;
-  }
-
-  /**
-   * Extends the standard RequestInit interface with shared cache properties.
-   */
-  interface RequestInit {
-    /**
-     * Shared cache specific properties for this request.
-     * Controls cache behavior and key generation.
-     */
-    sharedCache?: SharedCacheRequestInitProperties;
-  }
-
-  /**
-   * Extends the standard CacheQueryOptions interface with internal options.
-   */
-  interface CacheQueryOptions {
-    /**
-     * Internal option to ignore request cache control headers.
-     * @internal
-     */
-    _ignoreRequestCacheControl?: boolean;
-
-    /**
-     * Internal fetch function override.
-     * @internal
-     */
-    _fetch?: typeof fetch;
-
-    /**
-     * Internal waitUntil function for background operations.
-     * @internal
-     */
-    _waitUntil?: (promise: Promise<unknown>) => void;
-  }
 }

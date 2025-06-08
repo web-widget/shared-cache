@@ -1,5 +1,5 @@
 import { SharedCache } from './cache';
-import { SharedCacheOptions, KVStorage } from './types';
+import { SharedCacheOptions, KVStorage, WebCacheStorage } from './types';
 
 /**
  * SharedCacheStorage implements the CacheStorage interface for managing multiple named caches.
@@ -16,13 +16,14 @@ import { SharedCacheOptions, KVStorage } from './types';
  *
  * @example
  * ```typescript
+ * import { CacheStorage } from '@web-widget/shared-cache';
  * const storage = new MyKVStorage();
- * const cacheStorage = new SharedCacheStorage(storage);
+ * const cacheStorage = new CacheStorage(storage);
  * const apiCache = await cacheStorage.open('api');
  * const staticCache = await cacheStorage.open('static');
  * ```
  */
-export class SharedCacheStorage implements CacheStorage {
+export class SharedCacheStorage implements WebCacheStorage {
   /** The underlying key-value storage backend */
   #storage: KVStorage;
 
