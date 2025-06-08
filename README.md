@@ -6,9 +6,7 @@
 
 **A standards-compliant HTTP cache implementation for server-side applications.**
 
-SharedCache is a sophisticated HTTP caching library that follows Web Standards and HTTP specifications. It implements a cache interface similar to the [Web Cache API](https://developer.mozilla.org/en-US/docs/Web/API/Cache) but optimized for server-side shared caching scenarios.
-
-The library intelligently determines when HTTP responses can be reused from cache, strictly adhering to [RFC 7234](http://httpwg.org/specs/rfc7234.html) caching rules for both user agents and shared caches.
+SharedCache is an HTTP caching library that follows Web Standards and HTTP specifications. It implements a cache interface similar to the [Web Cache API](https://developer.mozilla.org/en-US/docs/Web/API/Cache) but optimized for server-side shared caching scenarios.
 
 ## 📋 Table of Contents
 
@@ -30,23 +28,23 @@ The library intelligently determines when HTTP responses can be reused from cach
 
 ## ✨ Key Features
 
-- **📋 RFC Compliance**: Full implementation of [RFC 5861](https://tools.ietf.org/html/rfc5861) with support for `stale-if-error` and `stale-while-revalidate` directives
-- **🎯 Smart Caching**: Intelligently handles complex HTTP caching scenarios including `Vary` headers, proxy revalidation, and authenticated responses  
+- **📋 RFC Compliance**: Supports [RFC 5861](https://tools.ietf.org/html/rfc5861) directives like `stale-if-error` and `stale-while-revalidate`
+- **🎯 Smart Caching**: Handles complex HTTP scenarios including `Vary` headers, proxy revalidation, and authenticated responses  
 - **🔧 Flexible Storage**: Pluggable storage backend supporting memory, Redis, or any custom key-value store
-- **🚀 Enhanced Fetch**: Extends the standard `fetch` API with powerful caching capabilities while maintaining full compatibility
-- **🎛️ Custom Cache Keys**: Advanced cache key customization supporting device types, cookies, headers, and URL components
-- **⚡ Shared Cache Optimization**: Prioritizes `s-maxage` over `max-age` for optimal shared cache performance
+- **🚀 Enhanced Fetch**: Extends the standard `fetch` API with caching capabilities while maintaining full compatibility
+- **🎛️ Custom Cache Keys**: Cache key customization supporting device types, cookies, headers, and URL components
+- **⚡ Shared Cache Optimization**: Prioritizes `s-maxage` over `max-age` for shared cache performance
 - **🌍 Universal Runtime**: Compatible with [WinterCG](https://wintercg.org/) environments including Node.js, Deno, Bun, and Edge Runtime
 
 ## 🤔 Why SharedCache?
 
-While the Web `fetch` API has become ubiquitous in server-side JavaScript, there's been a lack of standardized caching solutions for server environments. Existing browser Cache APIs are designed for single-user scenarios, but server-side applications need **shared caches** that serve multiple users efficiently.
+While the Web `fetch` API has become ubiquitous in server-side JavaScript, existing browser Cache APIs are designed for single-user scenarios. Server-side applications need **shared caches** that serve multiple users efficiently.
 
-SharedCache bridges this gap by providing:
+SharedCache provides:
 
-- **Server-Optimized Caching**: Designed specifically for multi-user server environments
-- **Standards Compliance**: Follows HTTP specifications while handling server-specific edge cases
-- **Production Ready**: Battle-tested patterns from CDN and proxy server implementations
+- **Server-Optimized Caching**: Designed for multi-user server environments
+- **Standards Compliance**: Follows HTTP specifications and server-specific patterns
+- **Production Ready**: Battle-tested patterns from CDN and proxy implementations
 
 ## 📦 Installation
 
@@ -200,9 +198,9 @@ globalThis.fetch = createFetch(await caches.open('default'), {
 
 ## 🎛️ Advanced Usage
 
-### Enhanced Fetch API with Default Configuration
+### Enhanced Fetch API with Defaults
 
-The `createFetch` API allows you to set default cache configuration at creation time, reducing repetition:
+The `createFetch` API allows you to set default cache configuration:
 
 ```typescript
 import { createFetch } from '@web-widget/shared-cache';
@@ -232,11 +230,14 @@ const response2 = await fetch('/api/data', {
 });
 ```
 
-### Legacy Enhanced Fetch API
+### Enhanced Fetch API
 
-SharedCache extends the standard fetch API with powerful caching options via the `sharedCache` parameter:
+SharedCache extends the standard fetch API with caching options via the `sharedCache` parameter:
 
 ```typescript
+const cache = await caches.open('api-cache');
+const fetch = createFetch(cache);
+
 const response = await fetch('https://api.example.com/data', {
   // Standard fetch options
   method: 'GET',
@@ -418,25 +419,23 @@ cacheKeyRules: {
 - **Authentication headers**: `authorization`, `cookie` (handled separately by cookie rules)
 - **Headers handled by other features**: `host`
 
-**⚠️ Important for Shared Caches**: According to HTTP specifications (RFC 7234), responses to requests containing an `Authorization` header must not be stored in shared caches unless explicitly allowed by cache control directives like `public`, `s-maxage`, or `must-revalidate`. This library correctly handles this restriction automatically.
-
 **🔒 Security Note**: SharedCache automatically enforces HTTP caching security rules. Requests containing `Authorization` headers will not be cached unless the response explicitly allows it with directives like `public`, `s-maxage`, or `must-revalidate`.
 
 ## 📊 Cache Status Indicators
 
-SharedCache provides detailed cache status information through the `x-cache-status` header to help monitor and debug caching behavior. Understanding these status codes is essential for optimizing cache performance and troubleshooting issues.
+SharedCache provides cache status information through the `x-cache-status` header for monitoring and debugging.
 
 ### Cache Status Types
 
 | Status | Description | When It Occurs |
 |--------|-------------|----------------|
-| **`HIT`** | Response served from cache without validation | The requested resource was found in cache and is still fresh according to cache control directives |
-| **`MISS`** | Response not found in cache, fetched from origin | The requested resource was not found in cache or was never cached |
-| **`EXPIRED`** | Cached response was expired, fresh response fetched | The cached response has exceeded its TTL and a fresh response was fetched from origin |
-| **`STALE`** | Stale response served (e.g., during stale-while-revalidate) | A stale cached response was served while background revalidation occurred, or served due to stale-if-error |
-| **`BYPASS`** | Cache was bypassed due to cache control directives | Caching was bypassed due to `no-store`, `no-cache`, `private`, or similar directives |
-| **`REVALIDATED`** | Cached response was revalidated and determined still fresh | The cached response was validated with the origin server (304 Not Modified) and determined to still be fresh |
-| **`DYNAMIC`** | Response is dynamic and cannot be cached | The response cannot be cached due to HTTP method, status code, or absence of cache control headers |
+| **`HIT`** | Response served from cache | The requested resource was found in cache and is still fresh |
+| **`MISS`** | Response fetched from origin | The requested resource was not found in cache |
+| **`EXPIRED`** | Cached response expired, fresh response fetched | The cached response exceeded its TTL |
+| **`STALE`** | Stale response served | Served due to stale-while-revalidate or stale-if-error |
+| **`BYPASS`** | Cache bypassed | Bypassed due to cache control directives like `no-store` |
+| **`REVALIDATED`** | Cached response revalidated | Response validated with origin (304 Not Modified) |
+| **`DYNAMIC`** | Response cannot be cached | Cannot be cached due to HTTP method or status code |
 
 ### Status Code Examples
 
@@ -500,20 +499,17 @@ const monitoredFetch = createFetch(await caches.open('monitored-cache'), {
 
 ### Cache Status Header Details
 
-The `x-cache-status` header is automatically added to all responses processed by SharedCache:
+The `x-cache-status` header is automatically added to all responses:
 
-- **Header Name**: `x-cache-status` (defined in `CACHE_STATUS_HEADERS_NAME` constant)
-- **Header Values**: One of the status types listed above (`HIT`, `MISS`, `EXPIRED`, `STALE`, `BYPASS`, `REVALIDATED`, `DYNAMIC`)
-- **Always Present**: The header is always added, making it reliable for monitoring and debugging
-- **Non-Standard**: This is a custom header for debugging purposes and should not be relied upon by client applications for functionality
-
-**Note**: The cache status header helps with development and monitoring but should not be used for application logic in production code.
+- **Header Values**: `HIT`, `MISS`, `EXPIRED`, `STALE`, `BYPASS`, `REVALIDATED`, `DYNAMIC`
+- **Always Present**: The header is always added for monitoring and debugging
+- **Non-Standard**: Custom header for debugging - should not be used for application logic
 
 ## 📚 API Reference
 
 ### createFetch Function
 
-Creates a fetch function with shared cache configuration. This is the main API for the package.
+Creates a fetch function with shared cache configuration.
 
 ```typescript
 function createFetch(
@@ -614,7 +610,7 @@ Stores a request/response pair in the cache.
 - `request` - The Request object or URL string  
 - `response` - The Response to cache
 
-**Note:** Only cacheable responses are stored (based on HTTP caching rules).
+**Note:** Only cacheable responses are stored according to HTTP caching rules.
 
 ```typescript
 await cache.put(request, response);
@@ -635,12 +631,12 @@ Removes a cached entry.
 const deleted = await cache.delete('https://api.example.com/data');
 ```
 
-### CacheQueryOptions
+### SharedCacheQueryOptions
 
-Extended options for cache operations with server-side limitations:
+Options for cache operations with server-side limitations:
 
 ```typescript
-interface CacheQueryOptions {
+interface SharedCacheQueryOptions {
   ignoreMethod?: boolean;  // Treat request as GET regardless of actual method
   // Note: ignoreSearch and ignoreVary are not implemented and will throw errors
 }
@@ -818,13 +814,14 @@ const response = await fetch('/api/user/data', {
 
 // ⚠️ Note: Responses to requests with Authorization headers
 // are automatically excluded from shared cache unless the response
-// includes cache control directives like 'public' or 's-maxage'
+// includes cache directives like 'public' or 's-maxage'
 
 // ✅ Good: User-specific cache key for personalized content
-const userSpecificFetch = createFetch({
-  cache: await caches.open('user-content'),
-  defaultCacheKeyRules: {
-    header: { include: ['x-user-id'] } // Safe alternative to authorization
+const userSpecificFetch = createFetch(await caches.open('user-content'), {
+  defaults: {
+    cacheKeyRules: {
+      header: { include: ['x-user-id'] } // Safe alternative to authorization
+    }
   }
 });
 ```
@@ -840,9 +837,10 @@ SharedCache provides significant performance improvements in production environm
 const response = await fetch('/api/data'); // ~400ms every time
 
 // After: With SharedCache
-const cachedFetch = createFetch({
-  cache: await caches.open('prod-cache'),
-  defaultCacheControl: 's-maxage=300',
+const cachedFetch = createFetch(await caches.open('prod-cache'), {
+  defaults: {
+    cacheControlOverride: 's-maxage=300',
+  }
 });
 const response = await cachedFetch('/api/data'); // First: ~400ms, Subsequent: ~2ms
 ```
@@ -901,9 +899,6 @@ const monitoredFetch = createFetch(await caches.open('monitored-cache'), {
     } catch (error) {
       console.error('Fetch operation failed:', error);
       throw error;
-    }
-  }
-});
     }
   }
 });
@@ -1051,10 +1046,10 @@ interface SharedCacheQueryOptions {
 
 ### 🛡️ Production-Grade Implementation
 
-- **Professional HTTP Semantics**: Powered by `http-cache-semantics` library for guaranteed RFC compliance
-- **Intelligent Cache Strategies**: Advanced cache key generation with URL normalization and parameter filtering
+- **Professional HTTP Semantics**: Powered by `http-cache-semantics` for RFC compliance
+- **Intelligent Cache Strategies**: Advanced cache key generation with URL normalization
 - **Robust Error Handling**: Comprehensive exception handling with graceful degradation
-- **Performance Optimized**: Efficient storage backends with configurable TTL and cleanup strategies
+- **Performance Optimized**: Efficient storage backends with configurable TTL
 
 ### 🛡️ Security & Best Practices
 
@@ -1121,7 +1116,7 @@ const redisStorage: KVStorage = {
 
 ### Q: How does SharedCache handle concurrent requests?
 
-**A:** SharedCache handles concurrent requests to the same resource efficiently by serving existing cache entries and avoiding duplicate network requests during cache misses.
+**A:** SharedCache handles concurrent requests efficiently by serving cache entries and avoiding duplicate network requests.
 
 ### Q: Is SharedCache compatible with edge runtimes?
 

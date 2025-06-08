@@ -59,18 +59,18 @@ export {
 // Type definitions
 export type {
   KVStorage,
-  SharedCacheFetch as Fetch,
-  SharedCacheOptions as CacheOptions,
-  SharedCacheQueryOptions as CacheQueryOptions,
-  SharedCacheRequestInitProperties as RequestInitProperties,
-  SharedCacheStatus as CacheStatus,
+  SharedCacheFetch,
+  SharedCacheOptions,
+  SharedCacheQueryOptions,
+  SharedCacheRequestInitProperties,
+  SharedCacheStatus,
 } from './types';
 
 // Cache key types
 export type {
   FilterOptions,
-  SharedCacheKeyRules as CacheKeyRules,
-  SharedCacheKeyPartDefiners as CacheKeyPartDefiners,
+  SharedCacheKeyRules,
+  SharedCacheKeyPartDefiners,
 } from './cache-key';
 
 // Constants
