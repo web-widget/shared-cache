@@ -128,7 +128,7 @@ example();
 
 ### API Notes
 
-This package exports `createFetch` as the main API function. Internally, it's implemented as `createSharedCacheFetch`, but only `createFetch` is available for import:
+This package exports `createFetch` as the main and only public API function:
 
 ```typescript
 import { createFetch } from '@web-widget/shared-cache';
@@ -558,7 +558,7 @@ const fetch = createFetch(await caches.open('my-cache'), {
 
 ### Internal Implementation
 
-Internally, `createFetch` is an alias for the `createSharedCacheFetch` function, but only `createFetch` is exported from the package.
+The `createFetch` function is the main and only exported API for creating cached fetch functions.
 
 ### CacheStorage Class
 

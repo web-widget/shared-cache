@@ -32,9 +32,7 @@
  * ```
  */
 
-export { SharedCache } from './cache';
 export { SharedCache as Cache } from './cache';
-export { SharedCacheStorage } from './cache-storage';
 export { SharedCacheStorage as CacheStorage } from './cache-storage';
 
 // Fetch integration
