@@ -1,5 +1,11 @@
 # @web-widget/shared-cache
 
+## 1.3.0
+
+### Minor Changes
+
+- 8d2ad75: new createFetch interface.
+
 ## 1.2.0
 
 ### Minor Changes
