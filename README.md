@@ -1081,22 +1081,6 @@ export async function GET() {
 }
 ```
 
-### Q: How do I handle cache invalidation?
-
-**A:** Use the cache's `delete` method or set short TTLs for frequently changing data:
-
-```typescript
-// Manual invalidation
-await cache.delete('/api/user/profile');
-
-// Or use shorter cache times for dynamic content
-const fetch = createFetch(cache, {
-  defaults: {
-    cacheControlOverride: 's-maxage=30', // 30 seconds for dynamic data
-  }
-});
-```
-
 ### Q: Can I use different storage backends in production?
 
 **A:** Absolutely! SharedCache supports any storage backend that implements the `KVStorage` interface:
@@ -1198,7 +1182,9 @@ const cacheControl = 's-maxage=300, stale-while-revalidate=86400, stale-if-error
 
 ## 🤝 Who's Using SharedCache
 
-- [Web Widget: Cache middleware](https://github.com/web-widget/web-widget/blob/main/packages/middlewares/src/cache.ts)
+- [Web Widget Meta Framework: Cache middleware](https://github.com/web-widget/web-widget/blob/main/packages/middlewares/src/cache.ts)
+- [InsMind.com](https://www.insmind.com/)
+- [Gaoding.com](https://www.gaoding.com/)
 
 ## 🙏 Acknowledgments
 
