@@ -1,0 +1,10 @@
+{
+  "mode": "pre",
+  "tag": "next",
+  "initialVersions": {
+    "@web-widget/shared-cache": "1.2.0"
+  },
+  "changesets": [
+    "four-facts-fold"
+  ]
+}
