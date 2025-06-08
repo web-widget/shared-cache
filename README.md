@@ -1061,26 +1061,6 @@ interface CacheQueryOptions {
 
 ## ❓ Frequently Asked Questions
 
-### Q: Can I use SharedCache with Next.js?
-
-**A:** Yes! SharedCache works perfectly with Next.js applications, especially in API routes and middleware:
-
-```typescript
-// pages/api/data.ts or app/api/data/route.ts
-import { createFetch } from '@web-widget/shared-cache';
-
-const cachedFetch = createFetch(await caches.open('nextjs-api'), {
-  defaults: {
-    cacheControlOverride: 's-maxage=300',
-  }
-});
-
-export async function GET() {
-  const data = await cachedFetch('https://external-api.com/data');
-  return Response.json(await data.json());
-}
-```
-
 ### Q: Can I use different storage backends in production?
 
 **A:** Absolutely! SharedCache supports any storage backend that implements the `KVStorage` interface:
