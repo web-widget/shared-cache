@@ -966,7 +966,7 @@ const fetch = createFetch(cache, {
 ## 🤝 Who's Using SharedCache
 
 - [Web Widget Meta Framework: Cache middleware](https://github.com/web-widget/web-widget/blob/main/packages/middlewares/src/cache.ts)
-- [InsMind.com: Page Cache](https://www.insmind.com/)
+- [InsMind.com: Page Cache (Million-level URLs)](https://www.insmind.com/)
 - [Gaoding.com: Page Cache](https://www.gaoding.com/)
 
 ## 🙏 Acknowledgments
