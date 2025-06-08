@@ -75,6 +75,28 @@ const apiFetch = createFetch(cache, {
 const userData = await apiFetch('/api/user/profile'); // First: 200ms, subsequent: 2ms
 ```
 
+#### **Server-Side Page Caching**
+
+```typescript
+// Cache rendered pages using HTTP cache control directives
+export const handler = {
+  async GET(ctx) {
+    const response = await ctx.render();
+    
+    // Set cache control headers for shared cache optimization
+    response.headers.set('cache-control', 
+      's-maxage=60, ' +                       // Cache for 60 seconds in shared caches
+      'stale-if-error=604800, ' +             // Serve stale content for 7 days on errors
+      'stale-while-revalidate=604800'         // Background revalidation for 7 days
+    );
+    
+    return response;
+  },
+};
+```
+
+**Integration Requirements**: This pattern requires web framework integration with SharedCache middleware or custom cache implementation in your SSR pipeline.
+
 #### **Cross-Runtime Applications**
 
 ```typescript
