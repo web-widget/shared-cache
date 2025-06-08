@@ -16,7 +16,7 @@ jobs:
         # https://nodejs.org/en/about/releases/
         # https://pnpm.io/installation#compatibility
         version:
-          - node: 24
+          - node: 22
 
     name: Node.js ${{ matrix.version.node }}
     env:
