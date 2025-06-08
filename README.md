@@ -12,14 +12,14 @@ SharedCache is an HTTP caching library that follows Web Standards and HTTP speci
 
 - [✨ Key Features](#-key-features)
 - [🤔 Why SharedCache?](#-why-sharedcache)
-- [🎯 Use Cases & Scenarios](#-use-cases--scenarios)
+- [⚡ Quick Decision Guide](#-quick-decision-guide)
 - [📦 Installation](#-installation)
 - [🚀 Quick Start](#-quick-start)
+- [💡 Common Examples](#-common-examples)
+- [📊 Cache Status Monitoring](#-cache-status-monitoring)
 - [🌐 Global Setup](#-global-setup)
-- [🎛️ Advanced Usage](#️-advanced-usage)
-- [📊 Cache Status Indicators](#-cache-status-indicators)
+- [🎛️ Advanced Configuration](#️-advanced-configuration)
 - [📚 API Reference](#-api-reference)
-- [💡 Examples](#-examples)
 - [🏗️ Production Deployment](#️-production-deployment)
 - [📋 Standards Compliance](#-standards-compliance)
 - [❓ Frequently Asked Questions](#-frequently-asked-questions)
@@ -47,40 +47,36 @@ SharedCache provides:
 - **Standards Compliance**: Follows HTTP specifications and server-specific patterns
 - **Production Ready**: Battle-tested patterns from CDN and proxy implementations
 
-## 🎯 Use Cases & Scenarios
+## ⚡ Quick Decision Guide
 
-### Primary Use Cases
+### ✅ Use SharedCache When:
 
-#### **Node.js Applications**
+- **Node.js environments** - Native `caches` API not available
+- **API response caching** - Need to reduce backend load and improve response times  
+- **Cross-runtime portability** - Want consistent caching across Node.js, Deno, Bun
+- **Custom storage backends** - Need Redis, database, or distributed caching solutions
+- **Meta-framework development** - Building applications that deploy to multiple environments
 
-Node.js doesn't provide a native `caches` API. SharedCache fills this gap:
+### ❌ Don't Use SharedCache When:
+
+- **Edge runtimes with native caches** - Cloudflare Workers, Vercel Edge already provide `caches` API
+- **Browser applications** - Use the native Web Cache API instead
+- **Simple in-memory caching** - Consider lighter alternatives like `lru-cache` directly
+- **Single-request caching** - Basic memoization might be sufficient
+
+### 🎯 Primary Use Cases
+
+#### **Server-Side API Caching**
 
 ```typescript
-// Before: No caching capabilities
-const response = await fetch('/api/data');
-
-// After: Standards-compliant caching
-const cachedFetch = createFetch(cache);
-const response = await cachedFetch('/api/data'); // Cached automatically
-```
-
-#### **API Response Caching**
-
-Reduce backend load and improve response times:
-
-```typescript
-// Cache API responses with configurable TTL
+// Cache API responses to reduce backend load
 const apiFetch = createFetch(cache, {
   defaults: { cacheControlOverride: 's-maxage=300' }
 });
-
-const userData = await apiFetch('/api/user/profile'); // First call: 200ms
-const userData2 = await apiFetch('/api/user/profile'); // Subsequent: 2ms
+const userData = await apiFetch('/api/user/profile'); // First: 200ms, subsequent: 2ms
 ```
 
-#### **Cross-Runtime Portability**
-
-Develop with a consistent API that works everywhere:
+#### **Cross-Runtime Applications**
 
 ```typescript
 // Same code works in Node.js, Deno, Bun, and Edge Runtime
@@ -88,53 +84,13 @@ const fetch = createFetch(cache);
 // Deploy anywhere without code changes
 ```
 
-#### **Custom Storage Backends**
-
-Use Redis, databases, or other storage solutions:
+#### **Distributed Caching**
 
 ```typescript
-// Redis backend for distributed caching
+// Redis backend for multi-instance applications
 const caches = new CacheStorage(createRedisStorage());
 const cache = await caches.open('distributed-cache');
 ```
-
-### When NOT to Use SharedCache
-
-- **Edge Runtimes with Native Caches**: Cloudflare Workers, Vercel Edge already provide `caches` API
-- **Browser Applications**: Use the native Web Cache API instead
-- **Simple In-Memory Caching**: Consider lighter alternatives like `lru-cache` directly
-
-### Framework Integration
-
-#### **Meta-Framework Benefits**
-
-When used with meta-frameworks like [Web Widget](https://github.com/web-widget/web-widget):
-
-- **Environment Abstraction**: Same caching code works across all deployment targets
-- **Automatic Polyfills**: Framework provides `caches` API where missing
-- **Migration Flexibility**: Switch between Node.js and edge runtimes without code changes
-
-```typescript
-// Framework handles the complexity
-const response = await fetch('/api/data', {
-  sharedCache: { cacheControlOverride: 's-maxage=300' }
-});
-// Works in Node.js, Deno, Cloudflare Workers, etc.
-```
-
-### Performance Impact
-
-**Before SharedCache:**
-
-- API calls: 200-500ms each time
-- Database queries: 50-200ms per request
-- External services: Variable latency
-
-**After SharedCache:**
-
-- Cache hits: 1-5ms response time
-- Reduced origin load: 60-80% fewer requests
-- Improved reliability: Serve stale content during outages
 
 ## 📦 Installation
 
@@ -234,6 +190,81 @@ const fetch = createFetch(cache, {
 });
 ```
 
+## 💡 Common Examples
+
+### Basic API Caching
+
+```typescript
+import { createFetch } from '@web-widget/shared-cache';
+
+const cache = await caches.open('api-cache-v1');
+const fetch = createFetch(cache, {
+  defaults: {
+    cacheControlOverride: 's-maxage=300', // 5 minutes default
+  }
+});
+
+// Simple usage - automatic caching
+const userData = await fetch('/api/user/profile');
+const sameData = await fetch('/api/user/profile'); // Served from cache
+```
+
+### Redis Backend
+
+```typescript
+import Redis from 'ioredis';
+import { CacheStorage, createFetch, type KVStorage } from '@web-widget/shared-cache';
+
+const createRedisStorage = (): KVStorage => {
+  const redis = new Redis(process.env.REDIS_URL);
+  
+  return {
+    async get(key: string) {
+      const value = await redis.get(key);
+      return value ? JSON.parse(value) : undefined;
+    },
+    async set(key: string, value: any, ttl?: number) {
+      const serialized = JSON.stringify(value);
+      if (ttl) {
+        await redis.setex(key, Math.ceil(ttl / 1000), serialized);
+      } else {
+        await redis.set(key, serialized);
+      }
+    },
+    async delete(key: string) {
+      return (await redis.del(key)) > 0;
+    },
+  };
+};
+
+const caches = new CacheStorage(createRedisStorage());
+const cache = await caches.open('distributed-cache');
+const fetch = createFetch(cache, {
+  defaults: {
+    cacheControlOverride: 's-maxage=600',
+    cacheKeyRules: {
+      header: { include: ['x-tenant-id'] } // Multi-tenant support
+    }
+  }
+});
+```
+
+### Device-Specific Caching
+
+```typescript
+const deviceAwareFetch = createFetch(await caches.open('content-cache'), {
+  defaults: {
+    cacheControlOverride: 's-maxage=600',
+    cacheKeyRules: {
+      device: true, // Separate cache for mobile/desktop/tablet
+      search: { exclude: ['timestamp'] }
+    }
+  }
+});
+
+const response = await deviceAwareFetch('/api/content');
+```
+
 ## 🌐 Global Setup
 
 ### Setting up Global Cache Storage
@@ -290,7 +321,7 @@ globalThis.fetch = createFetch(await caches.open('default'), {
 });
 ```
 
-## 🎛️ Advanced Usage
+## 🎛️ Advanced Configuration
 
 ### Enhanced Fetch API with Defaults
 
@@ -513,11 +544,9 @@ cacheKeyRules: {
 - **Authentication headers**: `authorization`, `cookie` (handled separately by cookie rules)
 - **Headers handled by other features**: `host`
 
-**🔒 Security Note**: SharedCache automatically enforces HTTP caching security rules. Requests containing `Authorization` headers will not be cached unless the response explicitly allows it with directives like `public`, `s-maxage`, or `must-revalidate`.
+## 📊 Cache Status Monitoring
 
-## 📊 Cache Status Indicators
-
-SharedCache provides cache status information through the `x-cache-status` header for monitoring and debugging.
+SharedCache provides comprehensive monitoring through the `x-cache-status` header for debugging and performance analysis.
 
 ### Cache Status Types
 
@@ -531,7 +560,17 @@ SharedCache provides cache status information through the `x-cache-status` heade
 | **`REVALIDATED`** | Cached response revalidated | Response validated with origin (304 Not Modified) |
 | **`DYNAMIC`** | Response cannot be cached | Cannot be cached due to HTTP method or status code |
 
-### Status Code Examples
+### Quick Monitoring Example
+
+```typescript
+import { createFetch } from '@web-widget/shared-cache';
+
+const fetch = createFetch(await caches.open('status-demo'));
+
+// Monitor cache performance
+const response = await fetch('/api/data');
+console.log('Cache status:', response.headers.get('x-cache-status')); // "HIT", "MISS", etc.
+```
 
 ```typescript
 import { createFetch } from '@web-widget/shared-cache';
@@ -749,176 +788,6 @@ SharedCache does not implement the following standard Web Cache API options:
 - `cacheName` - Not applicable in server-side contexts
 
 Attempting to use these options will throw a "Not implemented" error.
-
-## 💡 Examples
-
-### Modern API with Default Configuration
-
-```typescript
-import { createFetch, CacheStorage } from '@web-widget/shared-cache';
-import { LRUCache } from 'lru-cache';
-
-// Set up cache storage
-const caches = new CacheStorage(createLRUCache());
-const cache = await caches.open('api-cache-v1');
-
-// Create fetch with comprehensive defaults
-const fetch = createFetch(cache, {
-  defaults: {
-    cacheControlOverride: 's-maxage=300',
-    cacheKeyRules: {
-      header: { include: ['x-api-version'] },
-      search: { exclude: ['timestamp'] }
-    },
-    ignoreRequestCacheControl: true,
-  }
-});
-
-// Simple usage - defaults applied automatically
-const userData = await fetch('/api/user/profile');
-
-// Override defaults when needed
-const realtimeData = await fetch('/api/realtime', {
-  sharedCache: {
-    cacheControlOverride: 's-maxage=30', // Shorter cache time
-  }
-});
-```
-
-### Redis Storage Backend
-
-```typescript
-import Redis from 'ioredis';
-import { CacheStorage, createFetch, type KVStorage } from '@web-widget/shared-cache';
-
-const createRedisStorage = (): KVStorage => {
-  const redis = new Redis(process.env.REDIS_URL);
-  
-  return {
-    async get(key: string) {
-      const value = await redis.get(key);
-      return value ? JSON.parse(value) : undefined;
-    },
-    
-    async set(key: string, value: any, ttl?: number) {
-      const serialized = JSON.stringify(value);
-      if (ttl) {
-        await redis.setex(key, Math.ceil(ttl / 1000), serialized);
-      } else {
-        await redis.set(key, serialized);
-      }
-    },
-    
-    async delete(key: string) {
-      return (await redis.del(key)) > 0;
-    },
-  };
-};
-
-const caches = new CacheStorage(createRedisStorage());
-const cache = await caches.open('distributed-cache');
-
-// Create fetch with Redis backend
-const fetch = createFetch(cache, {
-  defaults: {
-    cacheControlOverride: 's-maxage=600', // 10 minutes default
-    cacheKeyRules: {
-      header: { include: ['x-tenant-id'] } // Multi-tenant support
-    }
-  }
-});
-```
-
-### API Response Caching with Enhanced Configuration
-
-```typescript
-import { createFetch } from '@web-widget/shared-cache';
-
-const cache = await caches.open('api-responses');
-
-// Create API-specific fetch with defaults
-const apiFetch = createFetch(cache, {
-  defaults: {
-    cacheControlOverride: 's-maxage=300', // 5 minutes for API responses
-    cacheKeyRules: {
-      header: { include: ['x-user-id', 'x-api-version'] },
-      search: { exclude: ['_t', 'timestamp'] } // Ignore cache-busting params
-    },
-    ignoreRequestCacheControl: true, // Server controls caching
-  }
-});
-
-// Simple API calls with automatic caching
-async function fetchUserData(userId: string) {
-  return apiFetch(`/api/users/${userId}`, {
-    headers: { 'x-user-id': userId }
-  });
-}
-
-// Override defaults for specific endpoints
-async function fetchRealtimeData() {
-  return apiFetch('/api/realtime', {
-    sharedCache: {
-      cacheControlOverride: 's-maxage=30', // Shorter cache for realtime data
-    }
-  });
-}
-```
-
-### Device-Specific Caching
-
-```typescript
-// Modern approach with defaults
-const deviceAwareFetch = createFetch(await caches.open('content-cache'), {
-  defaults: {
-    cacheControlOverride: 's-maxage=600',
-    cacheKeyRules: {
-      device: true, // Separate cache for mobile/desktop/tablet
-      search: { exclude: ['timestamp'] }
-    }
-  }
-});
-
-// Simple usage - device detection automatic
-const response = await deviceAwareFetch('/api/content');
-```
-
-### Shared Cache Security Considerations
-
-```typescript
-// ✅ Good: Public API responses can be cached
-const publicFetch = createFetch(await caches.open('public-api'), {
-  defaults: {
-    cacheControlOverride: 's-maxage=300',
-  }
-});
-
-const publicData = await publicFetch('/api/public/data');
-
-// ✅ Good: Authenticated requests with explicit cache control
-const response = await fetch('/api/user/data', {
-  headers: {
-    'Authorization': 'Bearer token123'
-  },
-  sharedCache: {
-    // Only cache if the response explicitly allows it
-    // The library automatically handles authorization header restrictions
-  }
-});
-
-// ⚠️ Note: Responses to requests with Authorization headers
-// are automatically excluded from shared cache unless the response
-// includes cache directives like 'public' or 's-maxage'
-
-// ✅ Good: User-specific cache key for personalized content
-const userSpecificFetch = createFetch(await caches.open('user-content'), {
-  defaults: {
-    cacheKeyRules: {
-      header: { include: ['x-user-id'] } // Safe alternative to authorization
-    }
-  }
-});
-```
 
 ## 🏗️ Production Deployment
 
@@ -1185,81 +1054,21 @@ When using SharedCache with meta-frameworks, you can develop with a consistent c
 
 ### Q: What's the value of `stale-while-revalidate` and `stale-if-error` directives?
 
-**A:** These RFC 5861 extensions provide significant performance and reliability benefits for modern web applications:
+**A:** These RFC 5861 extensions provide significant performance and reliability benefits:
 
-#### `stale-while-revalidate` Benefits
-
-**Performance Optimization:**
-
-- **Instant Response**: Serves cached content immediately, even if slightly stale
-- **Background Updates**: Fetches fresh content asynchronously without blocking the response
-- **Zero Latency**: Users always get sub-millisecond response times from cache
-
-```typescript
-// Example: API responses with background refresh
-const fetch = createFetch(cache, {
-  defaults: {
-    cacheControlOverride: 's-maxage=300, stale-while-revalidate=86400', // 5min fresh, 24h stale
-  }
-});
-
-// First request after 5 minutes:
-// ✅ Returns stale content instantly (2ms)
-// 🔄 Updates cache in background (200ms)
-// Next request gets fresh content
-```
-
-**Use Cases:**
-
-- **API Responses**: News feeds, product catalogs, user profiles
-- **Static Assets**: CDN-like behavior for frequently accessed resources
-- **Real-time Data**: Weather, stock prices, social media content
-
-#### `stale-if-error` Benefits
-
-**Fault Tolerance:**
-
-- **Graceful Degradation**: Serves cached content when origin servers fail
-- **Improved Uptime**: Maintains service availability during outages
-- **User Experience**: Prevents blank pages or error messages
-
-```typescript
-// Example: Resilient API caching
-const fetch = createFetch(cache, {
-  defaults: {
-    cacheControlOverride: 's-maxage=300, stale-if-error=3600', // Serve stale for 1h on errors
-  }
-});
-
-// When API is down:
-// ❌ Origin returns 500 error
-// ✅ Returns last known good response
-// 🛡️ Users see content instead of errors
-```
-
-**Production Benefits:**
-
-- **Reduced Error Rates**: From 5% to <0.1% in typical applications
-- **Better SEO**: Search engines see content instead of 5xx errors  
-- **Customer Retention**: Users stay engaged during temporary outages
-
-#### Combined Strategy
+- **stale-while-revalidate**: Serves cached content immediately while updating in background, providing zero-latency responses
+- **stale-if-error**: Serves cached content when origin servers fail, improving uptime and user experience
 
 ```typescript
 // Best practice: Use both directives together
-const cacheControl = 's-maxage=300, stale-while-revalidate=86400, stale-if-error=86400';
-
-// Provides:
-// 🚀 Fast responses (stale-while-revalidate)
-// 🛡️ High availability (stale-if-error)  
-// 🔄 Fresh content (background updates)
+const fetch = createFetch(cache, {
+  defaults: {
+    cacheControlOverride: 's-maxage=300, stale-while-revalidate=86400, stale-if-error=86400'
+  }
+});
 ```
 
-**Real-World Impact:**
-
-- **Performance**: 95th percentile response time drops from 500ms to <10ms
-- **Availability**: Service uptime improves from 99.5% to 99.9%+
-- **Cost Savings**: Reduces origin server load by 60-80%
+**Real-World Impact**: 95th percentile response time drops from 500ms to <10ms, service uptime improves from 99.5% to 99.9%+, and origin server load reduces by 60-80%.
 
 ## 🤝 Who's Using SharedCache
 
