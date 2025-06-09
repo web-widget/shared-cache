@@ -286,6 +286,50 @@ const deviceAwareFetch = createFetch(await caches.open('content-cache'), {
 const response = await deviceAwareFetch('/api/content');
 ```
 
+### Custom Fetch with Authentication
+
+```typescript
+// Production-ready example with automatic token refresh
+const createAuthenticatedFetch = (getToken) => {
+  return async (input, init) => {
+    const token = await getToken();
+    const headers = new Headers(init?.headers);
+    headers.set('Authorization', `Bearer ${token}`);
+    
+    const response = await globalThis.fetch(input, {
+      ...init,
+      headers
+    });
+    
+    // Handle token expiration
+    if (response.status === 401) {
+      // Token might be expired, retry once with fresh token
+      const freshToken = await getToken(true); // force refresh
+      headers.set('Authorization', `Bearer ${freshToken}`);
+      
+      return globalThis.fetch(input, {
+        ...init,
+        headers
+      });
+    }
+    
+    return response;
+  };
+};
+
+const authFetch = createFetch(await caches.open('authenticated-api'), {
+  fetch: createAuthenticatedFetch(() => getApiToken()),
+  defaults: {
+    cacheControlOverride: 's-maxage=300',
+    cacheKeyRules: {
+      header: { include: ['authorization'] } // Cache per token
+    }
+  }
+});
+
+const userData = await authFetch('/api/user/profile');
+```
+
 ## 🌐 Global Setup
 
 ### Setting up Global Cache Storage
@@ -372,6 +416,71 @@ const response1 = await fetch('/api/data');
 const response2 = await fetch('/api/data', {
   sharedCache: {
     cacheControlOverride: 's-maxage=600', // Override default
+  }
+});
+```
+
+### Custom Fetch Configuration
+
+The `createFetch` function accepts a custom fetch implementation, allowing you to integrate with existing HTTP clients or add cross-cutting concerns:
+
+```typescript
+// Example: Integration with axios
+import axios from 'axios';
+
+const axiosFetch = async (input, init) => {
+  const response = await axios({
+    url: input.toString(),
+    method: init?.method || 'GET',
+    headers: init?.headers,
+    data: init?.body,
+    validateStatus: () => true, // Don't throw on 4xx/5xx
+  });
+  
+  return new Response(response.data, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+};
+
+const fetch = createFetch(await caches.open('axios-cache'), {
+  fetch: axiosFetch,
+  defaults: {
+    cacheControlOverride: 's-maxage=300'
+  }
+});
+
+// Example: Custom fetch with request/response transformation
+const transformFetch = async (input, init) => {
+  // Transform request
+  const url = new URL(input);
+  url.searchParams.set('timestamp', Date.now().toString());
+  
+  const response = await globalThis.fetch(url, init);
+  
+  // Transform response
+  if (response.headers.get('content-type')?.includes('application/json')) {
+    const data = await response.json();
+    const transformedData = {
+      ...data,
+      fetchedAt: new Date().toISOString()
+    };
+    
+    return new Response(JSON.stringify(transformedData), {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+  }
+  
+  return response;
+};
+
+const transformedFetch = createFetch(await caches.open('transform-cache'), {
+  fetch: transformFetch,
+  defaults: {
+    cacheControlOverride: 's-maxage=300'
   }
 });
 ```
@@ -678,7 +787,7 @@ function createFetch(
 **Parameters:**
 
 - `cache` - Optional SharedCache instance (auto-discovered from globalThis.caches if not provided)
-- `options.fetch` - Custom fetch implementation to use as the underlying fetcher
+- `options.fetch` - Custom fetch implementation to use as the underlying fetcher (defaults to globalThis.fetch)
 - `options.defaults` - Default shared cache options to apply to all requests
 
 **Default Options:**
@@ -705,6 +814,112 @@ const fetch = createFetch(await caches.open('my-cache'), {
   }
 });
 ```
+
+#### Custom Fetch Implementation
+
+The `options.fetch` parameter allows you to provide a custom fetch implementation, enabling you to:
+
+- **Add authentication**: Automatically include API keys or tokens
+- **Implement retries**: Add retry logic for failed requests
+- **Custom headers**: Add default headers to all requests
+- **Request/response transformation**: Modify requests or responses
+- **Logging and monitoring**: Add request/response logging
+
+**Custom Fetch Examples:**
+
+```typescript
+// Example 1: Fetch with automatic authentication
+const authenticatedFetch = async (input, init) => {
+  const headers = new Headers(init?.headers);
+  headers.set('Authorization', `Bearer ${getApiToken()}`);
+  
+  return globalThis.fetch(input, {
+    ...init,
+    headers
+  });
+};
+
+const fetch = createFetch(await caches.open('auth-cache'), {
+  fetch: authenticatedFetch,
+  defaults: {
+    cacheControlOverride: 's-maxage=300'
+  }
+});
+
+// Example 2: Fetch with retry logic and logging
+const retryFetch = async (input, init, maxRetries = 3) => {
+  let lastError;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`Attempt ${attempt}: ${init?.method || 'GET'} ${input}`);
+      const response = await globalThis.fetch(input, init);
+      
+      if (response.ok || attempt === maxRetries) {
+        return response;
+      }
+      
+      lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
+    } catch (error) {
+      lastError = error;
+      if (attempt === maxRetries) break;
+      
+      // Exponential backoff
+      await new Promise(resolve => 
+        setTimeout(resolve, Math.pow(2, attempt - 1) * 1000)
+      );
+    }
+  }
+  
+  throw lastError;
+};
+
+const resilientFetch = createFetch(await caches.open('resilient-cache'), {
+  fetch: retryFetch,
+  defaults: {
+    cacheControlOverride: 's-maxage=600'
+  }
+});
+
+// Example 3: Fetch with custom base URL and headers
+const createApiFetch = (baseUrl, defaultHeaders = {}) => {
+  return async (input, init) => {
+    const url = new URL(input, baseUrl);
+    const headers = new Headers(init?.headers);
+    
+    // Add default headers
+    Object.entries(defaultHeaders).forEach(([key, value]) => {
+      if (!headers.has(key)) {
+        headers.set(key, value);
+      }
+    });
+    
+    return globalThis.fetch(url.toString(), {
+      ...init,
+      headers
+    });
+  };
+};
+
+const apiFetch = createFetch(await caches.open('api-cache'), {
+  fetch: createApiFetch('https://api.example.com', {
+    'Content-Type': 'application/json',
+    'X-API-Version': '2024-01-01'
+  }),
+  defaults: {
+    cacheControlOverride: 's-maxage=300'
+  }
+});
+
+// Usage: relative URLs are automatically resolved
+const userData = await apiFetch('/users/me'); // → https://api.example.com/users/me
+```
+
+**Custom Fetch Requirements:**
+
+- Must be compatible with the standard fetch API signature: `(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>`
+- Should handle errors appropriately and return valid Response objects
+- Response objects should be consumable by SharedCache (cloneable for caching)
 
 ### Internal Implementation
 
