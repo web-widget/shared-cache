@@ -59,7 +59,7 @@ SharedCache provides:
 ### ❌ Don't Use SharedCache When:
 
 - **Edge runtimes with native caches** - Cloudflare Workers, Vercel Edge already provide `caches` API
-- **Browser applications** - Use the native Web Cache API instead
+- **Browser applications** - Use the native Web Cache API instead (unless you need HTTP cache control directives support)
 - **Simple in-memory caching** - Consider lighter alternatives like `lru-cache` directly
 - **Single-request caching** - Basic memoization might be sufficient
 
