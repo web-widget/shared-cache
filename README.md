@@ -1,7 +1,7 @@
 # SharedCache
 
 [![CI](https://github.com/web-widget/shared-cache/actions/workflows/test.yml/badge.svg?event=push)](https://github.com/web-widget/shared-cache/actions/workflows/test.yml?query=event%3Apush)
-[![npm version](https://badge.fury.io/js/@web-widget%2Fshared-cache.svg)](https://badge.fury.io/js/@web-widget%2Fshared-cache)
+[![npm version](https://img.shields.io/npm/v/@web-widget/shared-cache.svg)](https://www.npmjs.com/package/@web-widget/shared-cache)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
 
 **A standards-compliant HTTP cache implementation for server-side applications.**
