@@ -327,7 +327,9 @@ const createAuthenticatedFetch = (getToken) => {
 const authFetch = createFetch(await caches.open('authenticated-api'), {
   fetch: createAuthenticatedFetch(() => getApiToken()),
   defaults: {
-    cacheControlOverride: 's-maxage=300',
+    cacheControlOverride:
+      'public' // Required: Allow caching of authenticated requests
+      + ', s-maxage=300',
     cacheKeyRules: {
       header: { include: ['authorization'] } // Cache per token
     }
