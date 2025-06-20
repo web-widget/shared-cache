@@ -1,5 +1,11 @@
 # @web-widget/shared-cache
 
+## 1.5.0
+
+### Minor Changes
+
+- 4520827: Enhanced logging system with structured output and multiple log levels.
+
 ## 1.4.0
 
 ### Minor Changes
