@@ -56,9 +56,13 @@ export {
   CANNOT_INCLUDE_HEADERS,
 } from './cache-key';
 
+// Logger utilities
+export { createLogger, SharedCacheLogger, LogLevel } from './utils/logger';
+
 // Type definitions
 export type {
   KVStorage,
+  Logger,
   SharedCacheFetch,
   SharedCacheOptions,
   SharedCacheQueryOptions,
@@ -72,6 +76,9 @@ export type {
   SharedCacheKeyRules,
   SharedCacheKeyPartDefiners,
 } from './cache-key';
+
+// Logger types
+export type { LogContext } from './utils/logger';
 
 // Constants
 export {
