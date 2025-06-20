@@ -37,7 +37,7 @@
     "clean:build": "rm -rf dist",
     "clean:node": "rm -rf node_modules",
     "contributors": "git-authors-cli && finepack",
-    "coverage": "c8 report",
+    "coverage": "c8 report --reporter=text --reporter=lcov",
     "coverage:html": "NODE_OPTIONS=--experimental-vm-modules pnpm exec jest --coverage",
     "dev": "pnpm exec tsup --watch",
     "lint": "eslint .",
@@ -102,5 +102,20 @@
   "type": "module",
   "files": [
     "dist"
-  ]
+  ],
+  "c8": {
+    "reporter": [
+      "text",
+      "lcov",
+      "html"
+    ],
+    "exclude": [
+      "coverage/**",
+      "dist/**",
+      "node_modules/**",
+      "**/*.test.ts",
+      "**/*.spec.ts"
+    ],
+    "all": true
+  }
 }
