@@ -53,7 +53,7 @@ const timeout = (ms: number) =>
  */
 describe('HTTP Header Override Tests', () => {
   describe('cache-control header override', () => {
-    test('should override cache-control header with s-maxage directive', async () => {
+    it('should override cache-control header with s-maxage directive', async () => {
       const store = createCacheStore();
       const cache = new SharedCache(store);
       const fetch = createSharedCacheFetch(cache, {
@@ -77,7 +77,7 @@ describe('HTTP Header Override Tests', () => {
       expect(res.headers.get('x-cache-status')).toBe(MISS);
     });
 
-    test('should combine multiple cache-control directives correctly', async () => {
+    it('should combine multiple cache-control directives correctly', async () => {
       const store = createCacheStore();
       const cache = new SharedCache(store);
       const fetch = createSharedCacheFetch(cache, {
@@ -103,7 +103,7 @@ describe('HTTP Header Override Tests', () => {
   });
 
   describe('vary header override', () => {
-    test('should override vary header with additional headers', async () => {
+    it('should override vary header with additional headers', async () => {
       const store = createCacheStore();
       const cache = new SharedCache(store);
       const fetch = createSharedCacheFetch(cache, {
@@ -126,7 +126,7 @@ describe('HTTP Header Override Tests', () => {
       expect(res.headers.get('x-cache-status')).toBe(MISS);
     });
 
-    test('should handle vary override when no original vary header exists', async () => {
+    it('should handle vary override when no original vary header exists', async () => {
       const store = createCacheStore();
       const cache = new SharedCache(store);
       const fetch = createSharedCacheFetch(cache, {
@@ -150,7 +150,7 @@ describe('HTTP Header Override Tests', () => {
   });
 
   describe('header override restrictions', () => {
-    test('should not set override headers for server error responses (5xx)', async () => {
+    it('should not set override headers for server error responses (5xx)', async () => {
       const store = createCacheStore();
       const cache = new SharedCache(store);
       const fetch = createSharedCacheFetch(cache, {
@@ -172,7 +172,7 @@ describe('HTTP Header Override Tests', () => {
       expect(res.headers.get('x-cache-status')).toBe(DYNAMIC);
     });
 
-    test('should not set override headers for 503 Service Unavailable', async () => {
+    it('should not set override headers for 503 Service Unavailable', async () => {
       const store = createCacheStore();
       const cache = new SharedCache(store);
       const fetch = createSharedCacheFetch(cache, {
@@ -215,7 +215,7 @@ describe('Multiple Duplicate Requests', () => {
     },
   });
 
-  test('when cached when the method is GET it should serve from cache', async () => {
+  it('should serve from cache when cached and method is GET', async () => {
     const res = await fetch(TEST_URL);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('text/lol; charset=utf-8');
@@ -224,7 +224,7 @@ describe('Multiple Duplicate Requests', () => {
     expect(await res.text()).toBe('lol');
   });
 
-  test('subsequent GET requests should serve from cache with HIT status', async () => {
+  it('should serve subsequent GET requests from cache with HIT status', async () => {
     const res = await fetch(TEST_URL);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('text/lol; charset=utf-8');
@@ -233,7 +233,7 @@ describe('Multiple Duplicate Requests', () => {
     expect(await res.text()).toBe('lol');
   });
 
-  test('POST method should not be cached and return DYNAMIC status', async () => {
+  it('should not cache POST method and return DYNAMIC status', async () => {
     const res = await fetch(TEST_URL, {
       method: 'POST',
     });
@@ -244,7 +244,7 @@ describe('Multiple Duplicate Requests', () => {
     expect(await res.text()).toBe('lol');
   });
 
-  test('cache should persist until manually cleared', async () => {
+  it('should persist cache until manually cleared', async () => {
     const fetch = createSharedCacheFetch(cache, {
       async fetch() {
         return new Response('new content', {
@@ -285,7 +285,7 @@ describe('Multiple Duplicate Requests', () => {
  * Tests fundamental caching behavior when no cache-control is present
  */
 describe('Basic Cache Control Behavior', () => {
-  test('when no cache control is set the latest content should be loaded', async () => {
+  it('when no cache control is set the latest content should be loaded', async () => {
     const store = createCacheStore();
     const cache = new SharedCache(store);
     const fetch = createSharedCacheFetch(cache, {
@@ -311,7 +311,7 @@ describe('Basic Cache Control Behavior', () => {
  * Tests handling of cache-control directives from client requests
  */
 describe('Request Cache Control Directives', () => {
-  test('should respect cache control directives from requests', async () => {
+  it('should respect cache control directives from requests', async () => {
     const store = createCacheStore();
     const cache = new SharedCache(store);
     const fetch = createSharedCacheFetch(cache, {
@@ -360,7 +360,7 @@ describe('Request Cache Control Directives', () => {
  * Tests caching behavior with different response body types
  */
 describe('Response Body Caching', () => {
-  test('when body is a string it should cache the response', async () => {
+  it('when body is a string it should cache the response', async () => {
     const store = createCacheStore();
     const cache = new SharedCache(store);
     const fetch = createSharedCacheFetch(cache, {
@@ -386,7 +386,7 @@ describe('Response Body Caching', () => {
  * Tests caching behavior for different HTTP methods per RFC 7231
  */
 describe('HTTP Method-Specific Caching', () => {
-  test('HEAD method should read cache from GET request', async () => {
+  it('should read cache from GET request for HEAD method', async () => {
     const store = createCacheStore();
     const cache = new SharedCache(store);
     const fetch = createSharedCacheFetch(cache, {
@@ -427,7 +427,7 @@ describe('HTTP Method-Specific Caching', () => {
     expect(await cache.match(head2)).toBeUndefined();
   });
 
-  test('POST method should not cache the response', async () => {
+  it('should not cache the response for POST method', async () => {
     const store = createCacheStore();
     const cache = new SharedCache(store);
     const fetch = createSharedCacheFetch(cache, {
@@ -462,7 +462,7 @@ describe('HTTP Method-Specific Caching', () => {
  */
 describe('Vary Header Handling', () => {
   describe('multiple versions should be cached based on vary header', () => {
-    test('multiple versions should be cached', async () => {
+    it('multiple versions should be cached', async () => {
       const store = createCacheStore();
       const cache = new SharedCache(store);
       const fetch = createSharedCacheFetch(cache, {
@@ -520,7 +520,7 @@ describe('Vary Header Handling', () => {
     });
   });
 
-  test('it should be possible to turn off the `vary` feature', async () => {
+  it('it should be possible to turn off the `vary` feature', async () => {
     const store = createCacheStore();
     const cache = new SharedCache(store);
     const fetch = createSharedCacheFetch(cache, {
@@ -589,7 +589,7 @@ describe('Vary Header Handling', () => {
     expect(await res.text()).toBe('en-us');
   });
 
-  test('when the response code is not 200 it should not cache the response', async () => {
+  it('when the response code is not 200 it should not cache the response', async () => {
     const store = createCacheStore();
     const cache = new SharedCache(store);
     const fetch = createSharedCacheFetch(cache, {
@@ -608,7 +608,7 @@ describe('Vary Header Handling', () => {
     expect(cacheItem).toBeUndefined();
   });
 
-  test('when etag and last-modified headers are set it should cache those values', async () => {
+  it('when etag and last-modified headers are set it should cache those values', async () => {
     const date = Math.round(Date.now() / 1000);
     const store = createCacheStore();
     const cache = new SharedCache(store);
@@ -662,7 +662,7 @@ describe('Vary Header Handling', () => {
   //   );
   // });
 
-  test('`s-maxage` should be used first as cache expiration time', async () => {
+  it('`s-maxage` should be used first as cache expiration time', async () => {
     const store = createCacheStore();
     const cache = new SharedCache(store);
     const fetch = createSharedCacheFetch(cache, {
@@ -703,7 +703,7 @@ describe('Vary Header Handling', () => {
     expect(await cachedRes?.text()).toBe('lol');
   });
 
-  test('`age` should change based on cache time', async () => {
+  it('`age` should change based on cache time', async () => {
     const store = createCacheStore();
     const cache = new SharedCache(store);
     const fetch = createSharedCacheFetch(cache, {
@@ -745,7 +745,7 @@ describe('Vary Header Handling', () => {
   });
 
   describe('caching should be allowed to be bypassed', () => {
-    test('missing cache control should bypass caching', async () => {
+    it('missing cache control should bypass caching', async () => {
       const store = createCacheStore();
       const cache = new SharedCache(store);
       const fetch = createSharedCacheFetch(cache, {
@@ -768,7 +768,7 @@ describe('Vary Header Handling', () => {
       expect(res.headers.get('cache-control')).toBe(null);
     });
 
-    test('`private` should bypass caching', async () => {
+    it('`private` should bypass caching', async () => {
       const store = createCacheStore();
       const cache = new SharedCache(store);
       const fetch = createSharedCacheFetch(cache, {
@@ -795,7 +795,7 @@ describe('Vary Header Handling', () => {
       expect(res.headers.get('cache-control')).toBe('private');
     });
 
-    test('`no-store` should bypass caching', async () => {
+    it('`no-store` should bypass caching', async () => {
       const store = createCacheStore();
       const cache = new SharedCache(store);
       const fetch = createSharedCacheFetch(cache, {
@@ -822,7 +822,7 @@ describe('Vary Header Handling', () => {
       expect(res.headers.get('cache-control')).toBe('no-store');
     });
 
-    test('`no-cache` should bypass caching', async () => {
+    it('`no-cache` should bypass caching', async () => {
       const store = createCacheStore();
       const cache = new SharedCache(store);
       const fetch = createSharedCacheFetch(cache, {
@@ -849,7 +849,7 @@ describe('Vary Header Handling', () => {
       expect(res.headers.get('cache-control')).toBe('no-cache');
     });
 
-    test('`max-age=0` should bypass caching', async () => {
+    it('`max-age=0` should bypass caching', async () => {
       const store = createCacheStore();
       const cache = new SharedCache(store);
       const fetch = createSharedCacheFetch(cache, {
@@ -876,7 +876,7 @@ describe('Vary Header Handling', () => {
       expect(res.headers.get('cache-control')).toBe('max-age=0');
     });
 
-    test('`s-maxage=0` should bypass caching', async () => {
+    it('`s-maxage=0` should bypass caching', async () => {
       const store = createCacheStore();
       const cache = new SharedCache(store);
       const fetch = createSharedCacheFetch(cache, {
@@ -903,7 +903,7 @@ describe('Vary Header Handling', () => {
       expect(res.headers.get('cache-control')).toBe('s-maxage=0');
     });
 
-    test('`max-age=0, s-maxage=<value>` should not bypass cache', async () => {
+    it('`max-age=0, s-maxage=<value>` should not bypass cache', async () => {
       const store = createCacheStore();
       const cache = new SharedCache(store);
       const fetch = createSharedCacheFetch(cache, {
@@ -946,7 +946,7 @@ describe('Vary Header Handling', () => {
         },
       });
 
-      test('step 1: the first request should load the latest response and cache it', async () => {
+      it('step 1: the first request should load the latest response and cache it', async () => {
         const req = new Request(TEST_URL);
         const res = await fetch(req);
         const cachedRes = await cache.match(req);
@@ -958,7 +958,7 @@ describe('Vary Header Handling', () => {
         expect(await cachedRes?.text()).toBe('Hello 0');
       });
 
-      test('step 2: content should be fetched from cache', async () => {
+      it('step 2: content should be fetched from cache', async () => {
         const req = new Request(TEST_URL);
         const res = await fetch(req);
 
@@ -968,7 +968,7 @@ describe('Vary Header Handling', () => {
         expect(await res.text()).toBe('Hello 0');
       });
 
-      test('step 3: use stale content and update cache in the background', async () => {
+      it('step 3: should use stale content and update cache in the background', async () => {
         // NOTE: Simulation exceeds max age
         await timeout(1016);
 
@@ -987,7 +987,7 @@ describe('Vary Header Handling', () => {
         expect(await cachedRes?.text()).toBe('Hello 1');
       });
 
-      test('step 4: the updated cache should be used', async () => {
+      it('step 4: should use the updated cache', async () => {
         const req = new Request(TEST_URL);
         const res = await fetch(req);
 
@@ -1012,7 +1012,7 @@ describe('Vary Header Handling', () => {
         },
       });
 
-      test('step 1: the first request should load the latest response and cache it', async () => {
+      it('step 1: the first request should load the latest response and cache it', async () => {
         const req = new Request(TEST_URL);
         const res = await fetch(req);
 
@@ -1022,7 +1022,7 @@ describe('Vary Header Handling', () => {
         expect(await res.text()).toBe('Hello 0');
       });
 
-      test('step 2: content should be fetched from cache', async () => {
+      it('step 2: content should be fetched from cache', async () => {
         const req = new Request(TEST_URL);
         const res = await fetch(req);
 
@@ -1032,7 +1032,7 @@ describe('Vary Header Handling', () => {
         expect(await res.text()).toBe('Hello 0');
       });
 
-      test('step 3: reload the latest content and cache it after the cache expires', async () => {
+      it('step 3: should reload the latest content and cache it after the cache expires', async () => {
         // NOTE: Simulation exceeds max age
         await timeout(2001);
 
@@ -1045,7 +1045,7 @@ describe('Vary Header Handling', () => {
         expect(await res.text()).toBe('Hello 1');
       });
 
-      test('step 4: the updated cache should be used', async () => {
+      it('step 4: should use the updated cache', async () => {
         const req = new Request(TEST_URL);
         const res = await fetch(req);
 
@@ -1075,7 +1075,7 @@ describe('Vary Header Handling', () => {
         },
       });
 
-      test('step 1: the first request should load the latest response and cache it', async () => {
+      it('step 1: the first request should load the latest response and cache it', async () => {
         const req = new Request(TEST_URL);
         const res = await fetch(req);
 
@@ -1085,7 +1085,7 @@ describe('Vary Header Handling', () => {
         expect(await res.text()).toBe('Hello 0');
       });
 
-      test('step 2: content should be fetched from cache', async () => {
+      it('step 2: content should be fetched from cache', async () => {
         const req = new Request(TEST_URL);
         const res = await fetch(req);
 
@@ -1095,7 +1095,7 @@ describe('Vary Header Handling', () => {
         expect(await res.text()).toBe('Hello 0');
       });
 
-      test('step 3: reloading encounters errors and should use caching', async () => {
+      it('step 3: should use caching when reloading encounters errors', async () => {
         // NOTE: Simulation exceeds max age
         await timeout(1001);
 
@@ -1124,7 +1124,7 @@ describe('Vary Header Handling', () => {
         expect(await res.text()).toBe('Hello 0');
       });
 
-      test('step 4: errors that last too long should bypass caching', async () => {
+      it('step 4: should bypass caching when errors last too long', async () => {
         // NOTE: Simulation exceeds max age
         await timeout(1008);
 
@@ -1148,7 +1148,7 @@ describe('Vary Header Handling', () => {
    */
   describe('HTTP Standards Compliance Tests', () => {
     describe('Edge Cases', () => {
-      test('should handle malformed cache-control headers gracefully', async () => {
+      it('should handle malformed cache-control headers gracefully', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
         const fetch = createSharedCacheFetch(cache, {
@@ -1167,7 +1167,7 @@ describe('Vary Header Handling', () => {
         expect(await res.text()).toBe('test');
       });
 
-      test('should handle responses with no content-type', async () => {
+      it('should handle responses with no content-type', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
         const fetch = createSharedCacheFetch(cache, {
@@ -1190,7 +1190,7 @@ describe('Vary Header Handling', () => {
         expect(await res.text()).toBe('test');
       });
 
-      test('should handle very large max-age values', async () => {
+      it('should handle very large max-age values', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
         const fetch = createSharedCacheFetch(cache, {
@@ -1211,7 +1211,7 @@ describe('Vary Header Handling', () => {
         expect(res2.headers.get('x-cache-status')).toBe(HIT);
       });
 
-      test('should handle case-insensitive header names', async () => {
+      it('should handle case-insensitive header names', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
         const fetch = createSharedCacheFetch(cache, {
@@ -1234,7 +1234,7 @@ describe('Vary Header Handling', () => {
         expect(res.headers.get('etag')).toBe('"test-123"');
       });
 
-      test('should handle empty response bodies', async () => {
+      it('should handle empty response bodies', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
         const fetch = createSharedCacheFetch(cache, {
@@ -1259,7 +1259,7 @@ describe('Vary Header Handling', () => {
     });
 
     describe('HTTP Method Handling', () => {
-      test('should handle PUT method as non-cacheable', async () => {
+      it('should handle PUT method as non-cacheable', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
         const fetch = createSharedCacheFetch(cache, {
@@ -1278,7 +1278,7 @@ describe('Vary Header Handling', () => {
         expect(await res.text()).toBe('updated');
       });
 
-      test('should handle DELETE method as non-cacheable', async () => {
+      it('should handle DELETE method as non-cacheable', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
         const fetch = createSharedCacheFetch(cache, {
@@ -1297,7 +1297,7 @@ describe('Vary Header Handling', () => {
         expect(await res.text()).toBe('deleted');
       });
 
-      test('should handle PATCH method as non-cacheable', async () => {
+      it('should handle PATCH method as non-cacheable', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
         const fetch = createSharedCacheFetch(cache, {
@@ -1318,7 +1318,7 @@ describe('Vary Header Handling', () => {
     });
 
     describe('Status Code Handling', () => {
-      test('should not cache 404 responses without explicit cache headers', async () => {
+      it('should not cache 404 responses without explicit cache headers', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
         const fetch = createSharedCacheFetch(cache, {
@@ -1333,7 +1333,7 @@ describe('Vary Header Handling', () => {
         expect(await res.text()).toBe('Not Found');
       });
 
-      test('should cache 404 responses with explicit cache headers', async () => {
+      it('should cache 404 responses with explicit cache headers', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
         const fetch = createSharedCacheFetch(cache, {
@@ -1358,7 +1358,7 @@ describe('Vary Header Handling', () => {
         expect(await res2.text()).toBe('Not Found');
       });
 
-      test('should handle 301 redirects with caching', async () => {
+      it('should handle 301 redirects with caching', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
         const fetch = createSharedCacheFetch(cache, {
@@ -1386,7 +1386,7 @@ describe('Vary Header Handling', () => {
     });
 
     describe('Vary Header Complex Scenarios', () => {
-      test('should handle multiple Vary headers', async () => {
+      it('should handle multiple Vary headers', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
         const fetch = createSharedCacheFetch(cache, {
@@ -1434,7 +1434,7 @@ describe('Vary Header Handling', () => {
         expect(await res3.text()).toBe('en-US-gzip');
       });
 
-      test('should handle Vary: * (uncacheable)', async () => {
+      it('should handle Vary: * (uncacheable)', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
         const fetch = createSharedCacheFetch(cache, {
@@ -1460,7 +1460,7 @@ describe('Vary Header Handling', () => {
     });
 
     describe('Error Handling', () => {
-      test('should handle network errors gracefully', async () => {
+      it('should handle network errors gracefully', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
         const fetch = createSharedCacheFetch(cache, {
@@ -1472,7 +1472,7 @@ describe('Vary Header Handling', () => {
         await expect(fetch(TEST_URL)).rejects.toThrow('Network error');
       });
 
-      test('should handle fetch timeout errors', async () => {
+      it('should handle fetch timeout errors', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
         const fetch = createSharedCacheFetch(cache, {
@@ -1484,7 +1484,7 @@ describe('Vary Header Handling', () => {
         await expect(fetch(TEST_URL)).rejects.toThrow('Request timeout');
       });
 
-      test('should propagate non-HTTP errors from fetch', async () => {
+      it('should propagate non-HTTP errors from fetch', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
         const fetch = createSharedCacheFetch(cache, {
@@ -1498,7 +1498,7 @@ describe('Vary Header Handling', () => {
     });
 
     describe('Cache Configuration Options', () => {
-      test('should respect ignoreRequestCacheControl option', async () => {
+      it('should respect ignoreRequestCacheControl option', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
         const fetch = createSharedCacheFetch(cache, {
@@ -1529,7 +1529,7 @@ describe('Vary Header Handling', () => {
         expect(res2.headers.get('x-cache-status')).toBe(HIT);
       });
 
-      test('should handle custom cache key rules', async () => {
+      it('should handle custom cache key rules', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
         const fetch = createSharedCacheFetch(cache, {
@@ -1562,7 +1562,7 @@ describe('Vary Header Handling', () => {
         expect(res.headers.get('x-cache-status')).toBe(MISS);
       });
 
-      test('should not cache requests with Authorization header by default', async () => {
+      it('should not cache requests with Authorization header by default', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
         const fetch = createSharedCacheFetch(cache, {
@@ -1599,7 +1599,7 @@ describe('Vary Header Handling', () => {
         expect(await res2.text()).toBe('authenticated content');
       });
 
-      test('should cache requests with Authorization header when response has public directive', async () => {
+      it('should cache requests with Authorization header when response has public directive', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
         const fetch = createSharedCacheFetch(cache, {
@@ -1636,7 +1636,7 @@ describe('Vary Header Handling', () => {
         expect(await res2.text()).toBe('public authenticated content');
       });
 
-      test('should cache requests with Authorization header when response has s-maxage directive', async () => {
+      it('should cache requests with Authorization header when response has s-maxage directive', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
         const fetch = createSharedCacheFetch(cache, {
@@ -1673,7 +1673,7 @@ describe('Vary Header Handling', () => {
         expect(await res2.text()).toBe('shared cache content');
       });
 
-      test('should cache requests with Authorization header when response has must-revalidate directive', async () => {
+      it('should cache requests with Authorization header when response has must-revalidate directive', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
         const fetch = createSharedCacheFetch(cache, {
@@ -1710,7 +1710,7 @@ describe('Vary Header Handling', () => {
         expect(await res2.text()).toBe('must revalidate content');
       });
 
-      test('should handle different Authorization headers as separate cache entries', async () => {
+      it('should handle different Authorization headers as separate cache entries', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
         let requestCount = 0;
@@ -1790,7 +1790,7 @@ describe('Vary Header Handling', () => {
    * Performance and edge case tests
    */
   describe('Performance and Edge Cases', () => {
-    test('should handle rapid sequential requests efficiently', async () => {
+    it('should handle rapid sequential requests efficiently', async () => {
       const store = createCacheStore();
       const cache = new SharedCache(store);
       let fetchCount = 0;
@@ -1821,7 +1821,7 @@ describe('Vary Header Handling', () => {
       expect(fetchCount).toBe(1);
     });
 
-    test('should handle URL with query parameters correctly', async () => {
+    it('should handle URL with query parameters correctly', async () => {
       const store = createCacheStore();
       const cache = new SharedCache(store);
 
@@ -1859,7 +1859,7 @@ describe('Vary Header Handling', () => {
       expect(await res3.text()).toBe('query: ?param=1');
     });
 
-    test('should handle URLs with fragments correctly', async () => {
+    it('should handle URLs with fragments correctly', async () => {
       const store = createCacheStore();
       const cache = new SharedCache(store);
 

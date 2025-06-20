@@ -27,7 +27,7 @@ describe('SharedCacheStorage', () => {
     cacheStorage = new SharedCacheStorage(createCacheStore());
   });
 
-  it('Opens a cache', async () => {
+  it('should open a cache', async () => {
     const cache1 = await cacheStorage.open('1');
     const cache2 = await cacheStorage.open('2');
     expect(cache1).toBeInstanceOf(SharedCache);
@@ -35,7 +35,7 @@ describe('SharedCacheStorage', () => {
     expect(cache2).not.toBe(cache1);
   });
 
-  it('It Opens the same cache', async () => {
+  it('should open the same cache', async () => {
     const cache1 = await cacheStorage.open('1');
     const cache2 = await cacheStorage.open('1');
     expect(cache2).toBe(cache1);

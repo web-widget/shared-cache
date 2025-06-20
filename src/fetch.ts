@@ -1,4 +1,5 @@
-import { cacheControl, vary } from '@web-widget/helpers/headers';
+import { vary } from './utils/vary';
+import { cacheControl } from './utils/cache-control';
 import { SharedCache } from './cache';
 import { SharedCacheStorage } from './cache-storage';
 import {

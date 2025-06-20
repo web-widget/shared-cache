@@ -5,7 +5,7 @@ import {
   vary,
 } from './cache-key';
 
-test('base: host + pathname + search', async () => {
+it('should support base: host + pathname + search', async () => {
   const keyGenerator = createCacheKeyGenerator();
   const key = await keyGenerator(new Request('http://localhost/?a=1'), {
     host: true,
@@ -15,7 +15,7 @@ test('base: host + pathname + search', async () => {
   expect(key).toBe('localhost/?a=1');
 });
 
-test('should support built-in rules', async () => {
+it('should support built-in rules', async () => {
   const keyGenerator = createCacheKeyGenerator();
   const key = await keyGenerator(
     new Request('http://localhost/?a=1', {
@@ -41,7 +41,7 @@ test('should support built-in rules', async () => {
   expect(key).toBe('localhost/?a=1#a=356a19:desktop:x-id=a9993e');
 });
 
-test('should support filtering', async () => {
+it('should support filtering', async () => {
   const keyGenerator = createCacheKeyGenerator();
   const key = await keyGenerator(
     new Request('http://localhost/?a=1&b=2', {
@@ -62,7 +62,7 @@ test('should support filtering', async () => {
   expect(key).toBe('localhost/?a=1#x-id=a9993e');
 });
 
-test('should support presence or absence without including its actual value', async () => {
+it('should support presence or absence without including its actual value', async () => {
   const keyGenerator = createCacheKeyGenerator();
   const key = await keyGenerator(new Request('http://localhost/?a=1&b=2'), {
     host: true,
@@ -73,7 +73,7 @@ test('should support presence or absence without including its actual value', as
 });
 
 describe('should support cacheName', () => {
-  test('"default" value should be overridden to empty', async () => {
+  it('should override "default" value to empty', async () => {
     const keyGenerator = createCacheKeyGenerator('default');
     const key = await keyGenerator(new Request('http://localhost/?a=1&b=2'), {
       host: true,
@@ -83,7 +83,7 @@ describe('should support cacheName', () => {
     expect(key).toBe('localhost/?a&b=2');
   });
 
-  test('cacheName should appear in the prefix', async () => {
+  it('should make cacheName appear in the prefix', async () => {
     const keyGenerator = createCacheKeyGenerator('custom');
     const key = await keyGenerator(new Request('http://localhost/?a=1&b=2'), {
       host: true,
@@ -95,7 +95,7 @@ describe('should support cacheName', () => {
 });
 
 describe('should support cookie', () => {
-  test('the value should be hashed', async () => {
+  it('should hash the value', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(
       new Request('http://localhost/', {
@@ -110,7 +110,7 @@ describe('should support cookie', () => {
     expect(key).toBe('#a=aaf4c6');
   });
 
-  test('should be sorted', async () => {
+  it('should be sorted', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(
       new Request('http://localhost/', {
@@ -125,7 +125,7 @@ describe('should support cookie', () => {
     expect(key).toBe('#a=356a19&b=da4b92&c=77de68');
   });
 
-  test('should support filtering', async () => {
+  it('should support filtering', async () => {
     expect(
       await createCacheKeyGenerator()(
         new Request('http://localhost/', {
@@ -153,7 +153,7 @@ describe('should support cookie', () => {
     ).toBe('#b=da4b92&c=77de68');
   });
 
-  test('should support check presence', async () => {
+  it('should support check presence', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(
       new Request('http://localhost/', {
@@ -170,7 +170,7 @@ describe('should support cookie', () => {
 });
 
 describe('should support device', () => {
-  test('default device type', async () => {
+  it('should return default device type', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(new Request('http://localhost/'), {
       device: true,
@@ -178,7 +178,7 @@ describe('should support device', () => {
     expect(key).toBe('#desktop');
   });
 
-  test('desktop device type', async () => {
+  it('should detect desktop device type', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(
       new Request('http://localhost/', {
@@ -194,7 +194,7 @@ describe('should support device', () => {
     expect(key).toBe('#desktop');
   });
 
-  test('mobile device type', async () => {
+  it('should detect mobile device type', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(
       new Request('http://localhost/', {
@@ -210,7 +210,7 @@ describe('should support device', () => {
     expect(key).toBe('#mobile');
   });
 
-  test('tablet device type', async () => {
+  it('should detect tablet device type', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(
       new Request('http://localhost/', {
@@ -228,7 +228,7 @@ describe('should support device', () => {
 });
 
 describe('should support header', () => {
-  test('the value should be hashed', async () => {
+  it('should hash the value', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(
       new Request('http://localhost/', {
@@ -243,7 +243,7 @@ describe('should support header', () => {
     expect(key).toBe('#a=aaf4c6');
   });
 
-  test('should be sorted', async () => {
+  it('should be sorted', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(
       new Request('http://localhost/', {
@@ -260,7 +260,7 @@ describe('should support header', () => {
     expect(key).toBe('#a=356a19&b=da4b92&c=77de68');
   });
 
-  test('should support filtering', async () => {
+  it('should support filtering', async () => {
     expect(
       await createCacheKeyGenerator()(
         new Request('http://localhost/', {
@@ -292,7 +292,7 @@ describe('should support header', () => {
     ).toBe('#b=da4b92&c=77de68');
   });
 
-  test('should support check presence', async () => {
+  it('should support check presence', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(
       new Request('http://localhost/', {
@@ -309,7 +309,7 @@ describe('should support header', () => {
     expect(key).toBe('#a&b=da4b92&c=77de68');
   });
 
-  test('header key should ignore case', async () => {
+  it('should ignore case for header keys', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(
       new Request('http://localhost/', {
@@ -325,7 +325,7 @@ describe('should support header', () => {
     expect(key).toBe('#a=ca9fd0&x-id=a9993e');
   });
 
-  test('some headers are not allowed to be included', async () => {
+  it('should not allow some headers to be included', async () => {
     CANNOT_INCLUDE_HEADERS.forEach(async (key) => {
       await expect(
         createCacheKeyGenerator()(
@@ -346,7 +346,7 @@ describe('should support header', () => {
 });
 
 describe('should support host', () => {
-  test('basic', async () => {
+  it('should work with basic functionality', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(new Request('http://localhost/'), {
       host: true,
@@ -354,7 +354,7 @@ describe('should support host', () => {
     expect(key).toBe('localhost');
   });
 
-  test('should support filtering', async () => {
+  it('should support filtering', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(new Request('http://localhost:8080/'), {
       host: { include: ['localhost'] },
@@ -364,7 +364,7 @@ describe('should support host', () => {
 });
 
 describe('should support pathname', () => {
-  test('basic', async () => {
+  it('should work with basic functionality', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(new Request('http://localhost/a/b/c'), {
       pathname: true,
@@ -372,7 +372,7 @@ describe('should support pathname', () => {
     expect(key).toBe('/a/b/c');
   });
 
-  test('should support filtering', async () => {
+  it('should support filtering', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(new Request('http://localhost:8080/a/b/c'), {
       pathname: { include: ['/a/b/c'] },
@@ -382,7 +382,7 @@ describe('should support pathname', () => {
 });
 
 describe('should support search', () => {
-  test('should be sorted', async () => {
+  it('should be sorted', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(
       new Request('http://localhost/?b=2&a=1&c=3'),
@@ -393,7 +393,7 @@ describe('should support search', () => {
     expect(key).toBe('?a=1&b=2&c=3');
   });
 
-  test('question marks should not be generated if there are no query parameters', async () => {
+  it('should not generate question marks if there are no query parameters', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(new Request('http://localhost/'), {
       search: true,
@@ -401,7 +401,7 @@ describe('should support search', () => {
     expect(key).toBe('');
   });
 
-  test('should support filtering', async () => {
+  it('should support filtering', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(
       new Request('http://localhost/?a=1&b=2&c=3'),
@@ -412,7 +412,7 @@ describe('should support search', () => {
     expect(key).toBe('?a=1');
   });
 
-  test('should support check presence', async () => {
+  it('should support check presence', async () => {
     const keyGenerator = createCacheKeyGenerator();
     const key = await keyGenerator(
       new Request('http://localhost/?a=1&b=2&c=3'),
@@ -425,7 +425,7 @@ describe('should support search', () => {
 });
 
 describe('should support custom key', () => {
-  test('extract the contents of the header into a variable', async () => {
+  it('should extract the contents of the header into a variable', async () => {
     const keyGenerator = createCacheKeyGenerator(undefined, {
       foo: async (request) => request.headers.get('x-id') || '',
     });
@@ -442,7 +442,7 @@ describe('should support custom key', () => {
     expect(key).toBe('#custom');
   });
 
-  test('custom part must exist', async () => {
+  it('should require custom part to exist', async () => {
     const keyGenerator = createCacheKeyGenerator();
     await expect(() =>
       keyGenerator(new Request('http://localhost/'), {
@@ -453,7 +453,7 @@ describe('should support custom key', () => {
     );
   });
 
-  test('empty parts should be ignored', async () => {
+  it('should ignore empty parts', async () => {
     const keyGenerator = createCacheKeyGenerator(undefined, {
       foo: async () => '',
     });
@@ -475,7 +475,7 @@ describe('should support custom key', () => {
 });
 
 describe('get header part', () => {
-  test('should include all', async () => {
+  it('should include all', async () => {
     const key = await header(
       new Request('http://localhost/?a=1', {
         headers: {
@@ -488,7 +488,7 @@ describe('get header part', () => {
     expect(key).toBe('a=356a19&b=da4b92&c=77de68');
   });
 
-  test('should include some', async () => {
+  it('should include some', async () => {
     const key = await header(
       new Request('http://localhost/?a=1', {
         headers: {
@@ -504,7 +504,7 @@ describe('get header part', () => {
     expect(key).toBe('a=356a19&b=da4b92');
   });
 
-  test('filter should ignore case', async () => {
+  it('should ignore case when filtering', async () => {
     const key = await header(
       new Request('http://localhost/?a=1', {
         headers: {
@@ -522,7 +522,7 @@ describe('get header part', () => {
 });
 
 describe('get vary part', () => {
-  test('should include all', async () => {
+  it('should include all', async () => {
     const key = await vary(
       new Request('http://localhost/?a=1', {
         headers: {
@@ -535,7 +535,7 @@ describe('get vary part', () => {
     expect(key).toBe('a=356a19&b=da4b92&c=77de68');
   });
 
-  test('should include some', async () => {
+  it('should include some', async () => {
     const key = await vary(
       new Request('http://localhost/?a=1', {
         headers: {
@@ -551,7 +551,7 @@ describe('get vary part', () => {
     expect(key).toBe('a=356a19&b=da4b92');
   });
 
-  test('filter should ignore case', async () => {
+  it('should ignore case when filtering', async () => {
     const key = await vary(
       new Request('http://localhost/?a=1', {
         headers: {

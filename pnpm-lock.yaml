@@ -8,9 +8,9 @@ importers:
 
   .:
     dependencies:
-      '@web-widget/helpers':
-        specifier: ^1.59.0
-        version: 1.59.0(unctx@2.4.1)
+      '@edge-runtime/cookies':
+        specifier: ^6.0.0
+        version: 6.0.0
       '@web-widget/http-cache-semantics':
         specifier: ^1.2.0
         version: 1.2.0
@@ -351,10 +351,6 @@ packages:
 
   '@edge-runtime/cookies@6.0.0':
     resolution: {integrity: sha512-VVO/8AwC2qVbygLb2IOkX1zWFx2yWIHzFv4D602CTnoRffd/+cdcXqpSydKaedFrk7a1dRYXbWwjzfV/gwZ2Gw==}
-    engines: {node: '>=18'}
-
-  '@edge-runtime/user-agent@3.0.0':
-    resolution: {integrity: sha512-gBRMdel9SMPjHO573dIZ71BRaIVmkV23P7SGZ4UVYO6KYdxlBeWqkD+fn9QalNqi1vtpI/guRCNKPmslsGCeTw==}
     engines: {node: '>=18'}
 
   '@esbuild/aix-ppc64@0.25.5':
@@ -892,9 +888,6 @@ packages:
   '@types/estree@1.0.7':
     resolution: {integrity: sha512-w28IoSUCJpidD/TGviZwwMJckNESJZXFu7NBZ5YJ4mEUnNraUn9Pm8HSZm/jDF1pDWYKspWE7oVphigUPRakIQ==}
 
-  '@types/estree@1.0.8':
-    resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
-
   '@types/graceful-fs@4.1.9':
     resolution: {integrity: sha512-olP3sd1qOEe5dXTSaFvQG+02VdRXcdytWLAZsAq1PecU8uqQAhkrnbli7DagjtXKW/Bl7YJbUsa8MPcuc8LHEQ==}
 
@@ -987,28 +980,8 @@ packages:
   '@ungap/structured-clone@1.3.0':
     resolution: {integrity: sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g==}
 
-  '@web-widget/action@1.59.0':
-    resolution: {integrity: sha512-yPs51nJ2NobCxIOtgsiHwoejfluG+jXUqPMfRdw5c8mpWS5kU9cySPqALOXVrGieasb/QJDVH1HBXRs2uS1wyg==}
-
-  '@web-widget/context@1.59.0':
-    resolution: {integrity: sha512-LSOo5CiQcV+WZW6V3yGncsQOu1792+BhYRZf2q7Uqf95QypuKr8Xdbhk84S2+N4Uep9fYXQqCGPjjZyYqaqO+A==}
-    peerDependencies:
-      unctx: ^2.3.1
-
-  '@web-widget/helpers@1.59.0':
-    resolution: {integrity: sha512-zvzOmBQsI68FjIag0bT0RptroW0uP+fn1xNRXyVZRoYuQatP0gFHxxVExMVO28Y0CZmL4m9LYfL2/nxGjUTdfw==}
-
   '@web-widget/http-cache-semantics@1.2.0':
     resolution: {integrity: sha512-q/MobtHmwp3oaHmEATX/f6BJ+4bNMPVQ1nfDiNW9GkGI/JxRGhpOcs8wxdyr4tbcTgkuqjex8h9G7ONTDuVBmQ==}
-
-  '@web-widget/lifecycle-cache@1.59.0':
-    resolution: {integrity: sha512-Z9+5w/uQ5NVDWMljNPpVIzX0340ZJu+vJAqOzjS7YuN2wJo0M5Hh6Xpfaf9SMkCpLfZO5naRia2477wAc8Mt/A==}
-
-  '@web-widget/purify@1.59.0':
-    resolution: {integrity: sha512-JIq2H1bK9WkpEePBAD5MvHhZBulc7j+4XyV7276Dm+Ul7IopHbYW5u4vx4CTj0wmKfuIbF/2hCd1NKmEZ+b2Zg==}
-
-  '@web-widget/schema@1.59.0':
-    resolution: {integrity: sha512-v2H29zMCAvXTHk49dTzqhjjvp9G+O1ySGAbnJgKxcy1DI+j+VO324RcB74S91Bajn9rQMC3xrzVriL8DPN1ndQ==}
 
   JSV@4.0.2:
     resolution: {integrity: sha512-ZJ6wx9xaKJ3yFUhq5/sk82PJMuUyLk277I8mQeyDgCTjGdjWJIvPfaU5LIXaMuaN2UO1X3kZH4+lgphublZUHw==}
@@ -1501,9 +1474,6 @@ packages:
   estraverse@5.3.0:
     resolution: {integrity: sha512-MMdARuVEQziNTeJD8DgMqmhwR11BRQ/cBP+pLtYdSTnf3MIO8fFeiINEbX36ZdNlfU/7A9f3gUw49B3oQsvwBA==}
     engines: {node: '>=4.0'}
-
-  estree-walker@3.0.3:
-    resolution: {integrity: sha512-7RUKfXgSMMkzt6ZuXmqapOurLGPPfgj6l9uRZ7lRGolvk0y2yocc35LdcxKC5PQZdn2DMqioAQ2NoWcrTKmm6g==}
 
   esutils@2.0.3:
     resolution: {integrity: sha512-kVscqXk4OCp68SZ0dkgEKVi6/8ij300KBWTJq32P/dYeWTSwK41WyTxalN1eRmA5Z9UU/LX9D7FWSmV9SAYx6g==}
@@ -2966,9 +2936,6 @@ packages:
     engines: {node: '>=0.8.0'}
     hasBin: true
 
-  unctx@2.4.1:
-    resolution: {integrity: sha512-AbaYw0Nm4mK4qjhns67C+kgxR2YWiwlDBPzxrN8h8C6VtAdCgditAY5Dezu3IJy4XVqAnbrXt9oQJvsn3fyozg==}
-
   underscore@1.6.0:
     resolution: {integrity: sha512-z4o1fvKUojIWh9XuaVLUDdf86RQiq13AC1dmHbTpoyuu+bquHms76v16CjycCbec87J7z0k//SiQVk0sMdFmpQ==}
 
@@ -2986,10 +2953,6 @@ packages:
   universalify@0.1.2:
     resolution: {integrity: sha512-rBJeI5CXAlmy1pV+617WB9J63U6XcazHHF2f2dbJix4XzpUF0RS3Zbj0FGIOCAva5P/d/GBOYaACQ1w+0azUkg==}
     engines: {node: '>= 4.0.0'}
-
-  unplugin@2.3.5:
-    resolution: {integrity: sha512-RyWSb5AHmGtjjNQ6gIlA67sHOsWpsbWpwDokLwTcejVdOjEkJZh7QKu14J00gDDVSh8kGH4KYC/TNBceXFZhtw==}
-    engines: {node: '>=18.12.0'}
 
   update-browserslist-db@1.1.3:
     resolution: {integrity: sha512-UxhIZQ+QInVdunkDAaiazvvT/+fXL5Osr0JZlJulepYu6Jd7qJtDZjlur0emRlT71EN3ScPoE7gvsuIKKNavKw==}
@@ -3028,9 +2991,6 @@ packages:
 
   webidl-conversions@4.0.2:
     resolution: {integrity: sha512-YQ+BmxuTgd6UXZW3+ICGfyqRyHXVlD5GtQr5+qjiNW7bF0cqrzX500HVXPBOvgXb5YnzDd+h0zqyv61KUD7+Sg==}
-
-  webpack-virtual-modules@0.6.2:
-    resolution: {integrity: sha512-66/V2i5hQanC51vBQKPH4aI8NMAcBW59FVBs+rC7eGHupMyfn34q7rZIE+ETlJ+XTevqfUhVVBgSUNSW2flEUQ==}
 
   whatwg-url@7.1.0:
     resolution: {integrity: sha512-WUu7Rg1DroM7oQvGWfOiAK21n74Gg+T4elXEQYkOhtyLeWiJFoOGLXPKI/9gzIie9CtwVLm8wtw6YJdKyxSjeg==}
@@ -3489,8 +3449,6 @@ snapshots:
       '@jridgewell/trace-mapping': 0.3.9
 
   '@edge-runtime/cookies@6.0.0': {}
-
-  '@edge-runtime/user-agent@3.0.0': {}
 
   '@esbuild/aix-ppc64@0.25.5':
     optional: true
@@ -4063,8 +4021,6 @@ snapshots:
 
   '@types/estree@1.0.7': {}
 
-  '@types/estree@1.0.8': {}
-
   '@types/graceful-fs@4.1.9':
     dependencies:
       '@types/node': 22.15.30
@@ -4192,39 +4148,7 @@ snapshots:
 
   '@ungap/structured-clone@1.3.0': {}
 
-  '@web-widget/action@1.59.0': {}
-
-  '@web-widget/context@1.59.0(unctx@2.4.1)':
-    dependencies:
-      '@web-widget/purify': 1.59.0
-      '@web-widget/schema': 1.59.0
-      unctx: 2.4.1
-
-  '@web-widget/helpers@1.59.0(unctx@2.4.1)':
-    dependencies:
-      '@edge-runtime/cookies': 6.0.0
-      '@edge-runtime/user-agent': 3.0.0
-      '@web-widget/action': 1.59.0
-      '@web-widget/context': 1.59.0(unctx@2.4.1)
-      '@web-widget/lifecycle-cache': 1.59.0(unctx@2.4.1)
-      '@web-widget/purify': 1.59.0
-      '@web-widget/schema': 1.59.0
-    transitivePeerDependencies:
-      - unctx
-
   '@web-widget/http-cache-semantics@1.2.0': {}
-
-  '@web-widget/lifecycle-cache@1.59.0(unctx@2.4.1)':
-    dependencies:
-      '@web-widget/context': 1.59.0(unctx@2.4.1)
-      '@web-widget/purify': 1.59.0
-      '@web-widget/schema': 1.59.0
-    transitivePeerDependencies:
-      - unctx
-
-  '@web-widget/purify@1.59.0': {}
-
-  '@web-widget/schema@1.59.0': {}
 
   JSV@4.0.2: {}
 
@@ -4721,10 +4645,6 @@ snapshots:
       estraverse: 5.3.0
 
   estraverse@5.3.0: {}
-
-  estree-walker@3.0.3:
-    dependencies:
-      '@types/estree': 1.0.8
 
   esutils@2.0.3: {}
 
@@ -6332,13 +6252,6 @@ snapshots:
   uglify-js@3.19.3:
     optional: true
 
-  unctx@2.4.1:
-    dependencies:
-      acorn: 8.14.1
-      estree-walker: 3.0.3
-      magic-string: 0.30.17
-      unplugin: 2.3.5
-
   underscore@1.6.0: {}
 
   undici-types@6.21.0: {}
@@ -6352,12 +6265,6 @@ snapshots:
       '@fastify/busboy': 2.1.1
 
   universalify@0.1.2: {}
-
-  unplugin@2.3.5:
-    dependencies:
-      acorn: 8.14.1
-      picomatch: 4.0.2
-      webpack-virtual-modules: 0.6.2
 
   update-browserslist-db@1.1.3(browserslist@4.25.0):
     dependencies:
@@ -6397,8 +6304,6 @@ snapshots:
       makeerror: 1.0.12
 
   webidl-conversions@4.0.2: {}
-
-  webpack-virtual-modules@0.6.2: {}
 
   whatwg-url@7.1.0:
     dependencies:
