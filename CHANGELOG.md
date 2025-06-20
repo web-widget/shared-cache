@@ -1,5 +1,11 @@
 # @web-widget/shared-cache
 
+## 1.4.0
+
+### Minor Changes
+
+- 1d9e185: Remove dependency - `@web-widget/helpers`.
+
 ## 1.3.0
 
 ### Minor Changes
