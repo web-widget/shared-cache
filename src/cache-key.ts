@@ -1,9 +1,7 @@
-import { sha1 } from '@web-widget/helpers/crypto';
-import {
-  deviceType as getDeviceType,
-  RequestCookies,
-} from '@web-widget/helpers/headers';
+import { sha1 } from './utils/crypto';
+import { deviceType as getDeviceType } from './utils/user-agent';
 import { CACHE_STATUS_HEADERS_NAME } from './constants';
+import { RequestCookies } from './utils/cookies';
 
 /**
  * Filter options for controlling which keys to include/exclude in cache key generation.
@@ -121,7 +119,7 @@ export function filter(
  * @returns Promise resolving to 6-character hash string
  * @internal
  */
-async function shortHash(data: Parameters<typeof sha1>[0]) {
+async function shortHash(data: string) {
   return (await sha1(data))?.slice(0, 6);
 }
 

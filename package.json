@@ -87,7 +87,7 @@
   },
   "dependencies": {
     "@web-widget/http-cache-semantics": "^1.2.0",
-    "@web-widget/helpers": "^1.59.0"
+    "@edge-runtime/cookies": "^6.0.0"
   },
   "packageManager": "pnpm@10.11.1",
   "publishConfig": {

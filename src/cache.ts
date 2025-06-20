@@ -1,4 +1,3 @@
-import CachePolicy from '@web-widget/http-cache-semantics';
 import type {
   CacheItem,
   WebCache,
@@ -24,6 +23,7 @@ import {
   REVALIDATED,
   STALE,
 } from './constants';
+import { CachePolicy } from './utils/cache-semantics';
 
 /**
  * SharedCache implements the Cache interface with additional features for shared caching.
