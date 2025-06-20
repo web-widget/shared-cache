@@ -299,6 +299,86 @@ const deviceAwareFetch = createFetch(await caches.open('content-cache'), {
 const response = await deviceAwareFetch('/api/content');
 ```
 
+### Advanced Cache Key Rules
+
+```typescript
+const advancedFetch = createFetch(await caches.open('advanced-cache'), {
+  defaults: {
+    cacheControlOverride: 's-maxage=300, stale-while-revalidate=3600',
+    cacheKeyRules: {
+      host: true,
+      pathname: true,
+      search: { exclude: ['timestamp', '_'] },
+      header: { include: ['x-api-version'] },
+      cookie: { include: ['session_id'] },
+      device: true,
+    },
+  },
+});
+```
+
+### Custom Storage Backend
+
+```typescript
+import crypto from 'crypto';
+
+const createEncryptedStorage = (
+  baseStorage: KVStorage,
+  key: string
+): KVStorage => {
+  const encrypt = (text: string) => {
+    const cipher = crypto.createCipher('aes192', key);
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return encrypted;
+  };
+
+  const decrypt = (text: string) => {
+    const decipher = crypto.createDecipher('aes192', key);
+    let decrypted = decipher.update(text, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  };
+
+  return {
+    async get(cacheKey: string) {
+      const encrypted = await baseStorage.get(cacheKey);
+      return encrypted ? JSON.parse(decrypt(encrypted as string)) : undefined;
+    },
+    async set(cacheKey: string, value: unknown, ttl?: number) {
+      const encrypted = encrypt(JSON.stringify(value));
+      return baseStorage.set(cacheKey, encrypted, ttl);
+    },
+    async delete(cacheKey: string) {
+      return baseStorage.delete(cacheKey);
+    },
+  };
+};
+
+const secureStorage = createEncryptedStorage(baseStorage, 'my-secret-key');
+const caches = new CacheStorage(secureStorage);
+```
+
+### Multi-tenant Caching
+
+```typescript
+const tenantFetch = createFetch(await caches.open('tenant-cache'), {
+  defaults: {
+    cacheControlOverride: 's-maxage=300',
+    cacheKeyRules: {
+      header: { include: ['x-tenant-id'] },
+      pathname: true,
+      search: true,
+    },
+  },
+});
+
+// Each tenant gets isolated cache
+const response = await tenantFetch('/api/data', {
+  headers: { 'x-tenant-id': 'tenant-123' },
+});
+```
+
 ### Custom Fetch with Authentication
 
 ```typescript
@@ -900,7 +980,97 @@ interface LogContext {
 - **Structured data**: Context objects are not deeply cloned. Avoid modifying context after logging
 - **Async operations**: Background revalidation errors are properly caught and logged without blocking responses
 
+### Advanced Debugging Techniques
+
+#### Cache Hit Rate Monitoring
+
+```typescript
+import { createLogger, LogLevel } from '@web-widget/shared-cache';
+
+let hitCount = 0;
+let totalCount = 0;
+
+const monitoringLogger = {
+  info: (message, context) => {
+    if (context?.cacheStatus) {
+      totalCount++;
+      if (context.cacheStatus === 'HIT') hitCount++;
+
+      // Log hit rate every 100 requests
+      if (totalCount % 100 === 0) {
+        console.log(
+          `Cache hit rate: ${((hitCount / totalCount) * 100).toFixed(2)}%`
+        );
+      }
+    }
+    console.log(message, context);
+  },
+  warn: console.warn,
+  debug: console.debug,
+  error: console.error,
+};
+
+const cache = new SharedCache(storage, {
+  logger: createLogger(monitoringLogger, LogLevel.INFO),
+});
+```
+
+#### Performance Tracking
+
+```typescript
+const performanceLogger = {
+  info: (message, context) => {
+    if (context?.duration) {
+      console.log(`${message} - Duration: ${context.duration}ms`, context);
+    } else {
+      console.log(message, context);
+    }
+  },
+  warn: console.warn,
+  debug: console.debug,
+  error: console.error,
+};
+```
+
+#### Custom Alerting
+
+```typescript
+const alertingLogger = {
+  info: console.log,
+  warn: console.warn,
+  debug: console.debug,
+  error: (message, context) => {
+    console.error(message, context);
+
+    // Send alerts for critical cache errors
+    if (context?.error && message.includes('Put operation failed')) {
+      sendAlert(`Cache storage error: ${context.error.message}`);
+    }
+  },
+};
+```
+
 ## 📚 API Reference
+
+### Core API Overview
+
+**Main Functions:**
+
+- `createFetch(cache?, options?)` - Create cached fetch function
+- `createLogger(logger?, logLevel?)` - Create logger with level filtering
+
+**Classes:**
+
+- `Cache` - Main cache implementation
+- `CacheStorage` - Cache storage manager
+
+**Key Types:**
+
+- `KVStorage` - Storage backend interface
+- `SharedCacheRequestInitProperties` - Request cache configuration
+- `SharedCacheKeyRules` - Cache key generation rules
+
+---
 
 ### createFetch Function
 
@@ -922,238 +1092,104 @@ function createFetch(
 - `options.fetch` - Custom fetch implementation to use as the underlying fetcher (defaults to globalThis.fetch)
 - `options.defaults` - Default shared cache options to apply to all requests
 
-**Default Options:**
+**Returns:** `SharedCacheFetch` - A fetch function with caching capabilities
+
+**Basic Usage:**
+
+```typescript
+const cache = await caches.open('my-cache');
+const fetch = createFetch(cache, {
+  defaults: { cacheControlOverride: 's-maxage=300' },
+});
+```
+
+### Key Interfaces
+
+#### SharedCacheRequestInitProperties
+
+Request-level cache configuration:
 
 ```typescript
 interface SharedCacheRequestInitProperties {
-  cacheControlOverride?: string; // Override cache-control header
-  cacheKeyRules?: SharedCacheKeyRules; // Custom cache key rules
-  ignoreRequestCacheControl?: boolean; // Default: true
-  ignoreVary?: boolean; // Default: false
-  varyOverride?: string; // Override vary header
+  cacheControlOverride?: string;
+  cacheKeyRules?: SharedCacheKeyRules;
+  ignoreRequestCacheControl?: boolean;
+  ignoreVary?: boolean;
+  varyOverride?: string;
+  waitUntil?: (promise: Promise<unknown>) => void;
 }
 ```
 
-**Example:**
+#### SharedCacheKeyRules
+
+Cache key generation rules:
 
 ```typescript
-const fetch = createFetch(await caches.open('my-cache'), {
-  defaults: {
-    cacheControlOverride: 's-maxage=300',
-    cacheKeyRules: {
-      header: { include: ['x-api-version'] },
-    },
-  },
-});
-```
-
-#### Custom Fetch Implementation
-
-The `options.fetch` parameter allows you to provide a custom fetch implementation, enabling you to:
-
-- **Add authentication**: Automatically include API keys or tokens
-- **Implement retries**: Add retry logic for failed requests
-- **Custom headers**: Add default headers to all requests
-- **Request/response transformation**: Modify requests or responses
-- **Logging and monitoring**: Add request/response logging
-
-**Custom Fetch Examples:**
-
-```typescript
-// Example 1: Fetch with automatic authentication
-const authenticatedFetch = async (input, init) => {
-  const headers = new Headers(init?.headers);
-  headers.set('Authorization', `Bearer ${getApiToken()}`);
-
-  return globalThis.fetch(input, {
-    ...init,
-    headers,
-  });
-};
-
-const fetch = createFetch(await caches.open('auth-cache'), {
-  fetch: authenticatedFetch,
-  defaults: {
-    cacheControlOverride: 's-maxage=300',
-  },
-});
-
-// Example 2: Fetch with retry logic and logging
-const retryFetch = async (input, init, maxRetries = 3) => {
-  let lastError;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`Attempt ${attempt}: ${init?.method || 'GET'} ${input}`);
-      const response = await globalThis.fetch(input, init);
-
-      if (response.ok || attempt === maxRetries) {
-        return response;
-      }
-
-      lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
-    } catch (error) {
-      lastError = error;
-      if (attempt === maxRetries) break;
-
-      // Exponential backoff
-      await new Promise((resolve) =>
-        setTimeout(resolve, Math.pow(2, attempt - 1) * 1000)
-      );
-    }
-  }
-
-  throw lastError;
-};
-
-const resilientFetch = createFetch(await caches.open('resilient-cache'), {
-  fetch: retryFetch,
-  defaults: {
-    cacheControlOverride: 's-maxage=600',
-  },
-});
-
-// Example 3: Fetch with custom base URL and headers
-const createApiFetch = (baseUrl, defaultHeaders = {}) => {
-  return async (input, init) => {
-    const url = new URL(input, baseUrl);
-    const headers = new Headers(init?.headers);
-
-    // Add default headers
-    Object.entries(defaultHeaders).forEach(([key, value]) => {
-      if (!headers.has(key)) {
-        headers.set(key, value);
-      }
-    });
-
-    return globalThis.fetch(url.toString(), {
-      ...init,
-      headers,
-    });
-  };
-};
-
-const apiFetch = createFetch(await caches.open('api-cache'), {
-  fetch: createApiFetch('https://api.example.com', {
-    'Content-Type': 'application/json',
-    'X-API-Version': '2024-01-01',
-  }),
-  defaults: {
-    cacheControlOverride: 's-maxage=300',
-  },
-});
-
-// Usage: relative URLs are automatically resolved
-const userData = await apiFetch('/users/me'); // → https://api.example.com/users/me
-```
-
-**Custom Fetch Requirements:**
-
-- Must be compatible with the standard fetch API signature: `(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>`
-- Should handle errors appropriately and return valid Response objects
-- Response objects should be consumable by SharedCache (cloneable for caching)
-
-### Internal Implementation
-
-The `createFetch` function is the primary API for creating cached fetch functions, but the package exports many additional utilities and classes for comprehensive cache management.
-
-### CacheStorage Class
-
-Implements a subset of the [Web CacheStorage API](https://developer.mozilla.org/en-US/docs/Web/API/CacheStorage), optimized for server-side caching.
-
-#### Constructor
-
-```typescript
-new CacheStorage(storage: KVStorage)
-```
-
-**Parameters:**
-
-- `storage` - Custom storage backend implementing the `KVStorage` interface
-
-#### Methods
-
-##### `open(cacheName: string): Promise<Cache>`
-
-Opens or creates a named cache instance.
-
-```typescript
-const cache = await caches.open('api-cache-v1');
-```
-
-**Note:** Unlike the Web API, other CacheStorage methods (`delete`, `match`, `has`, `keys`) are not implemented.
-
-### SharedCache Class
-
-Implements a subset of the [Web Cache API](https://developer.mozilla.org/en-US/docs/Web/API/Cache) with server-side optimizations.
-
-#### `match(request, options?): Promise<Response | undefined>`
-
-Retrieves a cached response or fetches and caches a new one.
-
-**Parameters:**
-
-- `request` - The Request object or URL string
-- `options` - Optional cache query options
-
-**Returns:** Cached Response if available and fresh, undefined otherwise
-
-```typescript
-const cachedResponse = await cache.match('https://api.example.com/data');
-```
-
-#### `put(request, response): Promise<void>`
-
-Stores a request/response pair in the cache.
-
-**Parameters:**
-
-- `request` - The Request object or URL string
-- `response` - The Response to cache
-
-**Note:** Only cacheable responses are stored according to HTTP caching rules.
-
-```typescript
-await cache.put(request, response);
-```
-
-#### `delete(request, options?): Promise<boolean>`
-
-Removes a cached entry.
-
-**Parameters:**
-
-- `request` - The Request object or URL string
-- `options` - Optional cache query options
-
-**Returns:** `true` if entry was deleted, `false` if not found
-
-```typescript
-const deleted = await cache.delete('https://api.example.com/data');
-```
-
-### SharedCacheQueryOptions
-
-Options for cache operations with server-side limitations:
-
-```typescript
-interface SharedCacheQueryOptions {
-  ignoreMethod?: boolean; // Treat request as GET regardless of actual method
-  // Note: ignoreSearch and ignoreVary are not implemented and will throw errors
+interface SharedCacheKeyRules {
+  cookie?: FilterOptions | boolean;
+  device?: FilterOptions | boolean;
+  header?: FilterOptions | boolean;
+  host?: FilterOptions | boolean;
+  pathname?: FilterOptions | boolean;
+  search?: FilterOptions | boolean;
 }
 ```
 
-#### `ignoreMethod`
+#### KVStorage
 
-When `true`, the request is treated as a GET request for cache operations, regardless of its actual HTTP method.
+Storage backend interface:
 
-**Unsupported Standard Options:**
+```typescript
+interface KVStorage {
+  get: (cacheKey: string) => Promise<unknown | undefined>;
+  set: (cacheKey: string, value: unknown, ttl?: number) => Promise<void>;
+  delete: (cacheKey: string) => Promise<boolean>;
+}
+```
 
-SharedCache does not implement the following standard Web Cache API options:
+### Classes
 
-- `ignoreSearch` - Query string handling is not customizable
-- `ignoreVary` - Vary header processing cannot be bypassed
-- `cacheName` - Not applicable in server-side contexts
+#### Cache / CacheStorage
+
+```typescript
+class Cache {
+  match(request: RequestInfo | URL): Promise<Response | undefined>;
+  put(request: RequestInfo | URL, response: Response): Promise<void>;
+  delete(request: RequestInfo | URL): Promise<boolean>;
+}
+
+class CacheStorage {
+  constructor(storage: KVStorage);
+  open(cacheName: string): Promise<Cache>;
+}
+```
+
+### Utilities
+
+#### `createLogger(logger?, logLevel?)`
+
+```typescript
+function createLogger(logger?: Logger, logLevel?: LogLevel): SharedCacheLogger;
+```
+
+Creates a logger with level filtering and SharedCache formatting.
+
+#### Cache Status Values
+
+```typescript
+type SharedCacheStatus =
+  | 'HIT'
+  | 'MISS'
+  | 'EXPIRED'
+  | 'STALE'
+  | 'BYPASS'
+  | 'REVALIDATED'
+  | 'DYNAMIC';
+```
+
+Status values are automatically added to response headers as `x-cache-status`.
+
+**Complete API documentation available in TypeScript definitions and source code.**
 
 ## 📋 Standards Compliance
 
@@ -1304,8 +1340,6 @@ const fetch = createFetch(cache, {
   },
 });
 ```
-
-**Real-World Impact**: 95th percentile response time drops from 500ms to <10ms, service uptime improves from 99.5% to 99.9%+, and origin server load reduces by 60-80%.
 
 ## 🤝 Who's Using SharedCache
 
