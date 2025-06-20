@@ -3,7 +3,7 @@ import CachePolicy, {
 } from '@web-widget/http-cache-semantics';
 import { SharedCacheKeyPartDefiners, SharedCacheKeyRules } from './cache-key';
 
-export { SharedCacheKeyRules, SharedCacheKeyPartDefiners };
+export type { SharedCacheKeyRules, SharedCacheKeyPartDefiners };
 
 export type WebCache = globalThis.Cache;
 export type WebCacheQueryOptions = globalThis.CacheQueryOptions;

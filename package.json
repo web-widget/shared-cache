@@ -63,31 +63,31 @@
   "homepage": "https://github.com/web-widget/shared-cache#readme",
   "devDependencies": {
     "@changesets/cli": "^2.27.1",
+    "@rdfjs/types": "^1.0.1",
     "@types/jest": "^29.5.3",
+    "@typescript-eslint/eslint-plugin": "latest",
+    "@typescript-eslint/parser": "latest",
     "c8": "latest",
+    "eslint": "^8.3.0",
+    "eslint-config-prettier": "latest",
+    "eslint-plugin-prettier": "latest",
     "finepack": "latest",
     "git-authors-cli": "latest",
     "jest": "^29.6.2",
     "jest-environment-miniflare": "^2.14.2",
+    "lru-cache": "^10.2.0",
     "miniflare": "^3.20240129.1",
     "prettier": "latest",
-    "ts-jest": "^29.1.1",
-    "tsup": "^8.0.1",
-    "typescript": "latest",
-    "@rdfjs/types": "^1.0.1",
-    "@typescript-eslint/eslint-plugin": "latest",
-    "@typescript-eslint/parser": "latest",
-    "eslint": "^8.3.0",
-    "eslint-config-prettier": "latest",
-    "eslint-plugin-prettier": "latest",
+    "ts-jest": "^29.4.0",
     "ts-node": "^10.4.0",
+    "tsup": "^8.0.1",
     "typedoc": "^0.25.13",
     "typedoc-plugin-markdown": "^3.17.1",
-    "lru-cache": "^10.2.0"
+    "typescript": "latest"
   },
   "dependencies": {
-    "@web-widget/http-cache-semantics": "^1.2.0",
-    "@edge-runtime/cookies": "^6.0.0"
+    "@edge-runtime/cookies": "^6.0.0",
+    "@web-widget/http-cache-semantics": "^1.2.0"
   },
   "packageManager": "pnpm@10.11.1",
   "publishConfig": {
