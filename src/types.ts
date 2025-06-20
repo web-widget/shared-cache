@@ -45,15 +45,33 @@ export interface SharedCacheOptions {
 /**
  * Logger interface for cache operations.
  * Provides standardized logging methods for debugging and monitoring.
+ *
+ * All log methods follow a consistent format:
+ * - message: A descriptive string with "SharedCache:" prefix for context
+ * - optionalParams: Structured data object containing relevant context
  */
 export interface Logger {
   /**
-   * Log informational messages.
+   * Log informational messages about normal cache operations.
+   * Used for general operational information like cache hits, successful operations.
    */
   info(message?: unknown, ...optionalParams: unknown[]): void;
 
   /**
-   * Log error messages.
+   * Log warning messages about potentially problematic situations.
+   * Used for non-critical issues that might need attention.
+   */
+  warn(message?: unknown, ...optionalParams: unknown[]): void;
+
+  /**
+   * Log detailed debugging information.
+   * Used for verbose operational details useful during development and troubleshooting.
+   */
+  debug(message?: unknown, ...optionalParams: unknown[]): void;
+
+  /**
+   * Log error messages about failed operations.
+   * Used for critical issues that prevent normal operation.
    */
   error(message?: unknown, ...optionalParams: unknown[]): void;
 }

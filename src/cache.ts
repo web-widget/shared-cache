@@ -24,6 +24,7 @@ import {
   STALE,
 } from './constants';
 import { CachePolicy } from './utils/cache-semantics';
+import { createLogger } from './utils/logger';
 
 /**
  * SharedCache implements the Cache interface with additional features for shared caching.
@@ -38,6 +39,9 @@ export class SharedCache implements WebCache {
 
   /** Logger instance for debugging and monitoring */
   #logger?: Logger;
+
+  /** Structured logger instance with consistent formatting */
+  #structuredLogger: ReturnType<typeof createLogger>;
 
   /** Underlying storage backend */
   #storage: KVStorage;
@@ -71,6 +75,7 @@ export class SharedCache implements WebCache {
       });
 
     this.#logger = resolvedOptions.logger;
+    this.#structuredLogger = createLogger(resolvedOptions.logger);
     this.#storage = storage;
   }
 
@@ -201,8 +206,19 @@ export class SharedCache implements WebCache {
     const cacheItem = await getCacheItem(r, this.#storage, cacheKey);
 
     if (!cacheItem) {
+      this.#structuredLogger.debug('Cache miss', {
+        url: r.url,
+        cacheKey,
+        method: r.method,
+      });
       return;
     }
+
+    this.#structuredLogger.debug('Cache item found', {
+      url: r.url,
+      cacheKey,
+      method: r.method,
+    });
 
     const fetch = options?._fetch;
     const policy = CachePolicy.fromObject(cacheItem.policy);
@@ -233,7 +249,15 @@ export class SharedCache implements WebCache {
         const waitUntil =
           options?._waitUntil ??
           ((promise: Promise<unknown>) => {
-            promise.catch(this.#logger?.error);
+            promise.catch(
+              this.#structuredLogger.handleAsyncError(
+                'Stale-while-revalidate',
+                {
+                  url: r.url,
+                  cacheKey,
+                }
+              )
+            );
           });
 
         waitUntil(
@@ -249,6 +273,15 @@ export class SharedCache implements WebCache {
           )
         );
         this.#setCacheStatus(response, STALE);
+        this.#structuredLogger.info(
+          'Serving stale response',
+          {
+            url: r.url,
+            cacheKey,
+            cacheStatus: 'STALE',
+          },
+          'Revalidating in background'
+        );
         return response;
       } else {
         // Revalidate synchronously
@@ -266,6 +299,11 @@ export class SharedCache implements WebCache {
     }
 
     this.#setCacheStatus(response, HIT);
+    this.#structuredLogger.info('Cache hit', {
+      url: r.url,
+      cacheKey,
+      cacheStatus: 'HIT',
+    });
     return response;
   }
 
@@ -303,7 +341,7 @@ export class SharedCache implements WebCache {
     response: Response
   ): Promise<void> {
     return this.#putWithCustomCacheKey(request, response).catch((error) => {
-      this.#logger?.error('SharedCache.put: Failed to cache response.', {
+      this.#structuredLogger.error('Put operation failed', {
         url: request instanceof Request ? request.url : request,
         error,
       });
@@ -387,11 +425,28 @@ export class SharedCache implements WebCache {
     // Create cache policy to determine storability and TTL
     const policy = new CachePolicy(innerRequest, clonedResponse);
     const ttl = policy.timeToLive();
+    const storable = policy.storable();
 
     // Don't store if not storable or TTL is zero/negative
-    if (!policy.storable() || ttl <= 0) {
+    if (!storable || ttl <= 0) {
+      this.#structuredLogger.debug(
+        'Response not cacheable',
+        {
+          url: innerRequest.url,
+          storable,
+          ttl,
+          status: innerResponse.status,
+        },
+        storable ? 'TTL is zero/negative' : 'Policy indicates not storable'
+      );
       return;
     }
+
+    this.#structuredLogger.debug('Storing response in cache', {
+      url: innerRequest.url,
+      status: innerResponse.status,
+      ttl,
+    });
 
     const cacheItem: CacheItem = {
       policy: policy.toObject(),
@@ -446,10 +501,30 @@ export class SharedCache implements WebCache {
 
     let revalidationResponse: Response;
 
+    this.#structuredLogger.debug('Starting revalidation', {
+      url: request.url,
+      cacheKey,
+    });
+
     try {
       revalidationResponse = await fetch(revalidationRequest);
+      this.#structuredLogger.debug('Revalidation response received', {
+        url: request.url,
+        status: revalidationResponse.status,
+        cacheKey,
+      });
     } catch (error) {
       // Network error: create 500 response
+      this.#structuredLogger.warn(
+        'Revalidation network error',
+        {
+          url: request.url,
+          cacheKey,
+          error,
+        },
+        'Using fallback 500 response'
+      );
+
       revalidationResponse = new Response(
         error instanceof Error ? error.message : 'Internal Server Error',
         {
@@ -460,11 +535,15 @@ export class SharedCache implements WebCache {
 
     // Log server errors during revalidation
     if (revalidationResponse.status >= 500) {
-      this.#logger?.error(`SharedCache: Revalidation failed.`, {
-        url: request.url,
-        status: revalidationResponse.status,
-        cacheKey,
-      });
+      this.#structuredLogger.error(
+        'Revalidation failed',
+        {
+          url: request.url,
+          status: revalidationResponse.status,
+          cacheKey,
+        },
+        'Server returned 5xx status'
+      );
     }
 
     // Determine if cached response is still fresh based on conditional response
@@ -492,8 +571,26 @@ export class SharedCache implements WebCache {
     // Set appropriate cache status based on revalidation result
     if (modified) {
       this.#setCacheStatus(clonedResponse, EXPIRED);
+      this.#structuredLogger.info(
+        'Cache entry expired',
+        {
+          url: request.url,
+          cacheKey,
+          cacheStatus: 'EXPIRED',
+        },
+        'Serving fresh response'
+      );
     } else {
       this.#setCacheStatus(clonedResponse, REVALIDATED);
+      this.#structuredLogger.info(
+        'Cache entry revalidated',
+        {
+          url: request.url,
+          cacheKey,
+          cacheStatus: 'REVALIDATED',
+        },
+        'Cached response still fresh'
+      );
     }
 
     return clonedResponse;

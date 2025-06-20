@@ -12,6 +12,8 @@ import {
 // Simple mock logger for testing
 const mockLogger: Logger = {
   info: () => {},
+  warn: () => {},
+  debug: () => {},
   error: () => {},
 };
 

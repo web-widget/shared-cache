@@ -24,6 +24,7 @@ SharedCache is an HTTP caching library that follows Web Standards and HTTP speci
 - [🚀 Quick Start](#-quick-start)
 - [💡 Common Examples](#-common-examples)
 - [📊 Cache Status Monitoring](#-cache-status-monitoring)
+- [📝 Logging and Debugging](#-logging-and-debugging)
 - [🌐 Global Setup](#-global-setup)
 - [🎛️ Advanced Configuration](#️-advanced-configuration)
 - [📚 API Reference](#-api-reference)
@@ -36,7 +37,7 @@ SharedCache is an HTTP caching library that follows Web Standards and HTTP speci
 ## ✨ Key Features
 
 - **📋 RFC Compliance**: Supports [RFC 5861](https://tools.ietf.org/html/rfc5861) directives like `stale-if-error` and `stale-while-revalidate`
-- **🎯 Smart Caching**: Handles complex HTTP scenarios including `Vary` headers, proxy revalidation, and authenticated responses  
+- **🎯 Smart Caching**: Handles complex HTTP scenarios including `Vary` headers, proxy revalidation, and authenticated responses
 - **🔧 Flexible Storage**: Pluggable storage backend supporting memory, Redis, or any custom key-value store
 - **🚀 Enhanced Fetch**: Extends the standard `fetch` API with caching capabilities while maintaining full compatibility
 - **🎛️ Custom Cache Keys**: Cache key customization supporting device types, cookies, headers, and URL components
@@ -58,7 +59,7 @@ SharedCache provides:
 ### ✅ Use SharedCache When:
 
 - **Node.js environments** - Native `caches` API not available
-- **API response caching** - Need to reduce backend load and improve response times  
+- **API response caching** - Need to reduce backend load and improve response times
 - **Cross-runtime portability** - Want consistent caching across Node.js, Deno, Bun
 - **Custom storage backends** - Need Redis, database, or distributed caching solutions
 - **Meta-framework development** - Building applications that deploy to multiple environments
@@ -77,7 +78,7 @@ SharedCache provides:
 ```typescript
 // Cache API responses to reduce backend load
 const apiFetch = createFetch(cache, {
-  defaults: { cacheControlOverride: 's-maxage=300' }
+  defaults: { cacheControlOverride: 's-maxage=300' },
 });
 const userData = await apiFetch('/api/user/profile'); // First: 200ms, subsequent: 2ms
 ```
@@ -89,14 +90,15 @@ const userData = await apiFetch('/api/user/profile'); // First: 200ms, subsequen
 export const handler = {
   async GET(ctx) {
     const response = await ctx.render();
-    
+
     // Set cache control headers for shared cache optimization
-    response.headers.set('cache-control', 
-      's-maxage=60, ' +                       // Cache for 60 seconds in shared caches
-      'stale-if-error=604800, ' +             // Serve stale content for 7 days on errors
-      'stale-while-revalidate=604800'         // Background revalidation for 7 days
+    response.headers.set(
+      'cache-control',
+      's-maxage=60, ' + // Cache for 60 seconds in shared caches
+        'stale-if-error=604800, ' + // Serve stale content for 7 days on errors
+        'stale-while-revalidate=604800' // Background revalidation for 7 days
     );
-    
+
     return response;
   },
 };
@@ -130,7 +132,7 @@ npm install @web-widget/shared-cache
 # Using yarn
 yarn add @web-widget/shared-cache
 
-# Using pnpm  
+# Using pnpm
 pnpm add @web-widget/shared-cache
 ```
 
@@ -168,29 +170,29 @@ const caches = new CacheStorage(createLRUCache());
 
 async function example() {
   const cache = await caches.open('api-cache-v1');
-  
+
   // Create fetch with default configuration
   const fetch = createFetch(cache, {
     defaults: {
       cacheControlOverride: 's-maxage=300', // 5 minutes default caching
-      ignoreRequestCacheControl: true
-    }
+      ignoreRequestCacheControl: true,
+    },
   });
-  
+
   // First request - will hit the network
   console.time('First request');
   const response1 = await fetch(
     'https://httpbin.org/response-headers?cache-control=max-age%3D604800'
   );
   console.timeEnd('First request'); // ~400ms
-  
+
   // Second request - served from cache
   console.time('Cached request');
   const response2 = await fetch(
     'https://httpbin.org/response-headers?cache-control=max-age%3D604800'
   );
   console.timeEnd('Cached request'); // ~2ms
-  
+
   // Check cache status
   console.log('Cache status:', response2.headers.get('x-cache-status')); // "HIT"
 }
@@ -203,18 +205,18 @@ example();
 This package exports a comprehensive set of APIs for HTTP caching functionality:
 
 ```typescript
-import { 
-  createFetch,       // Main fetch function with caching
-  Cache,             // SharedCache class 
-  CacheStorage,      // SharedCacheStorage class
+import {
+  createFetch, // Main fetch function with caching
+  Cache, // SharedCache class
+  CacheStorage, // SharedCacheStorage class
 } from '@web-widget/shared-cache';
 
 const cache = await caches.open('api-cache-v1');
 const fetch = createFetch(cache, {
   defaults: {
     cacheControlOverride: 's-maxage=300',
-    ignoreRequestCacheControl: true
-  }
+    ignoreRequestCacheControl: true,
+  },
 });
 ```
 
@@ -229,7 +231,7 @@ const cache = await caches.open('api-cache-v1');
 const fetch = createFetch(cache, {
   defaults: {
     cacheControlOverride: 's-maxage=300', // 5 minutes default
-  }
+  },
 });
 
 // Simple usage - automatic caching
@@ -241,11 +243,15 @@ const sameData = await fetch('/api/user/profile'); // Served from cache
 
 ```typescript
 import Redis from 'ioredis';
-import { CacheStorage, createFetch, type KVStorage } from '@web-widget/shared-cache';
+import {
+  CacheStorage,
+  createFetch,
+  type KVStorage,
+} from '@web-widget/shared-cache';
 
 const createRedisStorage = (): KVStorage => {
   const redis = new Redis(process.env.REDIS_URL);
-  
+
   return {
     async get(key: string) {
       const value = await redis.get(key);
@@ -271,9 +277,9 @@ const fetch = createFetch(cache, {
   defaults: {
     cacheControlOverride: 's-maxage=600',
     cacheKeyRules: {
-      header: { include: ['x-tenant-id'] } // Multi-tenant support
-    }
-  }
+      header: { include: ['x-tenant-id'] }, // Multi-tenant support
+    },
+  },
 });
 ```
 
@@ -285,9 +291,9 @@ const deviceAwareFetch = createFetch(await caches.open('content-cache'), {
     cacheControlOverride: 's-maxage=600',
     cacheKeyRules: {
       device: true, // Separate cache for mobile/desktop/tablet
-      search: { exclude: ['timestamp'] }
-    }
-  }
+      search: { exclude: ['timestamp'] },
+    },
+  },
 });
 
 const response = await deviceAwareFetch('/api/content');
@@ -302,24 +308,24 @@ const createAuthenticatedFetch = (getToken) => {
     const token = await getToken();
     const headers = new Headers(init?.headers);
     headers.set('Authorization', `Bearer ${token}`);
-    
+
     const response = await globalThis.fetch(input, {
       ...init,
-      headers
+      headers,
     });
-    
+
     // Handle token expiration
     if (response.status === 401) {
       // Token might be expired, retry once with fresh token
       const freshToken = await getToken(true); // force refresh
       headers.set('Authorization', `Bearer ${freshToken}`);
-      
+
       return globalThis.fetch(input, {
         ...init,
-        headers
+        headers,
       });
     }
-    
+
     return response;
   };
 };
@@ -328,12 +334,12 @@ const authFetch = createFetch(await caches.open('authenticated-api'), {
   fetch: createAuthenticatedFetch(() => getApiToken()),
   defaults: {
     cacheControlOverride:
-      'public, ' +                           // Required: Allow caching of authenticated requests
+      'public, ' + // Required: Allow caching of authenticated requests
       's-maxage=300',
     cacheKeyRules: {
-      header: { include: ['authorization'] } // Cache per token
-    }
-  }
+      header: { include: ['authorization'] }, // Cache per token
+    },
+  },
 });
 
 const userData = await authFetch('/api/user/profile');
@@ -357,9 +363,9 @@ declare global {
 }
 
 const createLRUCache = (): KVStorage => {
-  const store = new LRUCache<string, any>({ 
+  const store = new LRUCache<string, any>({
     max: 1024,
-    ttl: 1000 * 60 * 60 // 1 hour default TTL
+    ttl: 1000 * 60 * 60, // 1 hour default TTL
   });
 
   return {
@@ -391,7 +397,7 @@ import { createFetch } from '@web-widget/shared-cache';
 globalThis.fetch = createFetch(await caches.open('default'), {
   defaults: {
     cacheControlOverride: 's-maxage=60', // 1 minute default for global fetch
-  }
+  },
 });
 ```
 
@@ -411,11 +417,11 @@ const fetch = createFetch(cache, {
   defaults: {
     cacheControlOverride: 's-maxage=300',
     cacheKeyRules: {
-      header: { include: ['x-api-version'] }
+      header: { include: ['x-api-version'] },
     },
     ignoreRequestCacheControl: true,
     ignoreVary: false,
-  }
+  },
 });
 
 // Use with defaults applied automatically
@@ -425,7 +431,7 @@ const response1 = await fetch('/api/data');
 const response2 = await fetch('/api/data', {
   sharedCache: {
     cacheControlOverride: 's-maxage=600', // Override default
-  }
+  },
 });
 ```
 
@@ -445,7 +451,7 @@ const axiosFetch = async (input, init) => {
     data: init?.body,
     validateStatus: () => true, // Don't throw on 4xx/5xx
   });
-  
+
   return new Response(response.data, {
     status: response.status,
     statusText: response.statusText,
@@ -456,8 +462,8 @@ const axiosFetch = async (input, init) => {
 const fetch = createFetch(await caches.open('axios-cache'), {
   fetch: axiosFetch,
   defaults: {
-    cacheControlOverride: 's-maxage=300'
-  }
+    cacheControlOverride: 's-maxage=300',
+  },
 });
 
 // Example: Custom fetch with request/response transformation
@@ -465,32 +471,32 @@ const transformFetch = async (input, init) => {
   // Transform request
   const url = new URL(input);
   url.searchParams.set('timestamp', Date.now().toString());
-  
+
   const response = await globalThis.fetch(url, init);
-  
+
   // Transform response
   if (response.headers.get('content-type')?.includes('application/json')) {
     const data = await response.json();
     const transformedData = {
       ...data,
-      fetchedAt: new Date().toISOString()
+      fetchedAt: new Date().toISOString(),
     };
-    
+
     return new Response(JSON.stringify(transformedData), {
       status: response.status,
       statusText: response.statusText,
       headers: response.headers,
     });
   }
-  
+
   return response;
 };
 
 const transformedFetch = createFetch(await caches.open('transform-cache'), {
   fetch: transformFetch,
   defaults: {
-    cacheControlOverride: 's-maxage=300'
-  }
+    cacheControlOverride: 's-maxage=300',
+  },
 });
 ```
 
@@ -508,7 +514,7 @@ const response = await fetch('https://api.example.com/data', {
   headers: {
     'x-user-id': '1024',
   },
-  
+
   // SharedCache-specific options
   sharedCache: {
     cacheControlOverride: 's-maxage=120',
@@ -521,8 +527,8 @@ const response = await fetch('https://api.example.com/data', {
       search: false,
       device: true,
       header: {
-        include: ['x-user-id']
-      }
+        include: ['x-user-id'],
+      },
     },
   },
 });
@@ -537,12 +543,12 @@ Override or extend cache control directives when APIs don't provide optimal cach
 ```typescript
 // Add shared cache directive
 sharedCache: {
-  cacheControlOverride: 's-maxage=3600'
+  cacheControlOverride: 's-maxage=3600';
 }
 
-// Combine multiple directives  
+// Combine multiple directives
 sharedCache: {
-  cacheControlOverride: 's-maxage=3600, must-revalidate'
+  cacheControlOverride: 's-maxage=3600, must-revalidate';
 }
 ```
 
@@ -552,7 +558,7 @@ Add additional Vary headers to ensure proper cache segmentation:
 
 ```typescript
 sharedCache: {
-  varyOverride: 'accept-language, user-agent'
+  varyOverride: 'accept-language, user-agent';
 }
 ```
 
@@ -563,7 +569,7 @@ Control whether to honor cache-control directives from the request:
 ```typescript
 // Ignore client cache-control headers (default: true)
 sharedCache: {
-  ignoreRequestCacheControl: false
+  ignoreRequestCacheControl: false;
 }
 ```
 
@@ -573,7 +579,7 @@ Disable Vary header processing for simplified caching:
 
 ```typescript
 sharedCache: {
-  ignoreVary: true // Cache regardless of Vary headers
+  ignoreVary: true; // Cache regardless of Vary headers
 }
 ```
 
@@ -585,10 +591,10 @@ Customize how cache keys are generated to optimize cache hit rates and handle di
 sharedCache: {
   cacheKeyRules: {
     // URL components
-    host: true,           // Include hostname  
+    host: true,           // Include hostname
     pathname: true,       // Include URL path
     search: true,         // Include query parameters (default)
-    
+
     // Request context
     device: false,        // Classify by device type
     cookie: {             // Include specific cookies
@@ -624,19 +630,19 @@ sharedCache: {
 
 ```typescript
 // Include all query parameters (default)
-search: true
+search: true;
 
-// Exclude all query parameters  
-search: false
+// Exclude all query parameters
+search: false;
 
 // Include specific parameters
 search: {
-  include: ['category', 'page']
+  include: ['category', 'page'];
 }
 
 // Include all except specific parameters
 search: {
-  exclude: ['timestamp', 'nonce']
+  exclude: ['timestamp', 'nonce'];
 }
 ```
 
@@ -646,7 +652,7 @@ Automatically classify requests as `mobile`, `desktop`, or `tablet` based on Use
 
 ```typescript
 cacheKeyRules: {
-  device: true  // Separate cache for different device types
+  device: true; // Separate cache for different device types
 }
 ```
 
@@ -689,15 +695,15 @@ SharedCache provides comprehensive monitoring through the `x-cache-status` heade
 
 ### Cache Status Types
 
-| Status | Description | When It Occurs |
-|--------|-------------|----------------|
-| **`HIT`** | Response served from cache | The requested resource was found in cache and is still fresh |
-| **`MISS`** | Response fetched from origin | The requested resource was not found in cache |
-| **`EXPIRED`** | Cached response expired, fresh response fetched | The cached response exceeded its TTL |
-| **`STALE`** | Stale response served | Served due to stale-while-revalidate or stale-if-error |
-| **`BYPASS`** | Cache bypassed | Bypassed due to cache control directives like `no-store` |
-| **`REVALIDATED`** | Cached response revalidated | Response validated with origin (304 Not Modified) |
-| **`DYNAMIC`** | Response cannot be cached | Cannot be cached due to HTTP method or status code |
+| Status            | Description                                     | When It Occurs                                               |
+| ----------------- | ----------------------------------------------- | ------------------------------------------------------------ |
+| **`HIT`**         | Response served from cache                      | The requested resource was found in cache and is still fresh |
+| **`MISS`**        | Response fetched from origin                    | The requested resource was not found in cache                |
+| **`EXPIRED`**     | Cached response expired, fresh response fetched | The cached response exceeded its TTL                         |
+| **`STALE`**       | Stale response served                           | Served due to stale-while-revalidate or stale-if-error       |
+| **`BYPASS`**      | Cache bypassed                                  | Bypassed due to cache control directives like `no-store`     |
+| **`REVALIDATED`** | Cached response revalidated                     | Response validated with origin (304 Not Modified)            |
+| **`DYNAMIC`**     | Response cannot be cached                       | Cannot be cached due to HTTP method or status code           |
 
 ### Quick Monitoring Example
 
@@ -718,7 +724,7 @@ const cache = await caches.open('status-demo');
 const fetch = createFetch(cache, {
   defaults: {
     cacheControlOverride: 's-maxage=300',
-  }
+  },
 });
 
 // First request - cache miss
@@ -731,7 +737,7 @@ console.log(response2.headers.get('x-cache-status')); // "HIT"
 
 // Request with no-cache directive - bypass
 const response3 = await fetch('/api/data', {
-  headers: { 'cache-control': 'no-cache' }
+  headers: { 'cache-control': 'no-cache' },
 });
 console.log(response3.headers.get('x-cache-status')); // "BYPASS"
 
@@ -749,12 +755,12 @@ const monitoredFetch = createFetch(await caches.open('monitored-cache'), {
   defaults: {
     cacheControlOverride: 's-maxage=300',
   },
-  
+
   // Custom fetch wrapper for monitoring
   fetch: async (input, init) => {
     const response = await globalThis.fetch(input, init);
     const cacheStatus = response.headers.get('x-cache-status');
-    
+
     // Log cache performance metrics
     if (cacheStatus === 'HIT') {
       console.log('✅ Cache hit - served from cache');
@@ -763,9 +769,9 @@ const monitoredFetch = createFetch(await caches.open('monitored-cache'), {
     } else if (cacheStatus === 'STALE') {
       console.log('⚡ Stale response served while revalidating');
     }
-    
+
     return response;
-  }
+  },
 });
 ```
 
@@ -776,6 +782,193 @@ The `x-cache-status` header is automatically added to all responses:
 - **Header Values**: `HIT`, `MISS`, `EXPIRED`, `STALE`, `BYPASS`, `REVALIDATED`, `DYNAMIC`
 - **Always Present**: The header is always added for monitoring and debugging
 - **Non-Standard**: Custom header for debugging - should not be used for application logic
+
+## 📝 Logging and Debugging
+
+SharedCache provides a comprehensive logging system with structured output for monitoring and debugging cache operations.
+
+### Logger Interface
+
+```typescript
+interface Logger {
+  info(message?: unknown, ...optionalParams: unknown[]): void;
+  warn(message?: unknown, ...optionalParams: unknown[]): void;
+  debug(message?: unknown, ...optionalParams: unknown[]): void;
+  error(message?: unknown, ...optionalParams: unknown[]): void;
+}
+```
+
+### Basic Logger Setup
+
+```typescript
+import { createLogger, LogLevel } from '@web-widget/shared-cache';
+
+// Create a simple console logger
+const logger = {
+  info: console.info.bind(console),
+  warn: console.warn.bind(console),
+  debug: console.debug.bind(console),
+  error: console.error.bind(console),
+};
+
+// Create SharedCache with logger
+const cache = new SharedCache(storage, {
+  logger,
+});
+```
+
+### Log Levels
+
+#### DEBUG
+
+- **Purpose**: Detailed operational information for development and troubleshooting
+- **Content**: Cache lookups, key generation, policy decisions
+- **Example Output**:
+  ```
+  SharedCache: Cache miss { url: 'https://api.com/data', cacheKey: 'api:data', method: 'GET' }
+  SharedCache: Cache item found { url: 'https://api.com/data', cacheKey: 'api:data', method: 'GET' }
+  ```
+
+#### INFO
+
+- **Purpose**: Normal operational messages about successful operations
+- **Content**: Cache hits, revalidation results, stale responses
+- **Example Output**:
+  ```
+  SharedCache: Cache hit { url: 'https://api.com/data', cacheKey: 'api:data', cacheStatus: 'HIT' }
+  SharedCache: Serving stale response - Revalidating in background { url: 'https://api.com/data', cacheKey: 'api:data', cacheStatus: 'STALE' }
+  ```
+
+#### WARN
+
+- **Purpose**: Potentially problematic situations that don't prevent operation
+- **Content**: Network errors with fallback, deprecated usage
+- **Example Output**:
+  ```
+  SharedCache: Revalidation network error - Using fallback 500 response { url: 'https://api.com/data', cacheKey: 'api:data', error: [NetworkError] }
+  ```
+
+#### ERROR
+
+- **Purpose**: Critical issues that prevent normal operation
+- **Content**: Storage failures, revalidation failures, validation errors
+- **Example Output**:
+  ```
+  SharedCache: Put operation failed { url: 'https://api.com/data', error: [StorageError] }
+  SharedCache: Revalidation failed - Server returned 5xx status { url: 'https://api.com/data', status: 503, cacheKey: 'api:data' }
+  ```
+
+### Logger Configuration Examples
+
+#### Production Logging (INFO level)
+
+```typescript
+const productionLogger = {
+  info: (msg, ctx) =>
+    console.log(JSON.stringify({ level: 'INFO', message: msg, ...ctx })),
+  warn: (msg, ctx) =>
+    console.warn(JSON.stringify({ level: 'WARN', message: msg, ...ctx })),
+  debug: () => {}, // No debug in production
+  error: (msg, ctx) =>
+    console.error(JSON.stringify({ level: 'ERROR', message: msg, ...ctx })),
+};
+
+const cache = new SharedCache(storage, {
+  logger: productionLogger,
+});
+```
+
+#### Development Logging (DEBUG level)
+
+```typescript
+const devLogger = {
+  info: console.info.bind(console),
+  warn: console.warn.bind(console),
+  debug: console.debug.bind(console),
+  error: console.error.bind(console),
+};
+
+const cache = new SharedCache(storage, {
+  logger: devLogger,
+});
+```
+
+#### Structured Logger with Level Filtering
+
+```typescript
+import { createLogger, LogLevel } from '@web-widget/shared-cache';
+
+class CustomLogger {
+  info(message: unknown, ...params: unknown[]) {
+    this.log('INFO', message, ...params);
+  }
+
+  warn(message: unknown, ...params: unknown[]) {
+    this.log('WARN', message, ...params);
+  }
+
+  debug(message: unknown, ...params: unknown[]) {
+    this.log('DEBUG', message, ...params);
+  }
+
+  error(message: unknown, ...params: unknown[]) {
+    this.log('ERROR', message, ...params);
+  }
+
+  private log(level: string, message: unknown, ...params: unknown[]) {
+    const timestamp = new Date().toISOString();
+    const context = params[0] || {};
+    console.log(
+      JSON.stringify({
+        timestamp,
+        level,
+        service: 'shared-cache',
+        message,
+        ...context,
+      })
+    );
+  }
+}
+
+const customLogger = new CustomLogger();
+const structuredLogger = createLogger(customLogger, LogLevel.DEBUG);
+
+const cache = new SharedCache(storage, {
+  logger: customLogger,
+});
+```
+
+### Context Data Structure
+
+All log messages include structured context data:
+
+```typescript
+interface LogContext {
+  url?: string; // Request URL
+  cacheKey?: string; // Generated cache key
+  status?: number; // HTTP status code
+  duration?: number; // Operation duration (ms)
+  error?: unknown; // Error object
+  cacheStatus?: string; // Cache result status
+  ttl?: number; // Time to live (seconds)
+  method?: string; // HTTP method
+  [key: string]: unknown; // Additional context
+}
+```
+
+### Best Practices
+
+1. **Use appropriate log levels**: Don't log normal operations at ERROR level
+2. **Include relevant context**: URL, cache key, and timing information help with debugging
+3. **Filter by environment**: Use DEBUG level in development, INFO+ in production
+4. **Monitor error logs**: Set up alerts for ERROR level messages
+5. **Structure your data**: Use consistent context object structures for easier parsing
+
+### Performance Considerations
+
+- **DEBUG level**: Can be verbose in high-traffic scenarios. Use sparingly in production
+- **Structured data**: Context objects are not deeply cloned. Avoid modifying context after logging
+- **Async operations**: Background revalidation errors are properly caught and logged without blocking responses
 
 ## 📚 API Reference
 
@@ -790,7 +983,7 @@ function createFetch(
     fetch?: typeof fetch;
     defaults?: Partial<SharedCacheRequestInitProperties>;
   }
-): SharedCacheFetch
+): SharedCacheFetch;
 ```
 
 **Parameters:**
@@ -803,11 +996,11 @@ function createFetch(
 
 ```typescript
 interface SharedCacheRequestInitProperties {
-  cacheControlOverride?: string;         // Override cache-control header
-  cacheKeyRules?: SharedCacheKeyRules;   // Custom cache key rules
-  ignoreRequestCacheControl?: boolean;   // Default: true
-  ignoreVary?: boolean;                  // Default: false  
-  varyOverride?: string;                 // Override vary header
+  cacheControlOverride?: string; // Override cache-control header
+  cacheKeyRules?: SharedCacheKeyRules; // Custom cache key rules
+  ignoreRequestCacheControl?: boolean; // Default: true
+  ignoreVary?: boolean; // Default: false
+  varyOverride?: string; // Override vary header
 }
 ```
 
@@ -818,9 +1011,9 @@ const fetch = createFetch(await caches.open('my-cache'), {
   defaults: {
     cacheControlOverride: 's-maxage=300',
     cacheKeyRules: {
-      header: { include: ['x-api-version'] }
-    }
-  }
+      header: { include: ['x-api-version'] },
+    },
+  },
 });
 ```
 
@@ -841,53 +1034,53 @@ The `options.fetch` parameter allows you to provide a custom fetch implementatio
 const authenticatedFetch = async (input, init) => {
   const headers = new Headers(init?.headers);
   headers.set('Authorization', `Bearer ${getApiToken()}`);
-  
+
   return globalThis.fetch(input, {
     ...init,
-    headers
+    headers,
   });
 };
 
 const fetch = createFetch(await caches.open('auth-cache'), {
   fetch: authenticatedFetch,
   defaults: {
-    cacheControlOverride: 's-maxage=300'
-  }
+    cacheControlOverride: 's-maxage=300',
+  },
 });
 
 // Example 2: Fetch with retry logic and logging
 const retryFetch = async (input, init, maxRetries = 3) => {
   let lastError;
-  
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`Attempt ${attempt}: ${init?.method || 'GET'} ${input}`);
       const response = await globalThis.fetch(input, init);
-      
+
       if (response.ok || attempt === maxRetries) {
         return response;
       }
-      
+
       lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
     } catch (error) {
       lastError = error;
       if (attempt === maxRetries) break;
-      
+
       // Exponential backoff
-      await new Promise(resolve => 
+      await new Promise((resolve) =>
         setTimeout(resolve, Math.pow(2, attempt - 1) * 1000)
       );
     }
   }
-  
+
   throw lastError;
 };
 
 const resilientFetch = createFetch(await caches.open('resilient-cache'), {
   fetch: retryFetch,
   defaults: {
-    cacheControlOverride: 's-maxage=600'
-  }
+    cacheControlOverride: 's-maxage=600',
+  },
 });
 
 // Example 3: Fetch with custom base URL and headers
@@ -895,17 +1088,17 @@ const createApiFetch = (baseUrl, defaultHeaders = {}) => {
   return async (input, init) => {
     const url = new URL(input, baseUrl);
     const headers = new Headers(init?.headers);
-    
+
     // Add default headers
     Object.entries(defaultHeaders).forEach(([key, value]) => {
       if (!headers.has(key)) {
         headers.set(key, value);
       }
     });
-    
+
     return globalThis.fetch(url.toString(), {
       ...init,
-      headers
+      headers,
     });
   };
 };
@@ -913,11 +1106,11 @@ const createApiFetch = (baseUrl, defaultHeaders = {}) => {
 const apiFetch = createFetch(await caches.open('api-cache'), {
   fetch: createApiFetch('https://api.example.com', {
     'Content-Type': 'application/json',
-    'X-API-Version': '2024-01-01'
+    'X-API-Version': '2024-01-01',
   }),
   defaults: {
-    cacheControlOverride: 's-maxage=300'
-  }
+    cacheControlOverride: 's-maxage=300',
+  },
 });
 
 // Usage: relative URLs are automatically resolved
@@ -960,7 +1153,7 @@ const cache = await caches.open('api-cache-v1');
 
 **Note:** Unlike the Web API, other CacheStorage methods (`delete`, `match`, `has`, `keys`) are not implemented.
 
-### SharedCache Class  
+### SharedCache Class
 
 Implements a subset of the [Web Cache API](https://developer.mozilla.org/en-US/docs/Web/API/Cache) with server-side optimizations.
 
@@ -985,7 +1178,7 @@ Stores a request/response pair in the cache.
 
 **Parameters:**
 
-- `request` - The Request object or URL string  
+- `request` - The Request object or URL string
 - `response` - The Response to cache
 
 **Note:** Only cacheable responses are stored according to HTTP caching rules.
@@ -1015,7 +1208,7 @@ Options for cache operations with server-side limitations:
 
 ```typescript
 interface SharedCacheQueryOptions {
-  ignoreMethod?: boolean;  // Treat request as GET regardless of actual method
+  ignoreMethod?: boolean; // Treat request as GET regardless of actual method
   // Note: ignoreSearch and ignoreVary are not implemented and will throw errors
 }
 ```
@@ -1040,23 +1233,23 @@ async function warmCache() {
   const criticalEndpoints = [
     '/api/config',
     '/api/user/settings',
-    '/api/navigation'
+    '/api/navigation',
   ];
-  
+
   const warmingFetch = createFetch(await caches.open('warm-cache'), {
     defaults: {
       cacheControlOverride: 's-maxage=3600', // Long cache for config data
-    }
+    },
   });
-  
+
   await Promise.allSettled(
-    criticalEndpoints.map(endpoint => 
-      warmingFetch(endpoint).catch(err => 
+    criticalEndpoints.map((endpoint) =>
+      warmingFetch(endpoint).catch((err) =>
         console.warn(`Failed to warm cache for ${endpoint}:`, err)
       )
     )
   );
-  
+
   console.log('Cache warming completed');
 }
 
@@ -1090,22 +1283,22 @@ SharedCache implements a **subset** of the standard Web Cache API interface, foc
 
 ```typescript
 interface Cache {
-  match(request: RequestInfo | URL): Promise<Response | undefined>   // ✅ Implemented
-  put(request: RequestInfo | URL, response: Response): Promise<void> // ✅ Implemented
-  delete(request: RequestInfo | URL): Promise<boolean>               // ✅ Implemented
-  
+  match(request: RequestInfo | URL): Promise<Response | undefined>; // ✅ Implemented
+  put(request: RequestInfo | URL, response: Response): Promise<void>; // ✅ Implemented
+  delete(request: RequestInfo | URL): Promise<boolean>; // ✅ Implemented
+
   // Not implemented - throw "not implemented" errors
-  add(request: RequestInfo | URL): Promise<void>  // ❌ Throws error
-  addAll(requests: RequestInfo[]): Promise<void>  // ❌ Throws error
-  keys(): Promise<readonly Request[]>             // ❌ Throws error
-  matchAll(): Promise<readonly Response[]>        // ❌ Throws error
+  add(request: RequestInfo | URL): Promise<void>; // ❌ Throws error
+  addAll(requests: RequestInfo[]): Promise<void>; // ❌ Throws error
+  keys(): Promise<readonly Request[]>; // ❌ Throws error
+  matchAll(): Promise<readonly Response[]>; // ❌ Throws error
 }
 ```
 
 **Implementation Status:**
 
 - **✅ Core Methods**: `match()`, `put()`, `delete()` - Fully implemented with HTTP semantics
-- **❌ Convenience Methods**: `add()`, `addAll()` - Use `put()` instead  
+- **❌ Convenience Methods**: `add()`, `addAll()` - Use `put()` instead
 - **❌ Enumeration Methods**: `keys()`, `matchAll()` - Not available in server environments
 
 **Options Parameter Differences:**
@@ -1114,9 +1307,9 @@ SharedCache's `CacheQueryOptions` interface differs from the standard Web Cache 
 
 ```typescript
 interface CacheQueryOptions {
-  ignoreSearch?: boolean;   // ❌ Not implemented - throws error
-  ignoreMethod?: boolean;   // ✅ Supported
-  ignoreVary?: boolean;     // ❌ Not implemented - throws error
+  ignoreSearch?: boolean; // ❌ Not implemented - throws error
+  ignoreMethod?: boolean; // ✅ Supported
+  ignoreVary?: boolean; // ❌ Not implemented - throws error
 }
 ```
 
@@ -1131,12 +1324,12 @@ interface CacheQueryOptions {
 
 ### 📊 Compliance Summary
 
-| Standard | Status | Coverage |
-|----------|--------|----------|
-| **RFC 7234** (HTTP Caching) | ✅ Fully Compliant | 100% |
-| **RFC 5861** (stale-* extensions) | ✅ Fully Compliant | 100% |
-| **Web Cache API** | ✅ Subset Implementation | Core Methods |
-| **WinterCG Standards** | ✅ Fully Supported | 100% |
+| Standard                           | Status                   | Coverage     |
+| ---------------------------------- | ------------------------ | ------------ |
+| **RFC 7234** (HTTP Caching)        | ✅ Fully Compliant       | 100%         |
+| **RFC 5861** (stale-\* extensions) | ✅ Fully Compliant       | 100%         |
+| **Web Cache API**                  | ✅ Subset Implementation | Core Methods |
+| **WinterCG Standards**             | ✅ Fully Supported       | 100%         |
 
 ### 🛡️ Production-Grade Implementation
 
@@ -1166,9 +1359,15 @@ interface CacheQueryOptions {
 ```typescript
 // Redis example
 const redisStorage: KVStorage = {
-  async get(key) { return JSON.parse(await redis.get(key) || 'null'); },
-  async set(key, value, ttl) { await redis.setex(key, ttl/1000, JSON.stringify(value)); },
-  async delete(key) { return await redis.del(key) > 0; }
+  async get(key) {
+    return JSON.parse((await redis.get(key)) || 'null');
+  },
+  async set(key, value, ttl) {
+    await redis.setex(key, ttl / 1000, JSON.stringify(value));
+  },
+  async delete(key) {
+    return (await redis.del(key)) > 0;
+  },
 };
 ```
 
@@ -1202,8 +1401,9 @@ When using SharedCache with meta-frameworks, you can develop with a consistent c
 // Best practice: Use both directives together
 const fetch = createFetch(cache, {
   defaults: {
-    cacheControlOverride: 's-maxage=300, stale-while-revalidate=86400, stale-if-error=86400'
-  }
+    cacheControlOverride:
+      's-maxage=300, stale-while-revalidate=86400, stale-if-error=86400',
+  },
 });
 ```
 
@@ -1220,7 +1420,7 @@ const fetch = createFetch(cache, {
 SharedCache draws inspiration from industry-leading caching implementations:
 
 - [Cloudflare Cache Key](https://developers.cloudflare.com/cache/how-to/cache-keys/) - Cache key customization patterns
-- [Next.js Data Cache](https://nextjs.org/docs/app/building-your-application/caching#data-cache) - Server-side caching strategies  
+- [Next.js Data Cache](https://nextjs.org/docs/app/building-your-application/caching#data-cache) - Server-side caching strategies
 - [nodejs/undici](https://github.com/nodejs/undici/blob/main/lib/web/cache/cache.js) - Web Standards implementation
 - [http-cache-lru](https://github.com/o-development/http-cache-lru/) - HTTP cache semantics
 - [Cloudflare Miniflare](https://github.com/cloudflare/miniflare/blob/master/packages/cache/src/cache.ts) - Edge runtime patterns
