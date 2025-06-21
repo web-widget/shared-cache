@@ -1,4 +1,28 @@
-import type { Logger } from '../types';
+/**
+ * Generic logger interface for any logging implementation.
+ * Provides standardized logging methods compatible with console, winston, pino, etc.
+ */
+export interface Logger {
+  /**
+   * Log informational messages about normal operations.
+   */
+  info(message?: unknown, ...optionalParams: unknown[]): void;
+
+  /**
+   * Log warning messages about potentially problematic situations.
+   */
+  warn(message?: unknown, ...optionalParams: unknown[]): void;
+
+  /**
+   * Log detailed debugging information.
+   */
+  debug(message?: unknown, ...optionalParams: unknown[]): void;
+
+  /**
+   * Log error messages about failed operations.
+   */
+  error(message?: unknown, ...optionalParams: unknown[]): void;
+}
 
 /**
  * Log levels in order of priority (lowest to highest)
@@ -11,56 +35,42 @@ export enum LogLevel {
 }
 
 /**
- * Log context structure for consistent logging format
+ * Creates a standardized log message with configurable prefix
  */
-export interface LogContext {
-  /** The URL being processed */
-  url?: string;
-  /** Cache key involved in the operation */
-  cacheKey?: string;
-  /** HTTP status code */
-  status?: number;
-  /** Operation duration in milliseconds */
-  duration?: number;
-  /** Error object if applicable */
-  error?: unknown;
-  /** Cache hit/miss/stale status */
-  cacheStatus?: string;
-  /** TTL value in seconds */
-  ttl?: number;
-  /** Request method */
-  method?: string;
-  /** Additional context data */
-  [key: string]: unknown;
+function createLogMessage(
+  operation: string,
+  prefix?: string,
+  details?: string
+): string {
+  const baseMessage = prefix ? `${prefix}: ${operation}` : operation;
+  return details ? `${baseMessage} - ${details}` : baseMessage;
 }
 
 /**
- * Creates a standardized log message with SharedCache prefix
+ * Structured logger utility class that provides consistent logging format and optional level filtering
+ * @template TContext - The log context type structure, defaults to a flexible object type
  */
-function createLogMessage(operation: string, details?: string): string {
-  return details
-    ? `SharedCache: ${operation} - ${details}`
-    : `SharedCache: ${operation}`;
-}
-
-/**
- * Logger utility class that provides consistent logging format and optional level filtering
- */
-export class SharedCacheLogger {
+export class StructuredLogger<TContext = Record<string, unknown>> {
   private logger?: Logger;
   private minLevel: LogLevel;
+  private prefix?: string;
 
-  constructor(logger?: Logger, minLevel: LogLevel = LogLevel.INFO) {
+  constructor(
+    logger?: Logger,
+    minLevel: LogLevel = LogLevel.INFO,
+    prefix?: string
+  ) {
     this.logger = logger;
     this.minLevel = minLevel;
+    this.prefix = prefix;
   }
 
   /**
-   * Log debug information about cache operations
+   * Log debug information about operations
    */
-  debug(operation: string, context?: LogContext, details?: string): void {
+  debug(operation: string, context?: TContext, details?: string): void {
     if (this.shouldLog(LogLevel.DEBUG)) {
-      const message = createLogMessage(operation, details);
+      const message = createLogMessage(operation, this.prefix, details);
       this.logger?.debug(message, context);
     }
   }
@@ -68,9 +78,9 @@ export class SharedCacheLogger {
   /**
    * Log informational messages about successful operations
    */
-  info(operation: string, context?: LogContext, details?: string): void {
+  info(operation: string, context?: TContext, details?: string): void {
     if (this.shouldLog(LogLevel.INFO)) {
-      const message = createLogMessage(operation, details);
+      const message = createLogMessage(operation, this.prefix, details);
       this.logger?.info(message, context);
     }
   }
@@ -78,9 +88,9 @@ export class SharedCacheLogger {
   /**
    * Log warning messages about potentially problematic situations
    */
-  warn(operation: string, context?: LogContext, details?: string): void {
+  warn(operation: string, context?: TContext, details?: string): void {
     if (this.shouldLog(LogLevel.WARN)) {
-      const message = createLogMessage(operation, details);
+      const message = createLogMessage(operation, this.prefix, details);
       this.logger?.warn(message, context);
     }
   }
@@ -88,9 +98,9 @@ export class SharedCacheLogger {
   /**
    * Log error messages about failed operations
    */
-  error(operation: string, context?: LogContext, details?: string): void {
+  error(operation: string, context?: TContext, details?: string): void {
     if (this.shouldLog(LogLevel.ERROR)) {
-      const message = createLogMessage(operation, details);
+      const message = createLogMessage(operation, this.prefix, details);
       this.logger?.error(message, context);
     }
   }
@@ -98,9 +108,13 @@ export class SharedCacheLogger {
   /**
    * Handle promise rejections with proper error logging
    */
-  handleAsyncError = (operation: string, context?: LogContext) => {
+  handleAsyncError = (operation: string, context?: TContext) => {
     return (error: unknown) => {
-      this.error(operation, { ...context, error }, 'Promise rejected');
+      this.error(
+        operation,
+        { ...context, error } as TContext,
+        'Promise rejected'
+      );
     };
   };
 
@@ -114,8 +128,15 @@ export class SharedCacheLogger {
   /**
    * Create a new logger instance with a different minimum level
    */
-  withLevel(minLevel: LogLevel): SharedCacheLogger {
-    return new SharedCacheLogger(this.logger, minLevel);
+  withLevel(minLevel: LogLevel): StructuredLogger<TContext> {
+    return new StructuredLogger<TContext>(this.logger, minLevel, this.prefix);
+  }
+
+  /**
+   * Create a new logger instance with a different prefix
+   */
+  withPrefix(prefix: string): StructuredLogger<TContext> {
+    return new StructuredLogger<TContext>(this.logger, this.minLevel, prefix);
   }
 
   /**
@@ -127,11 +148,27 @@ export class SharedCacheLogger {
 }
 
 /**
- * Helper function to create a SharedCacheLogger instance
+ * Helper function to create a structured logger instance
+ * @template TContext - The log context type structure
  */
-export function createLogger(
+export function createLogger<TContext = Record<string, unknown>>(
+  logger?: Logger,
+  minLevel: LogLevel = LogLevel.INFO,
+  prefix?: string
+): StructuredLogger<TContext> {
+  return new StructuredLogger<TContext>(logger, minLevel, prefix);
+}
+
+/**
+ * Helper function to create a SharedCache-specific logger instance
+ * @deprecated Use createLogger with prefix parameter instead
+ */
+export function createSharedCacheLogger<TContext = Record<string, unknown>>(
   logger?: Logger,
   minLevel: LogLevel = LogLevel.INFO
-): SharedCacheLogger {
-  return new SharedCacheLogger(logger, minLevel);
+): StructuredLogger<TContext> {
+  return new StructuredLogger<TContext>(logger, minLevel, 'SharedCache');
 }
+
+// For backward compatibility
+export const SharedCacheLogger = StructuredLogger;

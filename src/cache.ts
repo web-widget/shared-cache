@@ -2,14 +2,16 @@ import type {
   CacheItem,
   WebCache,
   KVStorage,
-  Logger,
   PolicyResponse,
+  SharedCacheLogContext,
   SharedCacheOptions,
   SharedCacheQueryOptions,
   SharedCacheRequest,
   SharedCacheRequestInfo,
   SharedCacheStatus,
 } from './types';
+import type { Logger } from './utils/logger';
+import { createLogger, StructuredLogger } from './utils/logger';
 import {
   createCacheKeyGenerator,
   DEFAULT_CACHE_KEY_RULES,
@@ -24,7 +26,6 @@ import {
   STALE,
 } from './constants';
 import { CachePolicy } from './utils/cache-semantics';
-import { createLogger } from './utils/logger';
 
 /**
  * SharedCache implements the Cache interface with additional features for shared caching.
@@ -37,11 +38,8 @@ export class SharedCache implements WebCache {
   /** Cache key generator function for creating consistent cache keys */
   #cacheKeyGenerator: (request: SharedCacheRequest) => Promise<string>;
 
-  /** Logger instance for debugging and monitoring */
-  #logger?: Logger;
-
   /** Structured logger instance with consistent formatting */
-  #structuredLogger: ReturnType<typeof createLogger>;
+  #structuredLogger: ReturnType<typeof createLogger<SharedCacheLogContext>>;
 
   /** Underlying storage backend */
   #storage: KVStorage;
@@ -74,8 +72,17 @@ export class SharedCache implements WebCache {
         ...request.sharedCache?.cacheKeyRules,
       });
 
-    this.#logger = resolvedOptions.logger;
-    this.#structuredLogger = createLogger(resolvedOptions.logger);
+    // Optimize logger initialization: avoid double wrapping if already a StructuredLogger
+    if (resolvedOptions.logger instanceof StructuredLogger) {
+      // If it's already a StructuredLogger, use it directly (assuming it's compatible)
+      this.#structuredLogger =
+        resolvedOptions.logger as StructuredLogger<SharedCacheLogContext>;
+    } else {
+      // Otherwise, wrap the logger with StructuredLogger
+      this.#structuredLogger = createLogger<SharedCacheLogContext>(
+        resolvedOptions.logger
+      );
+    }
     this.#storage = storage;
   }
 

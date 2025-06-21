@@ -1,9 +1,15 @@
-import { createLogger, LogLevel, SharedCacheLogger } from './logger';
-import type { Logger } from '../types';
+import {
+  createLogger,
+  LogLevel,
+  StructuredLogger,
+  createSharedCacheLogger,
+  Logger,
+} from './logger';
+import type { SharedCacheLogContext } from '../types';
 
-describe('SharedCacheLogger', () => {
+describe('StructuredLogger', () => {
   let mockLogger: Logger;
-  let loggerInstance: SharedCacheLogger;
+  let loggerInstance: StructuredLogger<SharedCacheLogContext>;
   let mockCalls: {
     [key: string]: Array<{ message: unknown; params: unknown[] }>;
   };
@@ -25,12 +31,16 @@ describe('SharedCacheLogger', () => {
         mockCalls.error.push({ message, params });
       },
     };
-    loggerInstance = createLogger(mockLogger, LogLevel.DEBUG);
+    loggerInstance = createLogger<SharedCacheLogContext>(
+      mockLogger,
+      LogLevel.DEBUG,
+      'SharedCache'
+    );
   });
 
   describe('Log Level Filtering', () => {
     it('should respect minimum log level', () => {
-      const infoLogger = createLogger(mockLogger, LogLevel.INFO);
+      const infoLogger = createLogger(mockLogger, LogLevel.INFO, 'SharedCache');
 
       infoLogger.debug('debug message', { test: true });
       infoLogger.info('info message', { test: true });
@@ -82,12 +92,29 @@ describe('SharedCacheLogger', () => {
       ]);
     });
 
+    it('should format messages with custom prefix when provided', () => {
+      const prefixedLogger = createLogger(mockLogger, LogLevel.DEBUG, 'MyApp');
+      prefixedLogger.info('test operation', { url: 'http://example.com' });
+
+      expect(mockCalls.info).toEqual([
+        {
+          message: 'MyApp: test operation',
+          params: [{ url: 'http://example.com' }],
+        },
+      ]);
+    });
+
     it('should include details in message when provided', () => {
-      loggerInstance.warn('cache miss', { cacheKey: 'test' }, 'Key not found');
+      const prefixedLogger = createLogger(
+        mockLogger,
+        LogLevel.DEBUG,
+        'TestApp'
+      );
+      prefixedLogger.warn('cache miss', { cacheKey: 'test' }, 'Key not found');
 
       expect(mockCalls.warn).toEqual([
         {
-          message: 'SharedCache: cache miss - Key not found',
+          message: 'TestApp: cache miss - Key not found',
           params: [{ cacheKey: 'test' }],
         },
       ]);
@@ -104,7 +131,12 @@ describe('SharedCacheLogger', () => {
 
   describe('Error Handler', () => {
     it('should create error handler function', () => {
-      const handler = loggerInstance.handleAsyncError('async operation', {
+      const prefixedLogger = createLogger(
+        mockLogger,
+        LogLevel.DEBUG,
+        'ErrorTest'
+      );
+      const handler = prefixedLogger.handleAsyncError('async operation', {
         url: 'test',
       });
       const testError = new Error('test error');
@@ -113,7 +145,7 @@ describe('SharedCacheLogger', () => {
 
       expect(mockCalls.error).toEqual([
         {
-          message: 'SharedCache: async operation - Promise rejected',
+          message: 'ErrorTest: async operation - Promise rejected',
           params: [{ url: 'test', error: testError }],
         },
       ]);
@@ -142,6 +174,21 @@ describe('SharedCacheLogger', () => {
         { message: 'SharedCache: warn message', params: [undefined] },
       ]);
     });
+
+    it('should create logger with different prefix', () => {
+      const originalLogger = createLogger(
+        mockLogger,
+        LogLevel.DEBUG,
+        'Original'
+      );
+      const newPrefixLogger = originalLogger.withPrefix('NewPrefix');
+
+      newPrefixLogger.info('test message');
+
+      expect(mockCalls.info).toEqual([
+        { message: 'NewPrefix: test message', params: [undefined] },
+      ]);
+    });
   });
 
   describe('No Logger Provided', () => {
@@ -155,6 +202,132 @@ describe('SharedCacheLogger', () => {
         noLogger.error('test');
       }).not.toThrow();
     });
+  });
+});
+
+describe('SharedCache Backward Compatibility', () => {
+  let mockLogger: Logger;
+  let mockCalls: {
+    [key: string]: Array<{ message: unknown; params: unknown[] }>;
+  };
+
+  beforeEach(() => {
+    mockCalls = { info: [], warn: [], debug: [], error: [] };
+
+    mockLogger = {
+      info: (message: unknown, ...params: unknown[]) => {
+        mockCalls.info.push({ message, params });
+      },
+      warn: (message: unknown, ...params: unknown[]) => {
+        mockCalls.warn.push({ message, params });
+      },
+      debug: (message: unknown, ...params: unknown[]) => {
+        mockCalls.debug.push({ message, params });
+      },
+      error: (message: unknown, ...params: unknown[]) => {
+        mockCalls.error.push({ message, params });
+      },
+    };
+  });
+
+  it('should maintain SharedCache prefix compatibility with createSharedCacheLogger', () => {
+    const sharedCacheLogger = createSharedCacheLogger(
+      mockLogger,
+      LogLevel.DEBUG
+    );
+
+    sharedCacheLogger.info('test operation', { url: 'http://example.com' });
+
+    expect(mockCalls.info).toEqual([
+      {
+        message: 'SharedCache: test operation',
+        params: [{ url: 'http://example.com' }],
+      },
+    ]);
+  });
+
+  it('should allow creating SharedCache logger using createLogger with prefix', () => {
+    const sharedCacheLogger = createLogger(
+      mockLogger,
+      LogLevel.DEBUG,
+      'SharedCache'
+    );
+
+    sharedCacheLogger.warn('cache miss', { cacheKey: 'test' }, 'Key not found');
+
+    expect(mockCalls.warn).toEqual([
+      {
+        message: 'SharedCache: cache miss - Key not found',
+        params: [{ cacheKey: 'test' }],
+      },
+    ]);
+  });
+});
+
+describe('Generic Context Types', () => {
+  interface CustomLogContext {
+    userId: string;
+    action: string;
+    timestamp: number;
+  }
+
+  let mockLogger: Logger;
+  let mockCalls: {
+    [key: string]: Array<{ message: unknown; params: unknown[] }>;
+  };
+
+  beforeEach(() => {
+    mockCalls = { info: [], warn: [], debug: [], error: [] };
+    mockLogger = {
+      info: (message: unknown, ...params: unknown[]) => {
+        mockCalls.info.push({ message, params });
+      },
+      warn: (message: unknown, ...params: unknown[]) => {
+        mockCalls.warn.push({ message, params });
+      },
+      debug: (message: unknown, ...params: unknown[]) => {
+        mockCalls.debug.push({ message, params });
+      },
+      error: (message: unknown, ...params: unknown[]) => {
+        mockCalls.error.push({ message, params });
+      },
+    };
+  });
+
+  it('should work with custom context types', () => {
+    const typedLogger = createLogger<CustomLogContext>(
+      mockLogger,
+      LogLevel.INFO,
+      'CustomApp'
+    );
+
+    const context: CustomLogContext = {
+      userId: 'user123',
+      action: 'login',
+      timestamp: Date.now(),
+    };
+
+    typedLogger.info('user action', context, 'successful login');
+
+    expect(mockCalls.info).toEqual([
+      {
+        message: 'CustomApp: user action - successful login',
+        params: [context],
+      },
+    ]);
+  });
+
+  it('should work with default generic type', () => {
+    const defaultLogger = createLogger(mockLogger, LogLevel.INFO, 'DefaultApp');
+
+    defaultLogger.info('operation', { key: 'value', count: 42 });
+
+    expect(mockCalls.info).toEqual([
+      {
+        message: 'DefaultApp: operation',
+        params: [{ key: 'value', count: 42 }],
+      },
+    ]);
   });
 });
 
