@@ -1,5 +1,11 @@
 # @web-widget/shared-cache
 
+## 1.6.0
+
+### Minor Changes
+
+- 16fa4a5: Optimizing the logger.
+
 ## 1.5.0
 
 ### Minor Changes
