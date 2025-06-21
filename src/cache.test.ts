@@ -1,6 +1,8 @@
 import { LRUCache } from 'lru-cache';
 import { SharedCache } from './cache';
-import { KVStorage, CacheItem, SharedCacheOptions, Logger } from './types';
+import { KVStorage, CacheItem, SharedCacheOptions } from './types';
+import type { Logger } from './utils/logger';
+import { createLogger, StructuredLogger } from './utils/logger';
 import {
   CACHE_STATUS_HEADERS_NAME,
   HIT,

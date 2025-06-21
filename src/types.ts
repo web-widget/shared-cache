@@ -2,8 +2,33 @@ import CachePolicy, {
   CachePolicyObject,
 } from '@web-widget/http-cache-semantics';
 import { SharedCacheKeyPartDefiners, SharedCacheKeyRules } from './cache-key';
+import type { Logger } from './utils/logger';
 
 export type { SharedCacheKeyRules, SharedCacheKeyPartDefiners };
+
+/**
+ * Log context structure for SharedCache operations
+ */
+export interface SharedCacheLogContext {
+  /** The URL being processed */
+  url?: string;
+  /** Cache key involved in the operation */
+  cacheKey?: string;
+  /** HTTP status code */
+  status?: number;
+  /** Operation duration in milliseconds */
+  duration?: number;
+  /** Error object if applicable */
+  error?: unknown;
+  /** Cache hit/miss/stale status */
+  cacheStatus?: string;
+  /** TTL value in seconds */
+  ttl?: number;
+  /** Request method */
+  method?: string;
+  /** Additional context data */
+  [key: string]: unknown;
+}
 
 export type WebCache = globalThis.Cache;
 export type WebCacheQueryOptions = globalThis.CacheQueryOptions;
@@ -40,40 +65,6 @@ export interface SharedCacheOptions {
    * Custom logger for debugging and monitoring cache operations.
    */
   logger?: Logger;
-}
-
-/**
- * Logger interface for cache operations.
- * Provides standardized logging methods for debugging and monitoring.
- *
- * All log methods follow a consistent format:
- * - message: A descriptive string with "SharedCache:" prefix for context
- * - optionalParams: Structured data object containing relevant context
- */
-export interface Logger {
-  /**
-   * Log informational messages about normal cache operations.
-   * Used for general operational information like cache hits, successful operations.
-   */
-  info(message?: unknown, ...optionalParams: unknown[]): void;
-
-  /**
-   * Log warning messages about potentially problematic situations.
-   * Used for non-critical issues that might need attention.
-   */
-  warn(message?: unknown, ...optionalParams: unknown[]): void;
-
-  /**
-   * Log detailed debugging information.
-   * Used for verbose operational details useful during development and troubleshooting.
-   */
-  debug(message?: unknown, ...optionalParams: unknown[]): void;
-
-  /**
-   * Log error messages about failed operations.
-   * Used for critical issues that prevent normal operation.
-   */
-  error(message?: unknown, ...optionalParams: unknown[]): void;
 }
 
 /**

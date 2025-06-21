@@ -953,7 +953,7 @@ const cache = new SharedCache(storage, {
 All log messages include structured context data:
 
 ```typescript
-interface LogContext {
+interface SharedCacheLogContext {
   url?: string; // Request URL
   cacheKey?: string; // Generated cache key
   status?: number; // HTTP status code
@@ -1057,7 +1057,7 @@ const alertingLogger = {
 **Main Functions:**
 
 - `createFetch(cache?, options?)` - Create cached fetch function
-- `createLogger(logger?, logLevel?)` - Create logger with level filtering
+- `createLogger(logger?, logLevel?, prefix?)` - Create logger with level filtering
 
 **Classes:**
 
@@ -1166,13 +1166,13 @@ class CacheStorage {
 
 ### Utilities
 
-#### `createLogger(logger?, logLevel?)`
+#### `createLogger(logger?, logLevel?, prefix?)`
 
 ```typescript
-function createLogger(logger?: Logger, logLevel?: LogLevel): SharedCacheLogger;
+const logger = createLogger(console, LogLevel.INFO, 'MyApp');
 ```
 
-Creates a logger with level filtering and SharedCache formatting.
+Creates a structured logger with level filtering and optional prefix.
 
 #### Cache Status Values
 

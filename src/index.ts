@@ -57,12 +57,18 @@ export {
 } from './cache-key';
 
 // Logger utilities
-export { createLogger, SharedCacheLogger, LogLevel } from './utils/logger';
+export {
+  createLogger,
+  createSharedCacheLogger,
+  StructuredLogger,
+  SharedCacheLogger, // backward compatibility alias
+  LogLevel,
+} from './utils/logger';
 
 // Type definitions
 export type {
   KVStorage,
-  Logger,
+  SharedCacheLogContext,
   SharedCacheFetch,
   SharedCacheOptions,
   SharedCacheQueryOptions,
@@ -70,15 +76,14 @@ export type {
   SharedCacheStatus,
 } from './types';
 
+export type { Logger } from './utils/logger';
+
 // Cache key types
 export type {
   FilterOptions,
   SharedCacheKeyRules,
   SharedCacheKeyPartDefiners,
 } from './cache-key';
-
-// Logger types
-export type { LogContext } from './utils/logger';
 
 // Constants
 export {
