@@ -306,8 +306,6 @@ const advancedFetch = createFetch(await caches.open('advanced-cache'), {
   defaults: {
     cacheControlOverride: 's-maxage=300, stale-while-revalidate=3600',
     cacheKeyRules: {
-      host: true,
-      pathname: true,
       search: { exclude: ['timestamp', '_'] },
       header: { include: ['x-api-version'] },
       cookie: { include: ['session_id'] },
@@ -367,7 +365,6 @@ const tenantFetch = createFetch(await caches.open('tenant-cache'), {
     cacheControlOverride: 's-maxage=300',
     cacheKeyRules: {
       header: { include: ['x-tenant-id'] },
-      pathname: true,
       search: true,
     },
   },
@@ -602,8 +599,6 @@ const response = await fetch('https://api.example.com/data', {
     ignoreRequestCacheControl: true,
     ignoreVary: false,
     cacheKeyRules: {
-      host: true,
-      pathname: true,
       search: false,
       device: true,
       header: {
@@ -671,8 +666,6 @@ Customize how cache keys are generated to optimize cache hit rates and handle di
 sharedCache: {
   cacheKeyRules: {
     // URL components
-    host: true,           // Include hostname
-    pathname: true,       // Include URL path
     search: true,         // Include query parameters (default)
 
     // Request context
@@ -692,8 +685,6 @@ sharedCache: {
 
 ```typescript
 {
-  host: true,
-  pathname: true,
   search: true,
 }
 ```
@@ -702,8 +693,6 @@ sharedCache: {
 
 #### **URL Components**
 
-- **`host`**: Include the hostname in the cache key
-- **`pathname`**: Include the URL path
 - **`search`**: Control query parameter inclusion
 
 **Query Parameter Control:**
@@ -1129,8 +1118,6 @@ interface SharedCacheKeyRules {
   cookie?: FilterOptions | boolean;
   device?: FilterOptions | boolean;
   header?: FilterOptions | boolean;
-  host?: FilterOptions | boolean;
-  pathname?: FilterOptions | boolean;
   search?: FilterOptions | boolean;
 }
 ```
