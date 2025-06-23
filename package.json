@@ -114,7 +114,9 @@
       "dist/**",
       "node_modules/**",
       "**/*.test.ts",
-      "**/*.spec.ts"
+      "**/*.spec.ts",
+      "**/*.config.ts",
+      "**/*.config.js"
     ],
     "all": true
   }

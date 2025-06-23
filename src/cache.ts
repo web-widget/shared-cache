@@ -10,7 +10,6 @@ import type {
   SharedCacheRequestInfo,
   SharedCacheStatus,
 } from './types';
-import type { Logger } from './utils/logger';
 import { createLogger, StructuredLogger } from './utils/logger';
 import {
   createCacheKeyGenerator,
@@ -145,7 +144,7 @@ export class SharedCache implements WebCache {
 
     r = r!;
 
-    this.#verifyCacheQueryOptions(options);
+    this.#verifyCacheQueryOptions('delete', options);
     const cacheKey = await this.#cacheKeyGenerator(r);
 
     return deleteCacheItem(r, this.#storage, cacheKey);
@@ -208,7 +207,7 @@ export class SharedCache implements WebCache {
 
     r = r!;
 
-    this.#verifyCacheQueryOptions(options);
+    this.#verifyCacheQueryOptions('match', options);
     const cacheKey = await this.#cacheKeyGenerator(r);
     const cacheItem = await getCacheItem(r, this.#storage, cacheKey);
 
@@ -621,11 +620,16 @@ export class SharedCache implements WebCache {
    * @param options - Cache query options to validate
    * @throws {Error} If unsupported options are specified
    */
-  #verifyCacheQueryOptions(options: SharedCacheQueryOptions | undefined): void {
+  #verifyCacheQueryOptions(
+    method: string,
+    options: SharedCacheQueryOptions | undefined
+  ): void {
     if (options) {
       ['ignoreSearch', 'ignoreVary'].forEach((option) => {
         if (option in options) {
-          throw new Error(`Not implemented: "${option}" option.`);
+          throw new Error(
+            `SharedCache.${method}() not implemented option: "${option}".`
+          );
         }
       });
     }
