@@ -1,3 +1,4 @@
+/* c8 ignore start */
 import CachePolicy, {
   CachePolicyObject,
 } from '@web-widget/http-cache-semantics';
@@ -230,3 +231,4 @@ export interface SharedCacheRequestInitProperties {
    */
   waitUntil?: (promise: Promise<unknown>) => void;
 }
+/* c8 ignore stop */
