@@ -252,8 +252,9 @@ export class SharedCache implements WebCache {
         return;
       } else if (stale && policy.useStaleWhileRevalidate()) {
         // Serve stale response while revalidating in background
+        const event = options?._event;
         const waitUntil =
-          options?._waitUntil ??
+          event?.waitUntil.bind(event) ??
           ((promise: Promise<unknown>) => {
             promise.catch(
               this.#structuredLogger.handleAsyncError(

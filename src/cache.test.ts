@@ -350,9 +350,50 @@ describe('SharedCache', () => {
         backgroundPromise = promise;
       };
 
+      const mockEvent = {
+        waitUntil: mockWaitUntil,
+      } as ExtendableEvent;
+
       const matched = await cache.match(request, {
         _fetch: mockFetch,
-        _waitUntil: mockWaitUntil,
+        _event: mockEvent,
+      });
+
+      expect(matched).toBeDefined();
+      expect(await matched!.text()).toBe('stale data');
+      expect(matched!.headers.get(CACHE_STATUS_HEADERS_NAME)).toBe(STALE);
+      expect(backgroundPromise).not.toBeNull();
+    });
+
+    it('should support _event option for background operations', async () => {
+      // Store response with stale-while-revalidate
+      const request = new Request('https://example.com/stale-with-event');
+      const response = createTestResponse('stale data', 200, {
+        'cache-control': 'max-age=1, stale-while-revalidate=300',
+      });
+      await cache.put(request, response);
+
+      // Wait for it to become stale
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+
+      // Mock fetch for background revalidation
+      const mockFetch = async () => {
+        return createTestResponse('fresh data', 200, {
+          'cache-control': 'max-age=300',
+        });
+      };
+
+      // Mock ExtendableEvent
+      let backgroundPromise: Promise<unknown> | null = null;
+      const mockEvent = {
+        waitUntil: (promise: Promise<unknown>) => {
+          backgroundPromise = promise;
+        },
+      } as ExtendableEvent;
+
+      const matched = await cache.match(request, {
+        _fetch: mockFetch,
+        _event: mockEvent,
       });
 
       expect(matched).toBeDefined();

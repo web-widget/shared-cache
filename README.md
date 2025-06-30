@@ -1105,7 +1105,7 @@ interface SharedCacheRequestInitProperties {
   ignoreRequestCacheControl?: boolean;
   ignoreVary?: boolean;
   varyOverride?: string;
-  waitUntil?: (promise: Promise<unknown>) => void;
+  event?: ExtendableEvent;
 }
 ```
 
