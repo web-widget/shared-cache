@@ -1,5 +1,11 @@
 # @web-widget/shared-cache
 
+## 1.7.0
+
+### Minor Changes
+
+- 674dbd1: Replace waitUntil with event field for ExtendableEvent support.
+
 ## 1.6.0
 
 ### Minor Changes
