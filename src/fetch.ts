@@ -121,11 +121,20 @@ export function createSharedCacheFetch(
       );
     }
 
+    // Create event from waitUntil function if event is not provided but waitUntil is
+    const event =
+      sharedCacheOptions.event ||
+      (sharedCacheOptions.waitUntil
+        ? ({
+            waitUntil: sharedCacheOptions.waitUntil,
+          } as ExtendableEvent)
+        : undefined);
+
     // Attempt to serve from cache
     const cachedResponse = await cache.match(request, {
       _fetch: interceptor,
       _ignoreRequestCacheControl: sharedCacheOptions.ignoreRequestCacheControl,
-      _waitUntil: sharedCacheOptions.waitUntil,
+      _event: event,
       ignoreMethod: request.method === 'HEAD', // HEAD requests can match GET
     });
 

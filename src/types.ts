@@ -166,10 +166,10 @@ export type SharedCacheQueryOptions = WebCacheQueryOptions & {
   _fetch?: typeof globalThis.fetch;
 
   /**
-   * Internal waitUntil function for background operations.
+   * Internal event instance for background operations.
    * @internal
    */
-  _waitUntil?: (promise: Promise<unknown>) => void;
+  _event?: ExtendableEvent;
 };
 
 /**
@@ -226,8 +226,15 @@ export interface SharedCacheRequestInitProperties {
   varyOverride?: string;
 
   /**
+   * Event instance to handle background operations (like stale-while-revalidate).
+   * The event.waitUntil() method will be called with promises that should be awaited in the background.
+   */
+  event?: ExtendableEvent;
+
+  /**
    * Function to handle background operations (like stale-while-revalidate).
    * Called with promises that should be awaited in the background.
+   * @deprecated Use event instead. This option will be removed in a future version.
    */
   waitUntil?: (promise: Promise<unknown>) => void;
 }
