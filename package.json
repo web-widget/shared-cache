@@ -1,6 +1,6 @@
 {
   "name": "@web-widget/shared-cache",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "description": "Standards-compliant HTTP cache implementation for server-side JavaScript with RFC 7234 compliance and cross-runtime support",
   "keywords": [
     "cache",
