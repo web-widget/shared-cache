@@ -1,5 +1,6 @@
 import { vary } from './utils/vary';
 import { cacheControl } from './utils/cache-control';
+import { setResponseHeader, modifyResponseHeaders } from './utils/response';
 import { SharedCache } from './cache';
 import { SharedCacheStorage } from './cache-storage';
 import {
@@ -140,8 +141,7 @@ export function createSharedCacheFetch(
 
     // Return cached response if available
     if (cachedResponse) {
-      setCacheStatus(cachedResponse, HIT);
-      return cachedResponse;
+      return setCacheStatus(cachedResponse, HIT);
     }
 
     // Fetch from network and attempt to cache
@@ -152,7 +152,7 @@ export function createSharedCacheFetch(
     if (cacheControl) {
       // Check if response should bypass cache
       if (bypassCache(cacheControl)) {
-        setCacheStatus(fetchedResponse, BYPASS);
+        return setCacheStatus(fetchedResponse, BYPASS);
       } else {
         // Attempt to store in cache
         const cacheSuccess = await cache.put(request, fetchedResponse).then(
@@ -161,14 +161,12 @@ export function createSharedCacheFetch(
             return false;
           }
         );
-        setCacheStatus(fetchedResponse, cacheSuccess ? MISS : DYNAMIC);
+        return setCacheStatus(fetchedResponse, cacheSuccess ? MISS : DYNAMIC);
       }
     } else {
       // No Cache-Control header - mark as dynamic content
-      setCacheStatus(fetchedResponse, DYNAMIC);
+      return setCacheStatus(fetchedResponse, DYNAMIC);
     }
-
-    return fetchedResponse;
   };
 }
 
@@ -192,13 +190,17 @@ export const sharedCacheFetch = createSharedCacheFetch();
  *
  * @param response - The response to modify
  * @param status - The cache status to set
+ * @returns The response with cache status header set
  * @internal
  */
-function setCacheStatus(response: Response, status: SharedCacheStatus) {
-  const headers = response.headers;
-  if (!headers.has(CACHE_STATUS_HEADERS_NAME)) {
-    headers.set(CACHE_STATUS_HEADERS_NAME, status);
+function setCacheStatus(
+  response: Response,
+  status: SharedCacheStatus
+): Response {
+  if (!response.headers.has(CACHE_STATUS_HEADERS_NAME)) {
+    return setResponseHeader(response, CACHE_STATUS_HEADERS_NAME, status);
   }
+  return response;
 }
 
 /**
@@ -229,25 +231,17 @@ function createInterceptor(
     const response = await fetcher(...args);
 
     // Only modify headers on successful responses
-    if (response.ok) {
-      // Create a new Headers object to avoid modifying the original
-      const headers = new Headers(response.headers);
+    if (response.ok && (cacheControlOverride || varyOverride)) {
+      return modifyResponseHeaders(response, (headers) => {
+        // Override Cache-Control header if specified
+        if (cacheControlOverride) {
+          cacheControl(headers, cacheControlOverride);
+        }
 
-      // Override Cache-Control header if specified
-      if (cacheControlOverride) {
-        cacheControl(headers, cacheControlOverride);
-      }
-
-      // Override Vary header if specified
-      if (varyOverride) {
-        vary(headers, varyOverride);
-      }
-
-      // Create a new Response with modified headers
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: headers,
+        // Override Vary header if specified
+        if (varyOverride) {
+          vary(headers, varyOverride);
+        }
       });
     }
 

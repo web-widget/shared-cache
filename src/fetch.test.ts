@@ -192,59 +192,11 @@ describe('HTTP Header Override Tests', () => {
       expect(res.headers.get('x-cache-status')).toBe(DYNAMIC);
     });
 
-    it('should handle read-only headers by creating new Response object', async () => {
-      const store = createCacheStore();
-      const cache = new SharedCache(store);
-
-      // Create a response with read-only headers to simulate browser environment
-      const originalResponse = new Response('test content', {
-        status: 200,
-        headers: {
-          'content-type': 'text/plain',
-          'cache-control': 'max-age=300',
-        },
-      });
-
-      // Make headers read-only by freezing the headers object
-      const readOnlyHeaders = new Headers(originalResponse.headers);
-      Object.freeze(readOnlyHeaders);
-
-      // Create a response with read-only headers
-      const responseWithReadOnlyHeaders = new Response(originalResponse.body, {
-        status: originalResponse.status,
-        statusText: originalResponse.statusText,
-        headers: readOnlyHeaders,
-      });
-
-      const fetch = createSharedCacheFetch(cache, {
-        async fetch() {
-          return responseWithReadOnlyHeaders;
-        },
-      });
-
-      // This should not throw an error and should properly apply header overrides
-      const res = await fetch(TEST_URL, {
-        sharedCache: {
-          cacheControlOverride: 's-maxage=600, must-revalidate',
-          varyOverride: 'accept-language',
-        },
-      });
-
-      // Verify that headers are properly overridden despite original being read-only
-      expect(res.status).toBe(200);
-      expect(res.headers.get('content-type')).toBe('text/plain');
-      expect(res.headers.get('cache-control')).toBe(
-        'max-age=300, s-maxage=600, must-revalidate'
-      );
-      expect(res.headers.get('vary')).toBe('accept-language');
-      expect(res.headers.get('x-cache-status')).toBe(MISS);
-      expect(await res.text()).toBe('test content');
-    });
-
     it('should preserve all Response properties when creating new Response with modified headers', async () => {
       const store = createCacheStore();
       const cache = new SharedCache(store);
-      const originalBody = 'test response body with special characters: 测试内容';
+      const originalBody =
+        'test response body with special characters: 测试内容';
       const originalResponse = new Response(originalBody, {
         status: 201,
         statusText: 'Created',
@@ -283,9 +235,13 @@ describe('HTTP Header Override Tests', () => {
       expect(res.status).toBe(201);
       expect(res.statusText).toBe('Created');
       expect(res.headers.get('content-type')).toBe('text/plain; charset=utf-8');
-      expect(res.headers.get('content-length')).toBe(originalBody.length.toString());
+      expect(res.headers.get('content-length')).toBe(
+        originalBody.length.toString()
+      );
       expect(res.headers.get('x-custom-header')).toBe('custom-value');
-      expect(res.headers.get('cache-control')).toBe('max-age=300, s-maxage=600');
+      expect(res.headers.get('cache-control')).toBe(
+        'max-age=300, s-maxage=600'
+      );
       expect(res.headers.get('vary')).toBe('user-agent');
       expect(res.headers.get('x-cache-status')).toBe(MISS);
       expect(await res.text()).toBe(originalBody);
@@ -301,7 +257,7 @@ describe('HTTP Header Override Tests', () => {
         headers: {
           'content-type': 'application/json',
           'cache-control': 'max-age=300, public',
-          'etag': '"abc123"',
+          etag: '"abc123"',
           'last-modified': 'Wed, 21 Oct 2015 07:28:00 GMT',
         },
       });
@@ -333,7 +289,9 @@ describe('HTTP Header Override Tests', () => {
       expect(res.status).toBe(200);
       expect(res.headers.get('content-type')).toBe('application/json');
       expect(res.headers.get('etag')).toBe('"abc123"');
-      expect(res.headers.get('last-modified')).toBe('Wed, 21 Oct 2015 07:28:00 GMT');
+      expect(res.headers.get('last-modified')).toBe(
+        'Wed, 21 Oct 2015 07:28:00 GMT'
+      );
       expect(res.headers.get('cache-control')).toBe(
         'max-age=300, public, s-maxage=600, must-revalidate'
       );
@@ -342,6 +300,231 @@ describe('HTTP Header Override Tests', () => {
       );
       expect(res.headers.get('x-cache-status')).toBe(MISS);
       expect(await res.text()).toBe('multi-header test');
+    });
+  });
+
+  describe('createInterceptor Header Override Bug Fixes', () => {
+    it('should handle responses correctly when no header overrides are configured', async () => {
+      const store = createCacheStore();
+      const cache = new SharedCache(store);
+      const originalBody = 'no override test';
+
+      let interceptorCalled = false;
+      let originalResponse: Response;
+      const fetch = createSharedCacheFetch(cache, {
+        async fetch() {
+          originalResponse = new Response(originalBody, {
+            status: 200,
+            headers: { 'content-type': 'text/plain' },
+          });
+
+          // Mock the response to detect if interceptor creates new object
+          const originalClone = originalResponse.clone.bind(originalResponse);
+          originalResponse.clone = () => {
+            interceptorCalled = true;
+            return originalClone();
+          };
+
+          return originalResponse;
+        },
+      });
+
+      const res = await fetch(TEST_URL);
+
+      // Interceptor should not have unnecessarily cloned when no overrides
+      expect(interceptorCalled).toBe(false);
+      expect(res.headers.get('content-type')).toBe('text/plain');
+      expect(res.headers.has('x-cache-status')).toBe(true); // Cache status should be added
+      expect(await res.text()).toBe(originalBody);
+    });
+
+    it('should apply header overrides correctly', async () => {
+      const store = createCacheStore();
+      const cache = new SharedCache(store);
+      const originalBody = 'override test';
+
+      const fetch = createSharedCacheFetch(cache, {
+        async fetch() {
+          return new Response(originalBody, {
+            status: 200,
+            headers: { 'content-type': 'text/plain' },
+          });
+        },
+      });
+
+      const res = await fetch(TEST_URL, {
+        sharedCache: {
+          cacheControlOverride: 's-maxage=300',
+        },
+      });
+
+      expect(res.headers.get('content-type')).toBe('text/plain');
+      expect(res.headers.get('cache-control')).toBe('s-maxage=300');
+      expect(res.headers.has('x-cache-status')).toBe(true);
+      expect(await res.text()).toBe(originalBody);
+    });
+
+    it('should handle readonly headers without throwing errors', async () => {
+      const store = createCacheStore();
+      const cache = new SharedCache(store);
+      const originalBody = 'readonly interceptor test';
+
+      const fetch = createSharedCacheFetch(cache, {
+        async fetch() {
+          const response = new Response(originalBody, {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          });
+
+          // Make headers readonly by mocking set method to throw
+          response.headers.set = () => {
+            throw new Error('Cannot modify readonly headers');
+          };
+
+          return response;
+        },
+      });
+
+      const res = await fetch(TEST_URL, {
+        sharedCache: {
+          cacheControlOverride: 's-maxage=600',
+          varyOverride: 'accept-language',
+        },
+      });
+
+      // Should successfully handle readonly headers
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toBe('application/json');
+      expect(res.headers.get('cache-control')).toBe('s-maxage=600');
+      expect(res.headers.get('vary')).toBe('accept-language');
+      expect(await res.text()).toBe(originalBody);
+    });
+
+    it('should not modify response on non-ok status', async () => {
+      const store = createCacheStore();
+      const cache = new SharedCache(store);
+
+      let headerModificationAttempted = false;
+      const fetch = createSharedCacheFetch(cache, {
+        async fetch() {
+          const originalErrorResponse = new Response('Not Found', {
+            status: 404,
+            headers: { 'content-type': 'text/plain' },
+          });
+
+          // Track if headers.set is called (which would indicate header modification)
+          const originalSet = originalErrorResponse.headers.set.bind(
+            originalErrorResponse.headers
+          );
+          originalErrorResponse.headers.set = (name, value) => {
+            if (name !== 'x-cache-status') {
+              // setCacheStatus might still be called
+              headerModificationAttempted = true;
+            }
+            return originalSet(name, value);
+          };
+
+          return originalErrorResponse;
+        },
+      });
+
+      const res = await fetch(TEST_URL, {
+        sharedCache: {
+          cacheControlOverride: 's-maxage=300',
+          varyOverride: 'accept',
+        },
+      });
+
+      // Headers should not be modified by interceptor for non-ok responses
+      expect(headerModificationAttempted).toBe(false);
+      expect(res.status).toBe(404);
+      expect(res.headers.get('content-type')).toBe('text/plain');
+      expect(res.headers.has('cache-control')).toBe(false);
+      expect(res.headers.has('vary')).toBe(false);
+    });
+
+    it('should preserve all response properties when handling header overrides', async () => {
+      const store = createCacheStore();
+      const cache = new SharedCache(store);
+      const complexBody = 'complex response: 测试内容 with special chars';
+
+      const fetch = createSharedCacheFetch(cache, {
+        async fetch() {
+          return new Response(complexBody, {
+            status: 201,
+            statusText: 'Created',
+            headers: {
+              'content-type': 'text/plain; charset=utf-8',
+              'content-length': complexBody.length.toString(),
+              etag: '"interceptor-test"',
+              'last-modified': 'Thu, 01 Dec 2022 12:00:00 GMT',
+              'x-original': 'true',
+            },
+          });
+        },
+      });
+
+      const res = await fetch(TEST_URL, {
+        sharedCache: {
+          cacheControlOverride: 'max-age=300, s-maxage=600',
+          varyOverride: 'accept-encoding, user-agent',
+        },
+      });
+
+      // Verify all original properties are preserved
+      expect(res.status).toBe(201);
+      expect(res.statusText).toBe('Created');
+      expect(res.headers.get('content-type')).toBe('text/plain; charset=utf-8');
+      expect(res.headers.get('content-length')).toBe(
+        complexBody.length.toString()
+      );
+      expect(res.headers.get('etag')).toBe('"interceptor-test"');
+      expect(res.headers.get('last-modified')).toBe(
+        'Thu, 01 Dec 2022 12:00:00 GMT'
+      );
+      expect(res.headers.get('x-original')).toBe('true');
+
+      // Verify overrides are applied
+      expect(res.headers.get('cache-control')).toBe(
+        'max-age=300, s-maxage=600'
+      );
+      expect(res.headers.get('vary')).toBe('accept-encoding, user-agent');
+
+      expect(await res.text()).toBe(complexBody);
+    });
+
+    it('should correctly handle multiple requests with different override configurations', async () => {
+      const store = createCacheStore();
+      const cache = new SharedCache(store);
+      let callCount = 0;
+
+      const fetch = createSharedCacheFetch(cache, {
+        async fetch() {
+          callCount++;
+          return new Response(`call ${callCount}`, {
+            status: 200,
+            headers: { 'content-type': 'text/plain' },
+          });
+        },
+      });
+
+      // Test multiple calls with and without overrides
+      const noOverride = await fetch(`${TEST_URL}?1`);
+      const withOverride = await fetch(`${TEST_URL}?2`, {
+        sharedCache: { cacheControlOverride: 's-maxage=300' },
+      });
+
+      expect(callCount).toBe(2);
+      expect(await noOverride.clone().text()).toBe('call 1');
+      expect(await withOverride.clone().text()).toBe('call 2');
+
+      // Both should have cache status
+      expect(noOverride.headers.has('x-cache-status')).toBe(true);
+      expect(withOverride.headers.has('x-cache-status')).toBe(true);
+
+      // Only the one with override should have cache-control
+      expect(noOverride.headers.has('cache-control')).toBe(false);
+      expect(withOverride.headers.get('cache-control')).toBe('s-maxage=300');
     });
   });
 });
