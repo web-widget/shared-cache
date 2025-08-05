@@ -230,7 +230,8 @@ function createInterceptor(
 
     // Only modify headers on successful responses
     if (response.ok) {
-      const headers = response.headers;
+      // Create a new Headers object to avoid modifying the original
+      const headers = new Headers(response.headers);
 
       // Override Cache-Control header if specified
       if (cacheControlOverride) {
@@ -241,6 +242,13 @@ function createInterceptor(
       if (varyOverride) {
         vary(headers, varyOverride);
       }
+
+      // Create a new Response with modified headers
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: headers,
+      });
     }
 
     return response;
