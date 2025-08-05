@@ -191,6 +191,158 @@ describe('HTTP Header Override Tests', () => {
       expect(res.headers.get('vary')).toBe(null);
       expect(res.headers.get('x-cache-status')).toBe(DYNAMIC);
     });
+
+    it('should handle read-only headers by creating new Response object', async () => {
+      const store = createCacheStore();
+      const cache = new SharedCache(store);
+
+      // Create a response with read-only headers to simulate browser environment
+      const originalResponse = new Response('test content', {
+        status: 200,
+        headers: {
+          'content-type': 'text/plain',
+          'cache-control': 'max-age=300',
+        },
+      });
+
+      // Make headers read-only by freezing the headers object
+      const readOnlyHeaders = new Headers(originalResponse.headers);
+      Object.freeze(readOnlyHeaders);
+
+      // Create a response with read-only headers
+      const responseWithReadOnlyHeaders = new Response(originalResponse.body, {
+        status: originalResponse.status,
+        statusText: originalResponse.statusText,
+        headers: readOnlyHeaders,
+      });
+
+      const fetch = createSharedCacheFetch(cache, {
+        async fetch() {
+          return responseWithReadOnlyHeaders;
+        },
+      });
+
+      // This should not throw an error and should properly apply header overrides
+      const res = await fetch(TEST_URL, {
+        sharedCache: {
+          cacheControlOverride: 's-maxage=600, must-revalidate',
+          varyOverride: 'accept-language',
+        },
+      });
+
+      // Verify that headers are properly overridden despite original being read-only
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toBe('text/plain');
+      expect(res.headers.get('cache-control')).toBe(
+        'max-age=300, s-maxage=600, must-revalidate'
+      );
+      expect(res.headers.get('vary')).toBe('accept-language');
+      expect(res.headers.get('x-cache-status')).toBe(MISS);
+      expect(await res.text()).toBe('test content');
+    });
+
+    it('should preserve all Response properties when creating new Response with modified headers', async () => {
+      const store = createCacheStore();
+      const cache = new SharedCache(store);
+      const originalBody = 'test response body with special characters: 测试内容';
+      const originalResponse = new Response(originalBody, {
+        status: 201,
+        statusText: 'Created',
+        headers: {
+          'content-type': 'text/plain; charset=utf-8',
+          'content-length': originalBody.length.toString(),
+          'cache-control': 'max-age=300',
+          'x-custom-header': 'custom-value',
+        },
+      });
+
+      // Make headers read-only to simulate the bug scenario
+      const readOnlyHeaders = new Headers(originalResponse.headers);
+      Object.freeze(readOnlyHeaders);
+
+      const responseWithReadOnlyHeaders = new Response(originalResponse.body, {
+        status: originalResponse.status,
+        statusText: originalResponse.statusText,
+        headers: readOnlyHeaders,
+      });
+
+      const fetch = createSharedCacheFetch(cache, {
+        async fetch() {
+          return responseWithReadOnlyHeaders;
+        },
+      });
+
+      const res = await fetch(TEST_URL, {
+        sharedCache: {
+          cacheControlOverride: 's-maxage=600',
+          varyOverride: 'user-agent',
+        },
+      });
+
+      // Verify that all original properties are preserved
+      expect(res.status).toBe(201);
+      expect(res.statusText).toBe('Created');
+      expect(res.headers.get('content-type')).toBe('text/plain; charset=utf-8');
+      expect(res.headers.get('content-length')).toBe(originalBody.length.toString());
+      expect(res.headers.get('x-custom-header')).toBe('custom-value');
+      expect(res.headers.get('cache-control')).toBe('max-age=300, s-maxage=600');
+      expect(res.headers.get('vary')).toBe('user-agent');
+      expect(res.headers.get('x-cache-status')).toBe(MISS);
+      expect(await res.text()).toBe(originalBody);
+    });
+
+    it('should handle multiple header overrides with read-only headers', async () => {
+      const store = createCacheStore();
+      const cache = new SharedCache(store);
+
+      // Create a response with multiple headers and read-only headers
+      const originalResponse = new Response('multi-header test', {
+        status: 200,
+        headers: {
+          'content-type': 'application/json',
+          'cache-control': 'max-age=300, public',
+          'etag': '"abc123"',
+          'last-modified': 'Wed, 21 Oct 2015 07:28:00 GMT',
+        },
+      });
+
+      // Make headers read-only
+      const readOnlyHeaders = new Headers(originalResponse.headers);
+      Object.freeze(readOnlyHeaders);
+
+      const responseWithReadOnlyHeaders = new Response(originalResponse.body, {
+        status: originalResponse.status,
+        statusText: originalResponse.statusText,
+        headers: readOnlyHeaders,
+      });
+
+      const fetch = createSharedCacheFetch(cache, {
+        async fetch() {
+          return responseWithReadOnlyHeaders;
+        },
+      });
+
+      const res = await fetch(TEST_URL, {
+        sharedCache: {
+          cacheControlOverride: 's-maxage=600, must-revalidate',
+          varyOverride: 'accept-language, accept-encoding, user-agent',
+        },
+      });
+
+      // Verify complex header overrides work with read-only headers
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toBe('application/json');
+      expect(res.headers.get('etag')).toBe('"abc123"');
+      expect(res.headers.get('last-modified')).toBe('Wed, 21 Oct 2015 07:28:00 GMT');
+      expect(res.headers.get('cache-control')).toBe(
+        'max-age=300, public, s-maxage=600, must-revalidate'
+      );
+      expect(res.headers.get('vary')).toBe(
+        'accept-language, accept-encoding, user-agent'
+      );
+      expect(res.headers.get('x-cache-status')).toBe(MISS);
+      expect(await res.text()).toBe('multi-header test');
+    });
   });
 });
 
