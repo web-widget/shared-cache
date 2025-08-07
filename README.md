@@ -658,6 +658,8 @@ sharedCache: {
 }
 ```
 
+**⚠️ Performance Warning**: By default, SharedCache processes Vary headers which requires **two KV storage queries** per cache lookup. If you're using a slow KV storage (like remote Redis), this can significantly impact performance. Consider setting `ignoreVary: true` to disable Vary processing and use only one query per lookup.
+
 #### `cacheKeyRules`
 
 Customize how cache keys are generated to optimize cache hit rates and handle different caching scenarios:
@@ -1241,7 +1243,7 @@ interface CacheQueryOptions {
 **Unsupported Options (throw errors):**
 
 - **❌ `ignoreSearch`**: Query string handling not customizable
-- **❌ `ignoreVary`**: Vary header processing not bypassable
+- **❌ `ignoreVary`**: Vary header processing not bypassable (Note: This option is actually supported in SharedCache)
 
 ### 📊 Compliance Summary
 
@@ -1317,6 +1319,32 @@ When using SharedCache with meta-frameworks, you can develop with a consistent c
 
 - **stale-while-revalidate**: Serves cached content immediately while updating in background, providing zero-latency responses
 - **stale-if-error**: Serves cached content when origin servers fail, improving uptime and user experience
+
+### Q: How does SharedCache handle Vary headers and what are the performance implications?
+
+**A:** SharedCache processes Vary headers by default, which requires **two KV storage queries** per cache lookup:
+
+1. First query: Get Vary metadata from base cache key
+2. Second query: Get actual response from variant cache key
+
+**Performance Impact:**
+- **Local Redis**: Minimal impact (0.2-1ms additional latency)
+- **Remote Redis**: Significant impact (4-20ms additional latency)
+- **Database storage**: High impact (10-50ms additional latency)
+
+**Recommendation for slow storage:**
+```typescript
+// Disable Vary processing for better performance
+const fetch = createFetch(cache, {
+  sharedCache: {
+    ignoreVary: true, // Reduces to single query per lookup
+  },
+});
+```
+
+**Trade-offs:**
+- **With Vary**: RFC compliant, supports content negotiation, but slower
+- **Without Vary**: Faster performance, but may serve incorrect content for requests with different headers
 
 ```typescript
 // Best practice: Use both directives together
