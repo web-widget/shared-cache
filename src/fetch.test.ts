@@ -17,7 +17,15 @@ import { LRUCache } from 'lru-cache';
 import { KVStorage } from './types';
 import { createSharedCacheFetch } from './fetch';
 import { SharedCache } from './cache';
-import { BYPASS, DYNAMIC, EXPIRED, HIT, MISS, STALE } from './constants';
+import {
+  BYPASS,
+  CACHE_KEY_HEADER_NAME,
+  DYNAMIC,
+  EXPIRED,
+  HIT,
+  MISS,
+  STALE,
+} from './constants';
 
 const TEST_URL = 'http://localhost/';
 
@@ -1833,6 +1841,76 @@ describe('Vary Header Handling', () => {
     });
 
     describe('Cache Configuration Options', () => {
+      it('should expose cache key in response headers when debugCacheKey is enabled', async () => {
+        const store = createCacheStore();
+        const cache = new SharedCache(store);
+        const fetch = createSharedCacheFetch(cache, {
+          async fetch() {
+            return new Response('debug key', {
+              headers: {
+                'cache-control': 'max-age=300',
+              },
+            });
+          },
+        });
+
+        const first = await fetch(TEST_URL, {
+          sharedCache: { debugCacheKey: true },
+        });
+        expect(first.headers.get('x-cache-status')).toBe(MISS);
+        expect(first.headers.get(CACHE_KEY_HEADER_NAME)).toBe('localhost/');
+
+        const second = await fetch(TEST_URL, {
+          sharedCache: { debugCacheKey: true },
+        });
+        expect(second.headers.get('x-cache-status')).toBe(HIT);
+        expect(second.headers.get(CACHE_KEY_HEADER_NAME)).toBe('localhost/');
+      });
+
+      it('should not expose cache key when debugCacheKey is disabled', async () => {
+        const store = createCacheStore();
+        const cache = new SharedCache(store);
+        const fetch = createSharedCacheFetch(cache, {
+          async fetch() {
+            return new Response('no debug key', {
+              headers: {
+                'cache-control': 'max-age=300',
+              },
+            });
+          },
+        });
+
+        const response = await fetch(TEST_URL);
+        expect(response.headers.get(CACHE_KEY_HEADER_NAME)).toBe(null);
+      });
+
+      it('should expose vary-aware cache key when debugCacheKey is enabled', async () => {
+        const store = createCacheStore();
+        const cache = new SharedCache(store);
+        const fetch = createSharedCacheFetch(cache, {
+          async fetch() {
+            return new Response('vary debug key', {
+              headers: {
+                'cache-control': 'max-age=300',
+                vary: 'accept-language',
+              },
+            });
+          },
+        });
+
+        const response = await fetch(TEST_URL, {
+          headers: {
+            'accept-language': 'en-us',
+          },
+          sharedCache: { debugCacheKey: true },
+        });
+
+        expect(response.headers.get('x-cache-status')).toBe(MISS);
+        expect(response.headers.get(CACHE_KEY_HEADER_NAME)).toMatch(
+          /^localhost\/:accept-language=[a-f0-9]{6}$/
+        );
+      });
+
       it('should respect ignoreRequestCacheControl option', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);

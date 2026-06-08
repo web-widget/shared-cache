@@ -3,7 +3,7 @@ import { SharedCache } from './cache';
 import { KVStorage, CacheItem, SharedCacheOptions } from './types';
 import type { Logger } from './utils/logger';
 import {
-  CACHE_STATUS_HEADERS_NAME,
+  CACHE_STATUS_HEADER_NAME,
   HIT,
   STALE,
   REVALIDATED,
@@ -285,7 +285,7 @@ describe('SharedCache', () => {
 
       expect(matched).toBeDefined();
       expect(await matched!.text()).toBe('cached data');
-      expect(matched!.headers.get(CACHE_STATUS_HEADERS_NAME)).toBe(HIT);
+      expect(matched!.headers.get(CACHE_STATUS_HEADER_NAME)).toBe(HIT);
     });
 
     it('should accept string URL', async () => {
@@ -361,7 +361,7 @@ describe('SharedCache', () => {
 
       expect(matched).toBeDefined();
       expect(await matched!.text()).toBe('stale data');
-      expect(matched!.headers.get(CACHE_STATUS_HEADERS_NAME)).toBe(STALE);
+      expect(matched!.headers.get(CACHE_STATUS_HEADER_NAME)).toBe(STALE);
       expect(backgroundPromise).not.toBeNull();
     });
 
@@ -398,7 +398,7 @@ describe('SharedCache', () => {
 
       expect(matched).toBeDefined();
       expect(await matched!.text()).toBe('stale data');
-      expect(matched!.headers.get(CACHE_STATUS_HEADERS_NAME)).toBe(STALE);
+      expect(matched!.headers.get(CACHE_STATUS_HEADER_NAME)).toBe(STALE);
       expect(backgroundPromise).not.toBeNull();
     });
 
@@ -594,7 +594,7 @@ describe('SharedCache', () => {
       await cache.put(request, response);
       const matched = await cache.match(request);
 
-      expect(matched!.headers.get(CACHE_STATUS_HEADERS_NAME)).toBe(HIT);
+      expect(matched!.headers.get(CACHE_STATUS_HEADER_NAME)).toBe(HIT);
     });
   });
 });

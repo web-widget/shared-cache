@@ -1,11 +1,13 @@
 import { vary } from './utils/vary';
+import { vary as getVaryCachePart } from './cache-key';
 import { cacheControl } from './utils/cache-control';
 import { setResponseHeader, modifyResponseHeaders } from './utils/response';
 import { SharedCache } from './cache';
 import { SharedCacheStorage } from './cache-storage';
 import {
+  CACHE_KEY_HEADER_NAME,
   BYPASS,
-  CACHE_STATUS_HEADERS_NAME,
+  CACHE_STATUS_HEADER_NAME,
   DYNAMIC,
   HIT,
   MISS,
@@ -107,6 +109,9 @@ export function createSharedCacheFetch(
       // Finally apply init options (highest priority)
       ...init?.sharedCache,
     });
+    const debugCacheKey = sharedCacheOptions.debugCacheKey
+      ? await cache.getCacheKey(request)
+      : undefined;
 
     // Create interceptor for response header manipulation
     const interceptor = createInterceptor(
@@ -141,7 +146,16 @@ export function createSharedCacheFetch(
 
     // Return cached response if available
     if (cachedResponse) {
-      return setCacheStatus(cachedResponse, HIT);
+      const effectiveCacheKey = await getEffectiveCacheKey(
+        request,
+        cachedResponse,
+        debugCacheKey,
+        sharedCacheOptions.ignoreVary
+      );
+      return setCacheKey(
+        setCacheStatus(cachedResponse, HIT),
+        effectiveCacheKey
+      );
     }
 
     // Fetch from network and attempt to cache
@@ -152,7 +166,10 @@ export function createSharedCacheFetch(
     if (cacheControl) {
       // Check if response should bypass cache
       if (bypassCache(cacheControl)) {
-        return setCacheStatus(fetchedResponse, BYPASS);
+        return setCacheKey(
+          setCacheStatus(fetchedResponse, BYPASS),
+          debugCacheKey
+        );
       } else {
         // Attempt to store in cache
         const cacheSuccess = await cache.put(request, fetchedResponse).then(
@@ -161,11 +178,25 @@ export function createSharedCacheFetch(
             return false;
           }
         );
-        return setCacheStatus(fetchedResponse, cacheSuccess ? MISS : DYNAMIC);
+        const effectiveCacheKey = cacheSuccess
+          ? await getEffectiveCacheKey(
+              request,
+              fetchedResponse,
+              debugCacheKey,
+              sharedCacheOptions.ignoreVary
+            )
+          : debugCacheKey;
+        return setCacheKey(
+          setCacheStatus(fetchedResponse, cacheSuccess ? MISS : DYNAMIC),
+          effectiveCacheKey
+        );
       }
     } else {
       // No Cache-Control header - mark as dynamic content
-      return setCacheStatus(fetchedResponse, DYNAMIC);
+      return setCacheKey(
+        setCacheStatus(fetchedResponse, DYNAMIC),
+        debugCacheKey
+      );
     }
   };
 }
@@ -197,10 +228,62 @@ function setCacheStatus(
   response: Response,
   status: SharedCacheStatus
 ): Response {
-  if (!response.headers.has(CACHE_STATUS_HEADERS_NAME)) {
-    return setResponseHeader(response, CACHE_STATUS_HEADERS_NAME, status);
+  if (!response.headers.has(CACHE_STATUS_HEADER_NAME)) {
+    return setResponseHeader(response, CACHE_STATUS_HEADER_NAME, status);
   }
   return response;
+}
+
+/**
+ * Sets cache key header on a response for debugging.
+ *
+ * @param response - The response to modify
+ * @param cacheKey - The computed cache key
+ * @returns The response with cache key header set when enabled
+ * @internal
+ */
+function setCacheKey(response: Response, cacheKey?: string): Response {
+  if (cacheKey) {
+    return setResponseHeader(response, CACHE_KEY_HEADER_NAME, cacheKey);
+  }
+  return response;
+}
+
+/**
+ * Resolves effective cache key by applying response Vary rules.
+ *
+ * @param request - The original request
+ * @param response - The response used for cache lookup/store
+ * @param cacheKey - The base cache key
+ * @param ignoreVary - Whether vary handling is disabled
+ * @returns The effective cache key used by storage
+ * @internal
+ */
+async function getEffectiveCacheKey(
+  request: Request,
+  response: Response,
+  cacheKey: string | undefined,
+  ignoreVary: boolean | undefined
+): Promise<string | undefined> {
+  if (!cacheKey || ignoreVary) {
+    return cacheKey;
+  }
+
+  const varyHeader = response.headers.get('vary');
+  if (!varyHeader || varyHeader === '*') {
+    return cacheKey;
+  }
+
+  const include = varyHeader
+    .split(',')
+    .map((field) => field.trim().toLowerCase())
+    .filter(Boolean);
+  if (!include.length) {
+    return cacheKey;
+  }
+
+  const varyPart = await getVaryCachePart(request, { include });
+  return varyPart ? `${cacheKey}:${varyPart}` : cacheKey;
 }
 
 /**
