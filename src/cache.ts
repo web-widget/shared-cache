@@ -18,7 +18,7 @@ import {
 } from './cache-key';
 import type { FilterOptions } from './cache-key';
 import {
-  CACHE_STATUS_HEADERS_NAME,
+  CACHE_STATUS_HEADER_NAME,
   EXPIRED,
   HIT,
   REVALIDATED,
@@ -83,6 +83,19 @@ export class SharedCache implements WebCache {
       );
     }
     this.#storage = storage;
+  }
+
+  /**
+   * Computes the cache key for a request using the current cache key rules.
+   * Useful for debugging and diagnostics in callers that need to surface the key.
+   *
+   * @param request - Request to compute key for
+   * @returns Promise resolving to the computed cache key
+   */
+  async getCacheKey(request: SharedCacheRequestInfo): Promise<string> {
+    const resolvedRequest =
+      request instanceof Request ? request : new Request(request);
+    return this.#cacheKeyGenerator(resolvedRequest);
   }
 
   /**
@@ -611,7 +624,7 @@ export class SharedCache implements WebCache {
    * @param status - Cache status value to set
    */
   #setCacheStatus(response: Response, status: SharedCacheStatus): void {
-    response.headers.set(CACHE_STATUS_HEADERS_NAME, status);
+    response.headers.set(CACHE_STATUS_HEADER_NAME, status);
   }
 
   /**

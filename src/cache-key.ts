@@ -1,6 +1,6 @@
 import { sha1 } from './utils/crypto';
 import { deviceType as getDeviceType } from './utils/user-agent';
-import { CACHE_STATUS_HEADERS_NAME } from './constants';
+import { CACHE_KEY_HEADER_NAME, CACHE_STATUS_HEADER_NAME } from './constants';
 import { RequestCookies } from './utils/cookies';
 
 /**
@@ -317,7 +317,8 @@ export const CANNOT_INCLUDE_HEADERS = [
   'host',
   'vary',
   // Headers that contain cache status information
-  CACHE_STATUS_HEADERS_NAME,
+  CACHE_STATUS_HEADER_NAME,
+  CACHE_KEY_HEADER_NAME,
 ] as const;
 
 /**

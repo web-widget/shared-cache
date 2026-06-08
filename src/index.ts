@@ -88,7 +88,8 @@ export type {
 // Constants
 export {
   BYPASS,
-  CACHE_STATUS_HEADERS_NAME,
+  CACHE_KEY_HEADER_NAME,
+  CACHE_STATUS_HEADER_NAME,
   DYNAMIC,
   EXPIRED,
   HIT,

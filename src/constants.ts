@@ -4,7 +4,13 @@ import { SharedCacheStatus } from './types';
  * HTTP header name for cache status information.
  * This non-standard header is used to communicate cache hit/miss status.
  */
-export const CACHE_STATUS_HEADERS_NAME = 'x-cache-status';
+export const CACHE_STATUS_HEADER_NAME = 'x-cache-status';
+
+/**
+ * HTTP header name for debugging cache key information.
+ * This non-standard header is used to expose the computed cache key.
+ */
+export const CACHE_KEY_HEADER_NAME = 'x-cache-key';
 
 /**
  * Cache status constants as defined in HTTP caching specifications.

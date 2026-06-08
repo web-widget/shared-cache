@@ -196,6 +196,12 @@ export type SharedCacheRequest = WebRequest & {
  */
 export interface SharedCacheRequestInitProperties {
   /**
+   * Whether to expose the computed cache key via response header.
+   * When true, the response includes the `x-cache-key` header for debugging.
+   */
+  debugCacheKey?: boolean;
+
+  /**
    * Override the cache-control header for caching decisions.
    * This allows forcing specific cache behavior regardless of origin headers.
    */
