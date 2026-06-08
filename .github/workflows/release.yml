@@ -8,9 +8,14 @@ on:
       - '!*'
 
 env:
-  NODE_VERSION: '22'
+  NODE_VERSION: '24'
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
 
 jobs:
   release:
@@ -39,8 +44,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
 
       - run: corepack enable && pnpm --version
+
+      - name: Ensure npm supports trusted publishing
+        run: npm install -g npm@latest
 
       - name: Clean and install dependencies
         run: |
@@ -53,7 +62,6 @@ jobs:
         uses: changesets/action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         with:
           version: pnpm version:prepare
           publish: pnpm version:publish
