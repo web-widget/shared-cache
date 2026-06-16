@@ -127,11 +127,11 @@ export interface PolicyResponse {
   /** The cached response */
   response: Response;
   /**
-   * Cached response body when already materialized in storage.
+   * Response body already materialized in storage.
    * Avoids re-reading the response stream during 304 revalidation.
    * @internal
    */
-  cachedBody?: string;
+  storedBody?: string;
 }
 
 /**

@@ -5,6 +5,7 @@ import type { Logger } from './utils/logger';
 import {
   CACHE_STATUS_HEADER_NAME,
   HIT,
+  STALE,
   UPDATING,
   REVALIDATED,
   EXPIRED,
@@ -315,6 +316,87 @@ describe('SharedCache', () => {
       expect(matched!.headers.get(CACHE_STATUS_HEADER_NAME)).toBe(HIT);
     });
 
+    it('should omit representation headers on conditional 304 responses', async () => {
+      const request = new Request('https://example.com/conditional-304-headers');
+      await cache.put(
+        request,
+        createTestResponse('cached data', 200, {
+          'cache-control': 'max-age=300',
+          etag: '"v1"',
+          'content-type': 'text/plain',
+          'content-length': '11',
+        })
+      );
+
+      const matched = await cache.match(
+        new Request('https://example.com/conditional-304-headers', {
+          headers: { 'if-none-match': '"v1"' },
+        })
+      );
+
+      expect(matched!.status).toBe(304);
+      expect(matched!.headers.get('etag')).toBe('"v1"');
+      expect(matched!.headers.get('content-type')).toBe(null);
+      expect(matched!.headers.get('content-length')).toBe(null);
+    });
+
+    it('should return 304 when If-None-Match is * and the cached entry has an ETag', async () => {
+      const request = new Request('https://example.com/conditional-star');
+      await cache.put(
+        request,
+        createTestResponse('cached data', 200, {
+          'cache-control': 'max-age=300',
+          etag: '"v1"',
+        })
+      );
+
+      const matched = await cache.match(
+        new Request('https://example.com/conditional-star', {
+          headers: { 'if-none-match': '*' },
+        })
+      );
+
+      expect(matched!.status).toBe(304);
+    });
+
+    it('should match weak ETags on If-None-Match', async () => {
+      const request = new Request('https://example.com/conditional-weak-etag');
+      await cache.put(
+        request,
+        createTestResponse('cached data', 200, {
+          'cache-control': 'max-age=300',
+          etag: 'W/"v1"',
+        })
+      );
+
+      const matched = await cache.match(
+        new Request('https://example.com/conditional-weak-etag', {
+          headers: { 'if-none-match': 'W/"v1"' },
+        })
+      );
+
+      expect(matched!.status).toBe(304);
+    });
+
+    it('should return 200 when If-Modified-Since is invalid', async () => {
+      const request = new Request('https://example.com/conditional-invalid-ims');
+      await cache.put(
+        request,
+        createTestResponse('cached data', 200, {
+          'cache-control': 'max-age=300',
+          'last-modified': 'Wed, 21 Oct 2015 07:28:00 GMT',
+        })
+      );
+
+      const matched = await cache.match(
+        new Request('https://example.com/conditional-invalid-ims', {
+          headers: { 'if-modified-since': 'not-a-date' },
+        })
+      );
+
+      expect(matched!.status).toBe(200);
+    });
+
     it('should return 200 when If-None-Match does not match the cached ETag', async () => {
       const request = new Request('https://example.com/conditional-etag-miss');
       await cache.put(
@@ -448,6 +530,56 @@ describe('SharedCache', () => {
       expect(await matched!.text()).toBe('stale data');
       expect(matched!.headers.get(CACHE_STATUS_HEADER_NAME)).toBe(UPDATING);
       expect(backgroundPromise).not.toBeNull();
+    });
+
+    it('should return STALE when sync revalidation hits origin error within stale-if-error', async () => {
+      const request = new Request('https://example.com/stale-if-error');
+      await cache.put(
+        request,
+        createTestResponse('cached data', 200, {
+          'cache-control': 'max-age=1, stale-if-error=300',
+          etag: '"v1"',
+        })
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+
+      const matched = await cache.match(request, {
+        _fetch: async () => new Response('Internal Server Error', { status: 500 }),
+      });
+
+      expect(matched).toBeDefined();
+      expect(matched!.status).toBe(200);
+      expect(await matched!.text()).toBe('cached data');
+      expect(matched!.headers.get(CACHE_STATUS_HEADER_NAME)).toBe(STALE);
+    });
+
+    it('should not persist revalidated response when the new policy is not storable', async () => {
+      const request = new Request('https://example.com/no-store-revalidate');
+      await cache.put(
+        request,
+        createTestResponse('old body', 200, {
+          'cache-control': 'max-age=1, stale-if-error=300',
+          etag: '"v1"',
+        })
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+
+      const revalidated = await cache.match(request, {
+        _fetch: async () =>
+          createTestResponse('new body', 200, {
+            'cache-control': 'no-store',
+            etag: '"v2"',
+          }),
+      });
+
+      expect(revalidated).toBeDefined();
+      expect(revalidated!.headers.get(CACHE_STATUS_HEADER_NAME)).toBe(EXPIRED);
+      expect(await revalidated!.text()).toBe('new body');
+
+      const cached = await cache.match(request);
+      expect(cached).toBeUndefined();
     });
 
     describe('revalidation persistence', () => {

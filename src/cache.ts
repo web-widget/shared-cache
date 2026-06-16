@@ -23,6 +23,7 @@ import {
   EXPIRED,
   HIT,
   REVALIDATED,
+  STALE,
   UPDATING,
 } from './constants';
 import { CachePolicy } from './utils/cache-semantics';
@@ -286,9 +287,9 @@ export class SharedCache implements WebCache {
           this.#revalidate(
             r,
             {
-              response: response.clone(),
+              response,
               policy,
-              cachedBody: body,
+              storedBody: body,
             },
             cacheKey,
             fetch,
@@ -313,7 +314,7 @@ export class SharedCache implements WebCache {
         {
           response,
           policy,
-          cachedBody: body,
+          storedBody: body,
         },
         cacheKey,
         fetch,
@@ -605,7 +606,7 @@ export class SharedCache implements WebCache {
       responseStatusText = revalidationResponse.statusText;
     } else {
       responseBody =
-        resolveCacheItem.cachedBody ??
+        resolveCacheItem.storedBody ??
         (await resolveCacheItem.response.clone().text());
       responseStatus = resolveCacheItem.response.status;
       responseStatusText = resolveCacheItem.response.statusText;
@@ -640,6 +641,20 @@ export class SharedCache implements WebCache {
           cacheStatus: 'EXPIRED',
         },
         'Serving fresh response'
+      );
+    } else if (
+      isErrorResponse(revalidationResponse) &&
+      resolveCacheItem.policy.useStaleIfError()
+    ) {
+      this.#setCacheStatus(clonedResponse, STALE);
+      this.#structuredLogger.info(
+        'Serving stale response',
+        {
+          url: request.url,
+          cacheKey,
+          cacheStatus: 'STALE',
+        },
+        'Origin error within stale-if-error window'
       );
     } else {
       this.#setCacheStatus(clonedResponse, REVALIDATED);
@@ -833,12 +848,32 @@ function normalizeEntityTag(tag: string): string {
   return tag.trim().replace(/^\s*W\//, '');
 }
 
+/** Headers that must not appear on 304 responses (RFC 7232). */
+const NOT_MODIFIED_OMIT_HEADERS = new Set([
+  'content-length',
+  'content-type',
+  'content-encoding',
+  'transfer-encoding',
+]);
+
 function createNotModifiedResponse(responseHeaders: Headers): Response {
+  const headers = new Headers();
+
+  responseHeaders.forEach((value, name) => {
+    if (!NOT_MODIFIED_OMIT_HEADERS.has(name.toLowerCase())) {
+      headers.set(name, value);
+    }
+  });
+
   return new Response(null, {
     status: 304,
     statusText: 'Not Modified',
-    headers: responseHeaders,
+    headers,
   });
+}
+
+function isErrorResponse(response: Response): boolean {
+  return response.status >= 500;
 }
 
 /**
