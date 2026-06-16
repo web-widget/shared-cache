@@ -1,7 +1,11 @@
 import { vary } from './utils/vary';
 import { vary as getVaryCachePart } from './cache-key';
 import { cacheControl } from './utils/cache-control';
-import { setResponseHeader, modifyResponseHeaders } from './utils/response';
+import {
+  encodeCacheKeyHeaderValue,
+  modifyResponseHeaders,
+  setResponseHeader,
+} from './utils/response';
 import { SharedCache } from './cache';
 import { SharedCacheStorage } from './cache-storage';
 import {
@@ -244,7 +248,11 @@ function setCacheStatus(
  */
 function setCacheKey(response: Response, cacheKey?: string): Response {
   if (cacheKey) {
-    return setResponseHeader(response, CACHE_KEY_HEADER_NAME, cacheKey);
+    return setResponseHeader(
+      response,
+      CACHE_KEY_HEADER_NAME,
+      encodeCacheKeyHeaderValue(cacheKey)
+    );
   }
   return response;
 }

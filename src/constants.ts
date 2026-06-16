@@ -26,8 +26,11 @@ export const MISS: SharedCacheStatus = 'MISS';
 /** Cached response was expired, fresh response fetched */
 export const EXPIRED: SharedCacheStatus = 'EXPIRED';
 
-/** Stale response served (e.g., during stale-while-revalidate) */
+/** Stale response served when origin is unreachable (stale-if-error) */
 export const STALE: SharedCacheStatus = 'STALE';
+
+/** Expired response served while revalidating in the background (stale-while-revalidate) */
+export const UPDATING: SharedCacheStatus = 'UPDATING';
 
 /** Cache was bypassed due to cache-control directives */
 export const BYPASS: SharedCacheStatus = 'BYPASS';

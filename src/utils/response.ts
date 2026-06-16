@@ -33,6 +33,33 @@ export function modifyResponseHeaders(
 }
 
 /**
+ * Encodes a cache key for safe use as an HTTP header field value.
+ *
+ * Cache keys may contain Unicode path segments, query values, or control
+ * characters that violate Fetch header constraints (NUL/CR/LF) or runtime
+ * ByteString limits (code points above U+00FF).
+ *
+ * @param cacheKey - Raw cache key from storage key generation
+ * @returns Header-safe cache key (ASCII-only, percent-encoded where needed)
+ * @internal
+ */
+export function encodeCacheKeyHeaderValue(cacheKey: string): string {
+  let encoded = '';
+
+  for (const char of cacheKey) {
+    const code = char.codePointAt(0)!;
+
+    if (code === 0 || code === 0xa || code === 0xd || code > 0xff) {
+      encoded += encodeURIComponent(char);
+    } else {
+      encoded += char;
+    }
+  }
+
+  return encoded;
+}
+
+/**
  * Safely sets a header on a response, creating a new response if headers are readonly.
  * This is a convenience function for setting a single header.
  *

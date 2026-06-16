@@ -126,6 +126,12 @@ export interface PolicyResponse {
   policy: CachePolicy;
   /** The cached response */
   response: Response;
+  /**
+   * Cached response body when already materialized in storage.
+   * Avoids re-reading the response stream during 304 revalidation.
+   * @internal
+   */
+  cachedBody?: string;
 }
 
 /**
@@ -139,8 +145,10 @@ export type SharedCacheStatus =
   | 'MISS'
   /** Cached response expired, fetched fresh response */
   | 'EXPIRED'
-  /** Stale response served (stale-while-revalidate) */
+  /** Stale response served when origin is unreachable (stale-if-error) */
   | 'STALE'
+  /** Expired response served while revalidating in the background (stale-while-revalidate) */
+  | 'UPDATING'
   /** Cache bypassed due to cache-control directives */
   | 'BYPASS'
   /** Cached response revalidated and still fresh */
@@ -198,6 +206,7 @@ export interface SharedCacheRequestInitProperties {
   /**
    * Whether to expose the computed cache key via response header.
    * When true, the response includes the `x-cache-key` header for debugging.
+   * Non-ASCII and control characters in the key are percent-encoded for valid HTTP headers.
    */
   debugCacheKey?: boolean;
 

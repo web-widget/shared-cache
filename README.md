@@ -768,19 +768,20 @@ SharedCache provides comprehensive monitoring through the `x-cache-status` heade
 
 | Status            | Description                                     | When It Occurs                                               |
 | ----------------- | ----------------------------------------------- | ------------------------------------------------------------ |
-| **`HIT`**         | Response served from cache                      | The requested resource was found in cache and is still fresh |
+| **`HIT`**         | Response served from cache                      | Fresh cache hit, or conditional `304` from `Cache.match()`   |
 | **`MISS`**        | Response fetched from origin                    | The requested resource was not found in cache                |
 | **`EXPIRED`**     | Cached response expired, fresh response fetched | The cached response exceeded its TTL                         |
-| **`STALE`**       | Stale response served                           | Served due to stale-while-revalidate or stale-if-error       |
+| **`UPDATING`**    | Stale response served during background revalidate | `stale-while-revalidate` via `createFetch`                  |
+| **`STALE`**       | Stale response served when origin is unreachable  | `stale-if-error` or revalidation failure                     |
 | **`BYPASS`**      | Cache bypassed                                  | Bypassed due to cache control directives like `no-store`     |
-| **`REVALIDATED`** | Cached response revalidated                     | Response validated with origin (304 Not Modified)            |
+| **`REVALIDATED`** | Cached response revalidated with origin         | Synchronous revalidation; origin returned 304 Not Modified   |
 | **`DYNAMIC`**     | Response cannot be cached                       | Cannot be cached due to HTTP method or status code           |
 
 ### Cache Status Header Details
 
 The `x-cache-status` header is automatically added to all responses:
 
-- **Header Values**: `HIT`, `MISS`, `EXPIRED`, `STALE`, `BYPASS`, `REVALIDATED`, `DYNAMIC`
+- **Header Values**: `HIT`, `MISS`, `EXPIRED`, `UPDATING`, `STALE`, `BYPASS`, `REVALIDATED`, `DYNAMIC`
 - **Always Present**: The header is always added for monitoring and debugging
 - **Non-Standard**: Custom header for debugging - should not be used for application logic
 
@@ -837,7 +838,7 @@ const cache = new SharedCache(storage, {
 - **Example Output**:
   ```
   SharedCache: Cache hit { url: 'https://api.com/data', cacheKey: 'api:data', cacheStatus: 'HIT' }
-  SharedCache: Serving stale response - Revalidating in background { url: 'https://api.com/data', cacheKey: 'api:data', cacheStatus: 'STALE' }
+  SharedCache: Serving stale response - Revalidating in background { url: 'https://api.com/data', cacheKey: 'api:data', cacheStatus: 'UPDATING' }
   ```
 
 #### WARN
@@ -1170,6 +1171,7 @@ type SharedCacheStatus =
   | 'HIT'
   | 'MISS'
   | 'EXPIRED'
+  | 'UPDATING'
   | 'STALE'
   | 'BYPASS'
   | 'REVALIDATED'
@@ -1192,7 +1194,7 @@ SharedCache demonstrates **exceptional HTTP standards compliance**, fully adheri
 - **HTTP Method Support**: Standards-compliant caching for GET/HEAD methods with correct rejection of non-cacheable methods
 - **Status Code Handling**: Appropriate caching behavior for 200, 301, 404 responses and proper rejection of 5xx errors
 - **Vary Header Processing**: Full content negotiation support with intelligent cache key generation
-- **Conditional Requests**: Complete ETag and Last-Modified validation with 304 Not Modified handling
+- **Conditional Requests**: `Cache.match()` returns `304` for matching `If-None-Match` / `If-Modified-Since` on fresh entries; `createFetch` revalidates with the origin and handles `304 Not Modified`
 
 ### ✅ RFC 5861 Extensions
 
@@ -1223,6 +1225,8 @@ interface Cache {
 - **✅ Core Methods**: `match()`, `put()`, `delete()` - Fully implemented with HTTP semantics
 - **❌ Convenience Methods**: `add()`, `addAll()` - Use `put()` instead
 - **❌ Enumeration Methods**: `keys()`, `matchAll()` - Not available in server environments
+
+**`createFetch` vs `Cache`:** `createFetch` adds SWR, origin revalidation, and status headers. Bare `cache.match()` / `cache.put()` are storage-style APIs (expired entries return `undefined` without `createFetch`).
 
 **Options Parameter Differences:**
 
@@ -1315,7 +1319,7 @@ When using SharedCache with meta-frameworks, you can develop with a consistent c
 
 ### Q: What's the value of `stale-while-revalidate` and `stale-if-error` directives?
 
-**A:** These RFC 5861 extensions provide significant performance and reliability benefits:
+**A:** Performance and reliability extensions (via `createFetch`):
 
 - **stale-while-revalidate**: Serves cached content immediately while updating in background, providing zero-latency responses
 - **stale-if-error**: Serves cached content when origin servers fail, improving uptime and user experience
