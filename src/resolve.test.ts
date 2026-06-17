@@ -165,6 +165,106 @@ describe('resolveWithCache', () => {
 
     await expect(pending).rejects.toThrow('miss aborted');
   });
+
+  it('should apply vary override on successful miss responses', async () => {
+    const origin: CacheOriginHandler = () =>
+      new Response('ok', {
+        headers: { 'cache-control': 'max-age=60' },
+      });
+
+    const response = await resolveWithCache(cache, createRequest(), origin, {
+      varyOverride: 'accept-language',
+    });
+
+    expect(response.headers.get('vary')).toBe('accept-language');
+  });
+
+  it('should expose an effective cache key on cache hit when debugCacheKey is enabled', async () => {
+    const origin: CacheOriginHandler = () =>
+      new Response('vary-body', {
+        headers: {
+          'cache-control': 'max-age=60',
+          vary: 'accept-language',
+        },
+      });
+
+    await resolveWithCache(cache, createRequest(), origin, {
+      debugCacheKey: true,
+    });
+
+    const response = await resolveWithCache(cache, createRequest(), origin, {
+      debugCacheKey: true,
+    });
+
+    expect(response.headers.get('x-cache-status')).toBe(HIT);
+    expect(response.headers.get('x-cache-key')).toContain('localhost/');
+  });
+
+  it('should skip vary-specific cache key suffixes when ignoreVary is enabled', async () => {
+    const origin: CacheOriginHandler = () =>
+      new Response('vary-body', {
+        headers: {
+          'cache-control': 'max-age=60',
+          vary: 'accept-language',
+        },
+      });
+
+    await resolveWithCache(cache, createRequest(), origin, {
+      debugCacheKey: true,
+      ignoreVary: true,
+    });
+
+    const response = await resolveWithCache(cache, createRequest(), origin, {
+      debugCacheKey: true,
+      ignoreVary: true,
+    });
+
+    expect(response.headers.get('x-cache-key')).toBe('localhost/');
+  });
+
+  it('should keep the base cache key when vary is wildcard', async () => {
+    const origin: CacheOriginHandler = () =>
+      new Response('wildcard-vary', {
+        headers: {
+          'cache-control': 'max-age=60',
+          vary: '*',
+        },
+      });
+
+    await resolveWithCache(cache, createRequest(), origin, {
+      debugCacheKey: true,
+    });
+
+    const response = await resolveWithCache(cache, createRequest(), origin, {
+      debugCacheKey: true,
+    });
+
+    expect(response.headers.get('x-cache-key')).toBe('localhost/');
+  });
+
+  it('should serve stale content when revalidation aborts via outer signal', async () => {
+    const controller = new AbortController();
+    const origin: CacheOriginHandler = (_request, context) => {
+      if (context.phase === 'revalidate') {
+        return new Response('should-not-be-used', { status: 500 });
+      }
+      return new Response('stale-body', {
+        headers: { 'cache-control': 'max-age=1, stale-if-error=60' },
+      });
+    };
+
+    await resolveWithCache(cache, createRequest(), origin);
+    await timeout(1100);
+
+    controller.abort(new Error('revalidate aborted'));
+
+    const response = await resolveWithCache(cache, createRequest(), origin, {
+      signal: controller.signal,
+    });
+
+    expect(response.headers.get('x-cache-status')).toBe(STALE);
+    expect(await response.text()).toBe('stale-body');
+  });
 });
 
 describe('createCacheHandler', () => {

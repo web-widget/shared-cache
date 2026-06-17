@@ -178,5 +178,46 @@ describe('invokeOrigin', () => {
       expect(response.status).toBe(500);
       expect(await response.text()).toBe('aborted while pending');
     });
+
+    it('should use a default AbortError when abort has no reason', async () => {
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(
+        invokeOrigin(() => new Response('ok'), testRequest, {
+          phase: 'miss',
+          signal: controller.signal,
+        })
+      ).rejects.toMatchObject({ name: 'AbortError' });
+    });
+
+    it('should convert synchronous throws to 500 when a signal is present during revalidation', async () => {
+      const controller = new AbortController();
+      const origin: CacheOriginHandler = () => {
+        throw new Error('sync with signal');
+      };
+
+      const response = await invokeOrigin(origin, testRequest, {
+        phase: 'revalidate',
+        signal: controller.signal,
+      });
+
+      expect(response.status).toBe(500);
+      expect(await response.text()).toBe('sync with signal');
+    });
+
+    it('should reject cache miss when the origin rejects and a signal is present', async () => {
+      const controller = new AbortController();
+      const origin: CacheOriginHandler = async () => {
+        throw new Error('async with signal');
+      };
+
+      await expect(
+        invokeOrigin(origin, testRequest, {
+          phase: 'miss',
+          signal: controller.signal,
+        })
+      ).rejects.toThrow('async with signal');
+    });
   });
 });
