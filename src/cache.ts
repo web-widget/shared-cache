@@ -13,11 +13,18 @@ import type {
 import type { CachePolicyObject } from '@web-widget/http-cache-semantics';
 import { createLogger, StructuredLogger } from './utils/logger';
 import {
+  CACHE_KEY_VARY_META_SUFFIX,
+  CACHE_KEY_VARY_SEPARATOR,
   createCacheKeyGenerator,
   DEFAULT_CACHE_KEY_RULES,
+  getCacheKeyContext,
   vary as getVary,
 } from './cache-key';
-import type { FilterOptions } from './cache-key';
+import type {
+  CacheKeyGenerator,
+  FilterOptions,
+  SharedCacheKeyRules,
+} from './cache-key';
 import {
   CACHE_STATUS_HEADER_NAME,
   EXPIRED,
@@ -28,6 +35,31 @@ import {
 } from './constants';
 import { CachePolicy } from './utils/cache-semantics';
 
+/** Separates cache namespace from the URL-shaped cache key in storage. */
+const CACHE_NAMESPACE_SEPARATOR = '\x1f';
+
+/**
+ * Prefixes storage keys with a cache namespace without changing the logical cache key.
+ * @internal
+ */
+function createNamespacedStorage(
+  storage: KVStorage,
+  cacheName?: string
+): KVStorage {
+  if (!cacheName || cacheName === 'default') {
+    return storage;
+  }
+
+  const prefix = `${cacheName}${CACHE_NAMESPACE_SEPARATOR}`;
+
+  return {
+    get: (cacheKey) => storage.get(`${prefix}${cacheKey}`),
+    set: (cacheKey, value, ttl) =>
+      storage.set(`${prefix}${cacheKey}`, value, ttl),
+    delete: (cacheKey) => storage.delete(`${prefix}${cacheKey}`),
+  };
+}
+
 /**
  * SharedCache implements the Cache interface with additional features for shared caching.
  * It provides HTTP-compliant caching with support for revalidation, stale-while-revalidate,
@@ -36,8 +68,11 @@ import { CachePolicy } from './utils/cache-semantics';
  * This implementation follows HTTP caching semantics as defined in RFC 7234 and related specifications.
  */
 export class SharedCache implements WebCache {
-  /** Cache key generator function for creating consistent cache keys */
-  #cacheKeyGenerator: (request: SharedCacheRequest) => Promise<string>;
+  /** Cache key generator factory */
+  #cacheKeyGeneratorFactory: CacheKeyGenerator;
+
+  /** Base cache key rules configured for this cache instance */
+  #defaultCacheKeyRules: SharedCacheKeyRules;
 
   /** Structured logger instance with consistent formatting */
   #structuredLogger: ReturnType<typeof createLogger<SharedCacheLogContext>>;
@@ -62,16 +97,14 @@ export class SharedCache implements WebCache {
     };
 
     const cacheKeyGenerator = createCacheKeyGenerator(
-      resolvedOptions._cacheName,
-      resolvedOptions.cacheKeyPartDefiners
+      resolvedOptions._cacheKeyNormalize
     );
 
-    this.#cacheKeyGenerator = async (request) =>
-      cacheKeyGenerator(request, {
-        ...DEFAULT_CACHE_KEY_RULES,
-        ...resolvedOptions.cacheKeyRules,
-        ...request.sharedCache?.cacheKeyRules,
-      });
+    this.#cacheKeyGeneratorFactory = cacheKeyGenerator;
+    this.#defaultCacheKeyRules = {
+      ...DEFAULT_CACHE_KEY_RULES,
+      ...resolvedOptions.cacheKeyRules,
+    };
 
     // Optimize logger initialization: avoid double wrapping if already a StructuredLogger
     if (resolvedOptions.logger instanceof StructuredLogger) {
@@ -84,7 +117,10 @@ export class SharedCache implements WebCache {
         resolvedOptions.logger
       );
     }
-    this.#storage = storage;
+    this.#storage = createNamespacedStorage(
+      storage,
+      resolvedOptions._cacheName
+    );
   }
 
   /**
@@ -98,6 +134,24 @@ export class SharedCache implements WebCache {
     const resolvedRequest =
       request instanceof Request ? request : new Request(request);
     return this.#cacheKeyGenerator(resolvedRequest);
+  }
+
+  /**
+   * Generates a cache key for a request using resolved rules.
+   * @internal
+   */
+  #cacheKeyGenerator(request: SharedCacheRequest): Promise<string> {
+    const rules = {
+      ...this.#defaultCacheKeyRules,
+      ...request.sharedCache?.cacheKeyRules,
+    };
+    const syncKey = this.#cacheKeyGeneratorFactory.sync(request, rules);
+
+    if (syncKey !== undefined) {
+      return Promise.resolve(syncKey);
+    }
+
+    return this.#cacheKeyGeneratorFactory(request, rules);
   }
 
   /**
@@ -733,7 +787,7 @@ export class SharedCache implements WebCache {
 
   /**
    * Validates cache query options, throwing errors for unsupported features.
-   * Currently ignoreSearch and ignoreVary are not implemented.
+   * Aligns with Cloudflare Workers Cache API: only `ignoreMethod` is supported.
    *
    * @param options - Cache query options to validate
    * @throws {Error} If unsupported options are specified
@@ -1021,7 +1075,7 @@ async function getVaryFilterOptions(
   storage: KVStorage,
   customCacheKey: string
 ): Promise<FilterOptions | undefined> {
-  const varyKey = `${customCacheKey}:vary`;
+  const varyKey = `${customCacheKey}${CACHE_KEY_VARY_META_SUFFIX}`;
   return (await storage.get(varyKey)) as FilterOptions | undefined;
 }
 
@@ -1050,7 +1104,7 @@ async function getAndSaveVaryFilterOptions(
     return;
   }
 
-  const varyKey = `${customCacheKey}:vary`;
+  const varyKey = `${customCacheKey}${CACHE_KEY_VARY_META_SUFFIX}`;
   const varyFilterOptions: FilterOptions = {
     include: vary.split(',').map((field) => field.trim()),
   };
@@ -1077,6 +1131,9 @@ async function getVaryCacheKey(
     return customCacheKey;
   }
 
+  getCacheKeyContext(request);
   const varyPart = await getVary(request, varyFilterOptions);
-  return varyPart ? `${customCacheKey}:${varyPart}` : customCacheKey;
+  return varyPart
+    ? `${customCacheKey}${CACHE_KEY_VARY_SEPARATOR}${varyPart}`
+    : customCacheKey;
 }

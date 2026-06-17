@@ -35,31 +35,19 @@
 export { SharedCache as Cache } from './cache';
 export { SharedCacheStorage as CacheStorage } from './cache-storage';
 
-// Fetch integration
 export {
   createSharedCacheFetch as createFetch,
   sharedCacheFetch as fetch,
 } from './fetch';
 
-// Middleware-friendly cache resolution
 export { createCacheHandler, resolveWithCache } from './resolve';
 
-// Cache key utilities
 export {
   createCacheKeyGenerator,
   DEFAULT_CACHE_KEY_RULES,
-  filter,
-  cookie,
-  device,
-  header,
-  host,
-  pathname,
-  search,
-  vary,
   CANNOT_INCLUDE_HEADERS,
 } from './cache-key';
 
-// Logger utilities
 export {
   createLogger,
   createSharedCacheLogger,
@@ -68,7 +56,6 @@ export {
   LogLevel,
 } from './utils/logger';
 
-// Type definitions
 export type {
   KVStorage,
   SharedCacheLogContext,
@@ -82,18 +69,12 @@ export type {
   CacheOriginHandler,
   CacheResolveOptions,
   CacheHandler,
-} from './types';
-
-export type { Logger } from './utils/logger';
-
-// Cache key types
-export type {
+  CacheKeyGenerator,
   FilterOptions,
   SharedCacheKeyRules,
-  SharedCacheKeyPartDefiners,
-} from './cache-key';
+  Logger,
+} from './types';
 
-// Constants
 export {
   BYPASS,
   CACHE_KEY_HEADER_NAME,
@@ -103,6 +84,7 @@ export {
   HIT,
   MISS,
   REVALIDATED,
+  SHARED_CACHE_STATUS,
   STALE,
   UPDATING,
 } from './constants';

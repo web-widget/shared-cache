@@ -692,13 +692,7 @@ sharedCache: {
 }
 ```
 
-**Default cache key rules:**
-
-```typescript
-{
-  search: true,
-}
-```
+**Default cache key rules:** `scheme`, `host`, `pathname`, and `search` are all enabled. Keys look like `https://example.com/path?a=1`. Set `scheme: false` only if a reverse proxy always presents `http:` internally.
 
 ### Cache Key Components
 
@@ -1256,24 +1250,7 @@ interface Cache {
 
 **Options Parameter Differences:**
 
-SharedCache's `CacheQueryOptions` interface differs from the standard Web Cache API:
-
-```typescript
-interface CacheQueryOptions {
-  ignoreSearch?: boolean; // ❌ Not implemented - throws error
-  ignoreMethod?: boolean; // ✅ Supported
-  ignoreVary?: boolean; // ❌ Not implemented - throws error
-}
-```
-
-**Supported Options:**
-
-- **✅ `ignoreMethod`**: Treat request as GET regardless of actual HTTP method
-
-**Unsupported Options (throw errors):**
-
-- **❌ `ignoreSearch`**: Query string handling not customizable
-- **❌ `ignoreVary`**: Vary header processing not bypassable (Note: This option is actually supported in SharedCache)
+`match()` and `delete()` support `ignoreMethod` only—the same subset as the [Cloudflare Workers Cache API](https://developers.cloudflare.com/workers/runtime-apis/cache/). To ignore query strings, set `cacheKeyRules.search: false`. To bypass Vary processing, set `sharedCache.ignoreVary: true`.
 
 ### 📊 Compliance Summary
 
@@ -1287,7 +1264,7 @@ interface CacheQueryOptions {
 ### 🛡️ Production-Grade Implementation
 
 - **Professional HTTP Semantics**: Powered by `http-cache-semantics` for RFC compliance
-- **Intelligent Cache Strategies**: Advanced cache key generation with URL normalization
+- **Configurable Cache Keys**: Rules for URL parts, cookies, headers, and custom fragments
 - **Robust Error Handling**: Comprehensive exception handling with graceful degradation
 - **Performance Optimized**: Efficient storage backends with configurable TTL
 

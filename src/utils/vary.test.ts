@@ -17,6 +17,22 @@ describe('vary(res, field)', function () {
         }).toThrow('headers argument is required');
       });
     });
+
+    describe('field', function () {
+      it('should be required', function () {
+        const headers = new Headers();
+        expect(() => {
+          vary(headers, '');
+        }).toThrow('field argument is required');
+      });
+
+      it('should reject invalid header names', function () {
+        const headers = new Headers();
+        expect(() => {
+          vary(headers, 'bad field name');
+        }).toThrow('field argument contains an invalid header name');
+      });
+    });
   });
 
   describe('when no Vary', function () {

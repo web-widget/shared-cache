@@ -1,42 +1,45 @@
-import { SharedCacheStatus } from './types';
-
 /**
- * HTTP header name for cache status information.
- * This non-standard header is used to communicate cache hit/miss status.
+ * HTTP header names and cache-status values for SharedCache.
+ *
+ * Cache-key domain constants (`DEFAULT_CACHE_KEY_RULES`, `CANNOT_INCLUDE_HEADERS`)
+ * live in `cache-key.ts` and are re-exported from the package entry.
  */
+
+/** HTTP header name for cache status information. */
 export const CACHE_STATUS_HEADER_NAME = 'x-cache-status';
 
-/**
- * HTTP header name for debugging cache key information.
- * This non-standard header is used to expose the computed cache key.
- */
+/** HTTP header name for debugging cache key information. */
 export const CACHE_KEY_HEADER_NAME = 'x-cache-key';
 
-/**
- * Cache status constants as defined in HTTP caching specifications.
- * These represent the various states of cache operations.
- */
+/** Canonical cache status literals. */
+export const SHARED_CACHE_STATUS = {
+  /** Response served from cache without validation */
+  HIT: 'HIT',
+  /** Response not found in cache, fetched from origin */
+  MISS: 'MISS',
+  /** Cached response was expired, fresh response fetched */
+  EXPIRED: 'EXPIRED',
+  /** Stale response served when origin is unreachable (stale-if-error) */
+  STALE: 'STALE',
+  /** Expired response served while revalidating in the background */
+  UPDATING: 'UPDATING',
+  /** Cache was bypassed due to cache-control directives */
+  BYPASS: 'BYPASS',
+  /** Cached response was revalidated and determined still fresh */
+  REVALIDATED: 'REVALIDATED',
+  /** Response is dynamic and cannot be cached */
+  DYNAMIC: 'DYNAMIC',
+} as const;
 
-/** Response served from cache without validation */
-export const HIT: SharedCacheStatus = 'HIT';
+/** Cache status values as defined in HTTP caching standards. */
+export type SharedCacheStatus =
+  (typeof SHARED_CACHE_STATUS)[keyof typeof SHARED_CACHE_STATUS];
 
-/** Response not found in cache, fetched from origin */
-export const MISS: SharedCacheStatus = 'MISS';
-
-/** Cached response was expired, fresh response fetched */
-export const EXPIRED: SharedCacheStatus = 'EXPIRED';
-
-/** Stale response served when origin is unreachable (stale-if-error) */
-export const STALE: SharedCacheStatus = 'STALE';
-
-/** Expired response served while revalidating in the background (stale-while-revalidate) */
-export const UPDATING: SharedCacheStatus = 'UPDATING';
-
-/** Cache was bypassed due to cache-control directives */
-export const BYPASS: SharedCacheStatus = 'BYPASS';
-
-/** Cached response was revalidated and determined still fresh */
-export const REVALIDATED: SharedCacheStatus = 'REVALIDATED';
-
-/** Response is dynamic and cannot be cached */
-export const DYNAMIC: SharedCacheStatus = 'DYNAMIC';
+export const HIT = SHARED_CACHE_STATUS.HIT;
+export const MISS = SHARED_CACHE_STATUS.MISS;
+export const EXPIRED = SHARED_CACHE_STATUS.EXPIRED;
+export const STALE = SHARED_CACHE_STATUS.STALE;
+export const UPDATING = SHARED_CACHE_STATUS.UPDATING;
+export const BYPASS = SHARED_CACHE_STATUS.BYPASS;
+export const REVALIDATED = SHARED_CACHE_STATUS.REVALIDATED;
+export const DYNAMIC = SHARED_CACHE_STATUS.DYNAMIC;

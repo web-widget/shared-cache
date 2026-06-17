@@ -197,7 +197,7 @@ describe('resolveWithCache', () => {
     });
 
     expect(response.headers.get('x-cache-status')).toBe(HIT);
-    expect(response.headers.get('x-cache-key')).toContain('localhost/');
+    expect(response.headers.get('x-cache-key')).toContain('http://localhost/');
   });
 
   it('should skip vary-specific cache key suffixes when ignoreVary is enabled', async () => {
@@ -219,7 +219,7 @@ describe('resolveWithCache', () => {
       ignoreVary: true,
     });
 
-    expect(response.headers.get('x-cache-key')).toBe('localhost/');
+    expect(response.headers.get('x-cache-key')).toBe('http://localhost/');
   });
 
   it('should keep the base cache key when vary is wildcard', async () => {
@@ -239,7 +239,7 @@ describe('resolveWithCache', () => {
       debugCacheKey: true,
     });
 
-    expect(response.headers.get('x-cache-key')).toBe('localhost/');
+    expect(response.headers.get('x-cache-key')).toBe('http://localhost/');
   });
 
   it('should serve stale content when revalidation aborts via outer signal', async () => {
@@ -288,6 +288,6 @@ describe('createCacheHandler', () => {
     expect(response.headers.get('cache-control')).toBe(
       'max-age=10, s-maxage=30'
     );
-    expect(response.headers.get('x-cache-key')).toBe('localhost/');
+    expect(response.headers.get('x-cache-key')).toBe('http://localhost/');
   });
 });

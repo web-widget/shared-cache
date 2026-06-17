@@ -3,6 +3,7 @@ import {
   createCacheKeyGenerator,
   header,
   vary,
+  type SharedCacheKeyRules,
 } from './cache-key';
 
 it('should support base: host + pathname + search', async () => {
@@ -13,6 +14,42 @@ it('should support base: host + pathname + search', async () => {
     search: true,
   });
   expect(key).toBe('localhost/?a=1');
+});
+
+it('should include scheme by default', async () => {
+  const keyGenerator = createCacheKeyGenerator();
+  const key = await keyGenerator(new Request('http://localhost/?a=1'));
+  expect(key).toBe('http://localhost/?a=1');
+});
+
+it('should distinguish http and https schemes', async () => {
+  const keyGenerator = createCacheKeyGenerator();
+  const httpKey = await keyGenerator(new Request('http://localhost/'));
+  const httpsKey = await keyGenerator(new Request('https://localhost/'));
+  expect(httpKey).toBe('http://localhost/');
+  expect(httpsKey).toBe('https://localhost/');
+});
+
+describe('should support scheme', () => {
+  it('should work with basic functionality', async () => {
+    const keyGenerator = createCacheKeyGenerator();
+    const key = await keyGenerator(new Request('https://localhost/api'), {
+      scheme: true,
+      host: true,
+      pathname: true,
+    });
+    expect(key).toBe('https://localhost/api');
+  });
+
+  it('should allow scheme to be disabled for reverse-proxy setups', async () => {
+    const keyGenerator = createCacheKeyGenerator();
+    const key = await keyGenerator(new Request('https://localhost/api'), {
+      scheme: false,
+      host: true,
+      pathname: true,
+    });
+    expect(key).toBe('localhost/api');
+  });
 });
 
 it('should support built-in rules', async () => {
@@ -38,7 +75,9 @@ it('should support built-in rules', async () => {
       search: true,
     }
   );
-  expect(key).toBe('localhost/?a=1#a=356a19:desktop:x-id=a9993e');
+  expect(key).toBe(
+    'localhost/?a=1#cookie:a|device|header:x-id@cb15d91aab694816b937006f086f312ba6ddcce7'
+  );
 });
 
 it('should support filtering', async () => {
@@ -59,7 +98,9 @@ it('should support filtering', async () => {
       header: { include: ['x-id'] },
     }
   );
-  expect(key).toBe('localhost/?a=1#x-id=a9993e');
+  expect(key).toBe(
+    'localhost/?a=1#header:x-id@794bdd5e049e0f23827f2b396a5f29854697d4e7'
+  );
 });
 
 it('should support presence or absence without including its actual value', async () => {
@@ -72,25 +113,77 @@ it('should support presence or absence without including its actual value', asyn
   expect(key).toBe('localhost/?a&b=2');
 });
 
-describe('should support cacheName', () => {
-  it('should override "default" value to empty', async () => {
-    const keyGenerator = createCacheKeyGenerator('default');
-    const key = await keyGenerator(new Request('http://localhost/?a=1&b=2'), {
+describe('should support normalize', () => {
+  it('should rely on URL parsing for scheme and host normalization', async () => {
+    const keyGenerator = createCacheKeyGenerator();
+    const key = await keyGenerator(new Request('HTTP://LOCALHOST:80/api/'), {
+      scheme: true,
       host: true,
       pathname: true,
-      search: { include: ['a', 'b'], checkPresence: ['a'] },
     });
-    expect(key).toBe('localhost/?a&b=2');
+    expect(key).toBe('http://localhost/api/');
   });
 
-  it('should make cacheName appear in the prefix', async () => {
-    const keyGenerator = createCacheKeyGenerator('custom');
-    const key = await keyGenerator(new Request('http://localhost/?a=1&b=2'), {
+  it('should allow optional normalization to be disabled', async () => {
+    const enabled = createCacheKeyGenerator({
+      pathnameLowerCase: true,
+    });
+    const disabled = createCacheKeyGenerator(false);
+
+    const request = new Request('http://localhost/API');
+
+    expect(await enabled(request, { host: true, pathname: true })).toBe(
+      'localhost/api'
+    );
+    expect(await disabled(request, { host: true, pathname: true })).toBe(
+      'localhost/API'
+    );
+  });
+
+  it('should remove trailing slashes when explicitly enabled', async () => {
+    const keyGenerator = createCacheKeyGenerator({
+      trailingSlash: true,
+    });
+    const key = await keyGenerator(new Request('http://localhost/api/'), {
       host: true,
       pathname: true,
-      search: { include: ['a', 'b'], checkPresence: ['a'] },
     });
-    expect(key).toBe('custom/localhost/?a&b=2');
+    expect(key).toBe('localhost/api');
+  });
+
+  it('should omit default ports via URL parsing', async () => {
+    const keyGenerator = createCacheKeyGenerator();
+    const key = await keyGenerator(new Request('http://localhost:80/api'), {
+      host: true,
+      pathname: true,
+    });
+    expect(key).toBe('localhost/api');
+  });
+
+  it('should strip spaces only when explicitly enabled', async () => {
+    const keyGenerator = createCacheKeyGenerator({
+      ignoreSpaces: true,
+    });
+    const key = await keyGenerator(
+      new Request('http://localhost/a%20b/?q=hello%20world'),
+      {
+        host: true,
+        pathname: true,
+        search: true,
+      }
+    );
+    expect(key).toBe('localhost/ab/?q=helloworld');
+  });
+
+  it('should merge custom normalization options', async () => {
+    const keyGenerator = createCacheKeyGenerator({
+      trailingSlash: true,
+    });
+    const key = await keyGenerator(new Request('http://localhost:80/api/'), {
+      host: true,
+      pathname: true,
+    });
+    expect(key).toBe('localhost/api');
   });
 });
 
@@ -107,7 +200,7 @@ describe('should support cookie', () => {
         cookie: true,
       }
     );
-    expect(key).toBe('#a=aaf4c6');
+    expect(key).toBe('#cookie:a@8d1c4eaf99062d83c7688f680ae9b16b34589a3d');
   });
 
   it('should be sorted', async () => {
@@ -122,7 +215,7 @@ describe('should support cookie', () => {
         cookie: true,
       }
     );
-    expect(key).toBe('#a=356a19&b=da4b92&c=77de68');
+    expect(key).toBe('#cookie:a&b&c@32e746be69da5f9de1c1a8bbb2557c0dd59e7743');
   });
 
   it('should support filtering', async () => {
@@ -137,7 +230,7 @@ describe('should support cookie', () => {
           cookie: { include: ['a'] },
         }
       )
-    ).toBe('#a=356a19');
+    ).toBe('#cookie:a@5e5504de3f06749cb4b8b8a56c8bc4de901a0134');
 
     expect(
       await createCacheKeyGenerator()(
@@ -150,7 +243,7 @@ describe('should support cookie', () => {
           cookie: { exclude: ['a'] },
         }
       )
-    ).toBe('#b=da4b92&c=77de68');
+    ).toBe('#cookie:b&c@cd9b0524a5caa8b5017cee14ea64c4e80cf28de3');
   });
 
   it('should support check presence', async () => {
@@ -165,7 +258,7 @@ describe('should support cookie', () => {
         cookie: { include: ['a', 'b', 'c'], checkPresence: ['a'] },
       }
     );
-    expect(key).toBe('#a&b=da4b92&c=77de68');
+    expect(key).toBe('#cookie:a&b&c@bda2a14e0a2ca9f346bdf2bf5db136d1b62332b5');
   });
 });
 
@@ -175,7 +268,7 @@ describe('should support device', () => {
     const key = await keyGenerator(new Request('http://localhost/'), {
       device: true,
     });
-    expect(key).toBe('#desktop');
+    expect(key).toBe('#device@6a5bb591869b46097c846f743c03e569c344330f');
   });
 
   it('should detect desktop device type', async () => {
@@ -191,7 +284,7 @@ describe('should support device', () => {
         device: true,
       }
     );
-    expect(key).toBe('#desktop');
+    expect(key).toBe('#device@6a5bb591869b46097c846f743c03e569c344330f');
   });
 
   it('should detect mobile device type', async () => {
@@ -207,7 +300,7 @@ describe('should support device', () => {
         device: true,
       }
     );
-    expect(key).toBe('#mobile');
+    expect(key).toBe('#device@328a8d87058f2fadfad274b5f67e92e7c63c9748');
   });
 
   it('should detect tablet device type', async () => {
@@ -223,7 +316,7 @@ describe('should support device', () => {
         device: true,
       }
     );
-    expect(key).toBe('#tablet');
+    expect(key).toBe('#device@ab722fd73619a3750187f2e40468e28648d8ef0f');
   });
 });
 
@@ -240,7 +333,7 @@ describe('should support header', () => {
         header: true,
       }
     );
-    expect(key).toBe('#a=aaf4c6');
+    expect(key).toBe('#header:a@5dc69cb58b513f628315466940be67a0406d7a2b');
   });
 
   it('should be sorted', async () => {
@@ -257,7 +350,7 @@ describe('should support header', () => {
         header: true,
       }
     );
-    expect(key).toBe('#a=356a19&b=da4b92&c=77de68');
+    expect(key).toBe('#header:a&b&c@5ebeaf153d436d0fab85716878214628d574188a');
   });
 
   it('should support filtering', async () => {
@@ -274,7 +367,7 @@ describe('should support header', () => {
           header: { include: ['a'] },
         }
       )
-    ).toBe('#a=356a19');
+    ).toBe('#header:a@2a9c02967216f590cbea1d4d4b8bf54345411506');
 
     expect(
       await createCacheKeyGenerator()(
@@ -289,7 +382,7 @@ describe('should support header', () => {
           header: { exclude: ['a'] },
         }
       )
-    ).toBe('#b=da4b92&c=77de68');
+    ).toBe('#header:b&c@ed3ee26abfe1037a88b05351c87e5d139b2ee58d');
   });
 
   it('should support check presence', async () => {
@@ -306,7 +399,7 @@ describe('should support header', () => {
         header: { include: ['a', 'b', 'c'], checkPresence: ['a'] },
       }
     );
-    expect(key).toBe('#a&b=da4b92&c=77de68');
+    expect(key).toBe('#header:a&b&c@670f9f5b3cbd9505a360703fe0467649ff8d958d');
   });
 
   it('should ignore case for header keys', async () => {
@@ -322,7 +415,7 @@ describe('should support header', () => {
         header: true,
       }
     );
-    expect(key).toBe('#a=ca9fd0&x-id=a9993e');
+    expect(key).toBe('#header:a&x-id@e8acc0884f73c5034549a7afb53bde2d7266f0f4');
   });
 
   it('should not allow some headers to be included', async () => {
@@ -424,53 +517,17 @@ describe('should support search', () => {
   });
 });
 
-describe('should support custom key', () => {
-  it('should extract the contents of the header into a variable', async () => {
-    const keyGenerator = createCacheKeyGenerator(undefined, {
-      foo: async (request) => request.headers.get('x-id') || '',
-    });
-    const key = await keyGenerator(
-      new Request('http://localhost/', {
-        headers: {
-          'x-id': 'custom',
-        },
-      }),
-      {
-        foo: true,
-      }
-    );
-    expect(key).toBe('#custom');
-  });
-
-  it('should require custom part to exist', async () => {
+describe('should reject unknown cache key parts', () => {
+  it('should throw for unsupported rule names', async () => {
     const keyGenerator = createCacheKeyGenerator();
+
     await expect(() =>
       keyGenerator(new Request('http://localhost/'), {
         foo: true,
-      })
+      } as SharedCacheKeyRules)
     ).rejects.toThrow(
-      'Unknown cache key part: "foo". Register a custom part definer or use a built-in part (cookie, device, header).'
+      'Unknown cache key part: "foo". Use built-in parts (scheme, host, pathname, search, cookie, device, header).'
     );
-  });
-
-  it('should ignore empty parts', async () => {
-    const keyGenerator = createCacheKeyGenerator(undefined, {
-      foo: async () => '',
-    });
-    const key = await keyGenerator(
-      new Request('http://localhost/', {
-        headers: {
-          'x-id': 'custom',
-        },
-      }),
-      {
-        foo: true,
-        header: {
-          include: ['x-id'],
-        },
-      }
-    );
-    expect(key).toBe('#x-id=f9ac14');
   });
 });
 
@@ -485,7 +542,7 @@ describe('get header part', () => {
         },
       })
     );
-    expect(key).toBe('a=356a19&b=da4b92&c=77de68');
+    expect(key).toBe('a&b&c@147cb5937edc2fa8cb06a802bf0d64e0419a0fb1');
   });
 
   it('should include some', async () => {
@@ -501,7 +558,7 @@ describe('get header part', () => {
         include: ['a', 'b'],
       }
     );
-    expect(key).toBe('a=356a19&b=da4b92');
+    expect(key).toBe('a&b@d53cf64e768f4ef09c806bbe12258c78211b2690');
   });
 
   it('should ignore case when filtering', async () => {
@@ -517,7 +574,7 @@ describe('get header part', () => {
         include: ['A', 'B'],
       }
     );
-    expect(key).toBe('a=356a19&b=da4b92');
+    expect(key).toBe('a&b@d53cf64e768f4ef09c806bbe12258c78211b2690');
   });
 });
 
@@ -532,7 +589,7 @@ describe('get vary part', () => {
         },
       })
     );
-    expect(key).toBe('a=356a19&b=da4b92&c=77de68');
+    expect(key).toBe('a&b&c@147cb5937edc2fa8cb06a802bf0d64e0419a0fb1');
   });
 
   it('should include some', async () => {
@@ -548,7 +605,7 @@ describe('get vary part', () => {
         include: ['a', 'b'],
       }
     );
-    expect(key).toBe('a=356a19&b=da4b92');
+    expect(key).toBe('a&b@d53cf64e768f4ef09c806bbe12258c78211b2690');
   });
 
   it('should ignore case when filtering', async () => {
@@ -564,6 +621,45 @@ describe('get vary part', () => {
         include: ['A', 'B'],
       }
     );
-    expect(key).toBe('a=356a19&b=da4b92');
+    expect(key).toBe('a&b@d53cf64e768f4ef09c806bbe12258c78211b2690');
+  });
+});
+
+describe('sync cache key generator', () => {
+  it('should build default URL keys synchronously', () => {
+    const generator = createCacheKeyGenerator();
+    const request = new Request('http://localhost/?a=1');
+
+    expect(generator.sync(request)).toBe('http://localhost/?a=1');
+  });
+
+  it('should return undefined when fragments are required', () => {
+    const generator = createCacheKeyGenerator();
+    const request = new Request('http://localhost/', {
+      headers: { cookie: 'a=1' },
+    });
+
+    expect(generator.sync(request, { cookie: true })).toBeUndefined();
+  });
+
+  it('should treat normalize true the same as the default generator', async () => {
+    const defaultGenerator = createCacheKeyGenerator();
+    const explicitGenerator = createCacheKeyGenerator(true);
+    const request = new Request('http://localhost/API');
+
+    expect(
+      await explicitGenerator(request, { host: true, pathname: true })
+    ).toBe(await defaultGenerator(request, { host: true, pathname: true }));
+  });
+
+  it('should omit fragments when whitelisted headers are absent', async () => {
+    const generator = createCacheKeyGenerator();
+    const key = await generator(new Request('http://localhost/'), {
+      host: true,
+      pathname: true,
+      header: { include: ['x-missing'] },
+    });
+
+    expect(key).toBe('localhost/');
   });
 });

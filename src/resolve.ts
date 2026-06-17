@@ -1,4 +1,8 @@
-import { vary as getVaryCachePart } from './cache-key';
+import {
+  CACHE_KEY_VARY_SEPARATOR,
+  getCacheKeyContext,
+  vary as getVaryCachePart,
+} from './cache-key';
 import { vary } from './utils/vary';
 import { cacheControl } from './utils/cache-control';
 import {
@@ -83,8 +87,11 @@ async function getEffectiveCacheKey(
     return cacheKey;
   }
 
+  getCacheKeyContext(request);
   const varyPart = await getVaryCachePart(request, { include });
-  return varyPart ? `${cacheKey}:${varyPart}` : cacheKey;
+  return varyPart
+    ? `${cacheKey}${CACHE_KEY_VARY_SEPARATOR}${varyPart}`
+    : cacheKey;
 }
 
 /**

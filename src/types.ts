@@ -1,11 +1,31 @@
 /* c8 ignore start */
+/**
+ * Package-level type barrel. Domain types (cache key, logger) are defined in
+ * their modules and re-exported here; `index.ts` exposes types only via this file.
+ *
+ * Constants: HTTP/status → `constants.ts`; cache-key defaults → `cache-key.ts`.
+ */
 import CachePolicy, {
   CachePolicyObject,
 } from '@web-widget/http-cache-semantics';
-import { SharedCacheKeyPartDefiners, SharedCacheKeyRules } from './cache-key';
+import type { SharedCacheKeyRules } from './cache-key';
 import type { Logger } from './utils/logger';
 
-export type { SharedCacheKeyRules, SharedCacheKeyPartDefiners };
+/** Public type surface — re-exported from the package entry via `./types`. */
+export type {
+  CacheKeyGenerator,
+  FilterOptions,
+  SharedCacheKeyRules,
+} from './cache-key';
+export type { Logger } from './utils/logger';
+export type { SharedCacheStatus } from './constants';
+
+/** @internal URL normalization options passed via `SharedCacheOptions._cacheKeyNormalize`. */
+interface CacheKeyNormalizeOptions {
+  trailingSlash?: boolean;
+  pathnameLowerCase?: boolean;
+  ignoreSpaces?: boolean;
+}
 
 /**
  * Log context structure for SharedCache operations
@@ -57,10 +77,12 @@ export interface SharedCacheOptions {
   cacheKeyRules?: SharedCacheKeyRules;
 
   /**
-   * Custom functions for generating cache key parts.
-   * Allows extending cache key generation with custom logic.
+   * URL normalization applied before cache key generation.
+   * Defaults to the normalization performed by `new URL(request.url)`.
+   * Set to `false` to skip optional extra normalization.
+   * @internal
    */
-  cacheKeyPartDefiners?: SharedCacheKeyPartDefiners;
+  _cacheKeyNormalize?: boolean | CacheKeyNormalizeOptions;
 
   /**
    * Custom logger for debugging and monitoring cache operations.
@@ -133,28 +155,6 @@ export interface PolicyResponse {
    */
   storedBody?: string;
 }
-
-/**
- * Cache status values as defined in HTTP caching standards.
- * These represent the result of cache operations.
- */
-export type SharedCacheStatus =
-  /** Cache hit - response served from cache */
-  | 'HIT'
-  /** Cache miss - response fetched from origin */
-  | 'MISS'
-  /** Cached response expired, fetched fresh response */
-  | 'EXPIRED'
-  /** Stale response served when origin is unreachable (stale-if-error) */
-  | 'STALE'
-  /** Expired response served while revalidating in the background (stale-while-revalidate) */
-  | 'UPDATING'
-  /** Cache bypassed due to cache-control directives */
-  | 'BYPASS'
-  /** Cached response revalidated and still fresh */
-  | 'REVALIDATED'
-  /** Dynamic response that cannot be cached */
-  | 'DYNAMIC';
 
 /**
  * Extended cache query options for shared cache operations.
