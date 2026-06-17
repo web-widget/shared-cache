@@ -40,6 +40,7 @@ SharedCache is an HTTP caching library that follows Web Standards and HTTP speci
 - **🎯 Smart Caching**: Handles complex HTTP scenarios including `Vary` headers, proxy revalidation, and authenticated responses
 - **🔧 Flexible Storage**: Pluggable storage backend supporting memory, Redis, or any custom key-value store
 - **🚀 Enhanced Fetch**: Extends the standard `fetch` API with caching capabilities while maintaining full compatibility
+- **🔌 Middleware Origin**: `createCacheHandler` for in-process handlers (e.g. middleware `next()`)
 - **🎛️ Custom Cache Keys**: Cache key customization supporting device types, cookies, headers, and URL components
 - **⚡ Shared Cache Optimization**: Prioritizes `s-maxage` over `max-age` for shared cache performance
 - **🌍 Universal Runtime**: Compatible with [WinterCG](https://wintercg.org/) environments including Node.js, Deno, Bun, and Edge Runtime
@@ -104,7 +105,14 @@ export const handler = {
 };
 ```
 
-**Integration Requirements**: This pattern requires web framework integration with SharedCache middleware or custom cache implementation in your SSR pipeline.
+**Integration Requirements**: Use `createCacheHandler` in framework middleware, or integrate SharedCache manually in your SSR pipeline.
+
+```typescript
+const handler = createCacheHandler(cache, {
+  cacheControlOverride: 's-maxage=60',
+});
+return handler.resolve(request, () => next(), { waitUntil });
+```
 
 #### **Cross-Runtime Applications**
 
@@ -206,7 +214,8 @@ This package exports a comprehensive set of APIs for HTTP caching functionality:
 
 ```typescript
 import {
-  createFetch, // Main fetch function with caching
+  createFetch, // Outbound HTTP fetch with caching
+  createCacheHandler, // In-process origin (middleware)
   Cache, // SharedCache class
   CacheStorage, // SharedCacheStorage class
 } from '@web-widget/shared-cache';
@@ -766,16 +775,16 @@ SharedCache provides comprehensive monitoring through the `x-cache-status` heade
 
 ### Cache Status Types
 
-| Status            | Description                                     | When It Occurs                                               |
-| ----------------- | ----------------------------------------------- | ------------------------------------------------------------ |
-| **`HIT`**         | Response served from cache                      | Fresh cache hit, or conditional `304` from `Cache.match()`   |
-| **`MISS`**        | Response fetched from origin                    | The requested resource was not found in cache                |
-| **`EXPIRED`**     | Cached response expired, fresh response fetched | The cached response exceeded its TTL                         |
-| **`UPDATING`**    | Stale response served during background revalidate | `stale-while-revalidate` via `createFetch`                  |
-| **`STALE`**       | Stale response served when origin is unreachable  | `stale-if-error` or revalidation failure                     |
-| **`BYPASS`**      | Cache bypassed                                  | Bypassed due to cache control directives like `no-store`     |
-| **`REVALIDATED`** | Cached response revalidated with origin         | Synchronous revalidation; origin returned 304 Not Modified   |
-| **`DYNAMIC`**     | Response cannot be cached                       | Cannot be cached due to HTTP method or status code           |
+| Status            | Description                                        | When It Occurs                                             |
+| ----------------- | -------------------------------------------------- | ---------------------------------------------------------- |
+| **`HIT`**         | Response served from cache                         | Fresh cache hit, or conditional `304` from `Cache.match()` |
+| **`MISS`**        | Response fetched from origin                       | The requested resource was not found in cache              |
+| **`EXPIRED`**     | Cached response expired, fresh response fetched    | The cached response exceeded its TTL                       |
+| **`UPDATING`**    | Stale response served during background revalidate | `stale-while-revalidate` via `createFetch`                 |
+| **`STALE`**       | Stale response served when origin is unreachable   | `stale-if-error` or revalidation failure                   |
+| **`BYPASS`**      | Cache bypassed                                     | Bypassed due to cache control directives like `no-store`   |
+| **`REVALIDATED`** | Cached response revalidated with origin            | Synchronous revalidation; origin returned 304 Not Modified |
+| **`DYNAMIC`**     | Response cannot be cached                          | Cannot be cached due to HTTP method or status code         |
 
 ### Cache Status Header Details
 
@@ -1048,7 +1057,9 @@ const alertingLogger = {
 
 **Main Functions:**
 
-- `createFetch(cache?, options?)` - Create cached fetch function
+- `createFetch(cache?, options?)` - Cached fetch for outbound HTTP requests
+- `createCacheHandler(cache, defaults?)` - Cached resolver for in-process origin handlers
+- `resolveWithCache(cache, request, origin, options?)` - Low-level cache resolution (used by both APIs above)
 - `createLogger(logger?, logLevel?, prefix?)` - Create logger with level filtering
 
 **Classes:**
@@ -1094,6 +1105,19 @@ const fetch = createFetch(cache, {
   defaults: { cacheControlOverride: 's-maxage=300' },
 });
 ```
+
+### createCacheHandler / resolveWithCache
+
+For in-process origins (e.g. middleware `next()`). Same cache options as `createFetch`. On cache miss, origin throws propagate; during revalidation, throws become 5xx for `stale-if-error`.
+
+```typescript
+const handler = createCacheHandler(cache, {
+  cacheControlOverride: 's-maxage=60',
+});
+await handler.resolve(request, () => next(), { waitUntil });
+```
+
+Use `createFetch` for outbound HTTP; use `createCacheHandler` for in-process handlers.
 
 ### Key Interfaces
 
@@ -1228,6 +1252,8 @@ interface Cache {
 
 **`createFetch` vs `Cache`:** `createFetch` adds SWR, origin revalidation, and status headers. Bare `cache.match()` / `cache.put()` are storage-style APIs (expired entries return `undefined` without `createFetch`).
 
+**`createFetch` vs `createCacheHandler`:** Same caching core. `createFetch` wraps outbound `fetch`; `createCacheHandler` accepts an in-process origin callback.
+
 **Options Parameter Differences:**
 
 SharedCache's `CacheQueryOptions` interface differs from the standard Web Cache API:
@@ -1332,11 +1358,13 @@ When using SharedCache with meta-frameworks, you can develop with a consistent c
 2. Second query: Get actual response from variant cache key
 
 **Performance Impact:**
+
 - **Local Redis**: Minimal impact (0.2-1ms additional latency)
 - **Remote Redis**: Significant impact (4-20ms additional latency)
 - **Database storage**: High impact (10-50ms additional latency)
 
 **Recommendation for slow storage:**
+
 ```typescript
 // Disable Vary processing for better performance
 const fetch = createFetch(cache, {
@@ -1347,6 +1375,7 @@ const fetch = createFetch(cache, {
 ```
 
 **Trade-offs:**
+
 - **With Vary**: RFC compliant, supports content negotiation, but slower
 - **Without Vary**: Faster performance, but may serve incorrect content for requests with different headers
 

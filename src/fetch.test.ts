@@ -1,22 +1,13 @@
 /**
- * Comprehensive test suite for the shared cache fetch implementation.
+ * Integration tests for the shared cache fetch implementation.
  * Tests HTTP caching semantics, error handling, and edge cases according to RFC 7234.
- *
- * Test Coverage:
- * - HTTP cache control directives and semantics
- * - Vary header handling and cache variations
- * - Stale-while-revalidate and stale-if-error behavior
- * - HTTP method caching rules (GET, HEAD, POST, etc.)
- * - Status code caching policies
- * - Edge cases and error handling
- * - Performance and concurrent request handling
- * - Standards compliance with HTTP/1.1 and related RFCs
  */
 
 import { LRUCache } from 'lru-cache';
 import { KVStorage } from './types';
 import { createSharedCacheFetch } from './fetch';
 import { SharedCache } from './cache';
+import { SharedCacheStorage } from './cache-storage';
 import {
   BYPASS,
   CACHE_KEY_HEADER_NAME,
@@ -2392,5 +2383,39 @@ describe('Vary Header Handling', () => {
       const res3 = await fetch(TEST_URL);
       expect(res3.headers.get('x-cache-status')).toBe(HIT);
     });
+  });
+});
+
+describe('createSharedCacheFetch bootstrap', () => {
+  const originalCaches = globalThis.caches;
+
+  afterEach(() => {
+    globalThis.caches = originalCaches;
+  });
+
+  it('should throw when no cache instance is available', async () => {
+    globalThis.caches = undefined as unknown as SharedCacheStorage;
+    const fetch = createSharedCacheFetch();
+
+    await expect(fetch(TEST_URL)).rejects.toThrow(
+      'Cache is required. Provide a cache instance or ensure globalThis.caches is available.'
+    );
+  });
+
+  it('should auto-discover cache from global caches when none is provided', async () => {
+    const caches = new SharedCacheStorage(createCacheStore());
+    globalThis.caches = caches;
+    const fetch = createSharedCacheFetch(undefined, {
+      async fetch() {
+        return new Response('global-cache', {
+          headers: { 'cache-control': 'max-age=60' },
+        });
+      },
+    });
+
+    const response = await fetch(TEST_URL);
+
+    expect(response.headers.get('x-cache-status')).toBe(MISS);
+    expect(await response.text()).toBe('global-cache');
   });
 });

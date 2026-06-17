@@ -41,6 +41,9 @@ export {
   sharedCacheFetch as fetch,
 } from './fetch';
 
+// Middleware-friendly cache resolution
+export { createCacheHandler, resolveWithCache } from './resolve';
+
 // Cache key utilities
 export {
   createCacheKeyGenerator,
@@ -74,6 +77,11 @@ export type {
   SharedCacheQueryOptions,
   SharedCacheRequestInitProperties,
   SharedCacheStatus,
+  CacheOriginPhase,
+  CacheOriginContext,
+  CacheOriginHandler,
+  CacheResolveOptions,
+  CacheHandler,
 } from './types';
 
 export type { Logger } from './utils/logger';

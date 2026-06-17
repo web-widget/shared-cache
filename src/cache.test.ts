@@ -317,7 +317,9 @@ describe('SharedCache', () => {
     });
 
     it('should omit representation headers on conditional 304 responses', async () => {
-      const request = new Request('https://example.com/conditional-304-headers');
+      const request = new Request(
+        'https://example.com/conditional-304-headers'
+      );
       await cache.put(
         request,
         createTestResponse('cached data', 200, {
@@ -379,7 +381,9 @@ describe('SharedCache', () => {
     });
 
     it('should return 200 when If-Modified-Since is invalid', async () => {
-      const request = new Request('https://example.com/conditional-invalid-ims');
+      const request = new Request(
+        'https://example.com/conditional-invalid-ims'
+      );
       await cache.put(
         request,
         createTestResponse('cached data', 200, {
@@ -545,7 +549,8 @@ describe('SharedCache', () => {
       await new Promise((resolve) => setTimeout(resolve, 1100));
 
       const matched = await cache.match(request, {
-        _fetch: async () => new Response('Internal Server Error', { status: 500 }),
+        _fetch: async () =>
+          new Response('Internal Server Error', { status: 500 }),
       });
 
       expect(matched).toBeDefined();
