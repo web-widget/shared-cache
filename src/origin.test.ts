@@ -1,12 +1,3 @@
-/**
- * Unit tests for phase-aware cache origin invocation.
- *
- * Test division:
- * - `origin.test.ts` (this file): `invokeOrigin` / `toOriginFailureResponse` contracts.
- * - `resolve.test.ts`: `resolveWithCache` / `createCacheHandler` orchestration.
- * - `fetch.test.ts`: `createFetch` HTTP client integration and RFC 7234 end-to-end flows.
- */
-
 import { invokeOrigin, toOriginFailureResponse } from './origin';
 import type { CacheOriginContext, CacheOriginHandler } from './types';
 

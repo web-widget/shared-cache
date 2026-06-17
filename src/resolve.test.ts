@@ -1,12 +1,3 @@
-/**
- * Tests for middleware-friendly cache resolution APIs.
- *
- * Test division:
- * - `resolve.test.ts` (this file): `resolveWithCache` / `createCacheHandler`.
- * - `origin.test.ts`: phase-aware origin invocation (`invokeOrigin`).
- * - `fetch.test.ts`: `createFetch` HTTP client integration and RFC 7234 end-to-end flows.
- */
-
 import { LRUCache } from 'lru-cache';
 import { SharedCache } from './cache';
 import { BYPASS, DYNAMIC, HIT, MISS, STALE } from './constants';

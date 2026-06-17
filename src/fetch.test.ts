@@ -1,13 +1,6 @@
 /**
- * Integration tests for the `createFetch` HTTP client API.
- *
- * Test division:
- * - `fetch.test.ts` (this file): `createFetch` end-to-end HTTP caching semantics (RFC 7234).
- * - `resolve.test.ts`: `resolveWithCache` / `createCacheHandler` middleware orchestration.
- * - `origin.test.ts`: phase-aware origin invocation (`invokeOrigin`) unit tests.
- *
- * Miss-phase error propagation through `createFetch` is covered here at the integration
- * level. Phase-specific throw vs 5xx conversion is unit-tested in `origin.test.ts`.
+ * Integration tests for the shared cache fetch implementation.
+ * Tests HTTP caching semantics, error handling, and edge cases according to RFC 7234.
  */
 
 import { LRUCache } from 'lru-cache';
@@ -1871,8 +1864,6 @@ describe('Vary Header Handling', () => {
     });
 
     describe('Error Handling', () => {
-      // Integration coverage for createFetch miss propagation. See origin.test.ts
-      // for phase-specific throw vs 5xx conversion details.
       it('should handle network errors gracefully', async () => {
         const store = createCacheStore();
         const cache = new SharedCache(store);
