@@ -1,4 +1,8 @@
-import { modifyResponseHeaders, setResponseHeader } from './response';
+import {
+  encodeCacheKeyHeaderValue,
+  modifyResponseHeaders,
+  setResponseHeader,
+} from './response';
 
 describe('Response Utils', () => {
   describe('modifyResponseHeaders', () => {
@@ -12,9 +16,12 @@ describe('Response Utils', () => {
       });
 
       // When headers are mutable, should return the same response object
-      const modifiedResponse = modifyResponseHeaders(originalResponse, (headers) => {
-        headers.set('x-test', 'value');
-      });
+      const modifiedResponse = modifyResponseHeaders(
+        originalResponse,
+        (headers) => {
+          headers.set('x-test', 'value');
+        }
+      );
 
       // Should be the same object reference (no cloning)
       expect(modifiedResponse).toBe(originalResponse);
@@ -29,24 +36,31 @@ describe('Response Utils', () => {
         statusText: 'Created',
         headers: {
           'content-type': 'application/json',
-          'etag': '"abc123"',
+          etag: '"abc123"',
         },
       });
 
       // Mock headers.set to throw an error (simulating readonly headers)
-      const originalSet = originalResponse.headers.set.bind(originalResponse.headers);
+      const originalSet = originalResponse.headers.set.bind(
+        originalResponse.headers
+      );
       originalResponse.headers.set = () => {
         throw new Error('Cannot modify readonly headers');
       };
 
-      const modifiedResponse = modifyResponseHeaders(originalResponse, (headers) => {
-        headers.set('x-test', 'value');
-      });
+      const modifiedResponse = modifyResponseHeaders(
+        originalResponse,
+        (headers) => {
+          headers.set('x-test', 'value');
+        }
+      );
 
       // Should be different object when modification fails
       expect(modifiedResponse).not.toBe(originalResponse);
       expect(modifiedResponse.headers.get('x-test')).toBe('value');
-      expect(modifiedResponse.headers.get('content-type')).toBe('application/json');
+      expect(modifiedResponse.headers.get('content-type')).toBe(
+        'application/json'
+      );
       expect(modifiedResponse.headers.get('etag')).toBe('"abc123"');
       expect(modifiedResponse.status).toBe(201);
       expect(modifiedResponse.statusText).toBe('Created');
@@ -63,7 +77,7 @@ describe('Response Utils', () => {
         headers: {
           'content-type': 'text/plain; charset=utf-8',
           'content-length': originalBody.length.toString(),
-          'etag': '"abc123"',
+          etag: '"abc123"',
           'last-modified': 'Wed, 21 Oct 2015 07:28:00 GMT',
         },
       });
@@ -73,18 +87,27 @@ describe('Response Utils', () => {
         throw new Error('Headers are readonly');
       };
 
-      const modifiedResponse = modifyResponseHeaders(originalResponse, (headers) => {
-        headers.set('x-modified', 'true');
-        headers.set('x-timestamp', Date.now().toString());
-      });
+      const modifiedResponse = modifyResponseHeaders(
+        originalResponse,
+        (headers) => {
+          headers.set('x-modified', 'true');
+          headers.set('x-timestamp', Date.now().toString());
+        }
+      );
 
       // Verify all properties are preserved
       expect(modifiedResponse.status).toBe(201);
       expect(modifiedResponse.statusText).toBe('Created');
-      expect(modifiedResponse.headers.get('content-type')).toBe('text/plain; charset=utf-8');
-      expect(modifiedResponse.headers.get('content-length')).toBe(originalBody.length.toString());
+      expect(modifiedResponse.headers.get('content-type')).toBe(
+        'text/plain; charset=utf-8'
+      );
+      expect(modifiedResponse.headers.get('content-length')).toBe(
+        originalBody.length.toString()
+      );
       expect(modifiedResponse.headers.get('etag')).toBe('"abc123"');
-      expect(modifiedResponse.headers.get('last-modified')).toBe('Wed, 21 Oct 2015 07:28:00 GMT');
+      expect(modifiedResponse.headers.get('last-modified')).toBe(
+        'Wed, 21 Oct 2015 07:28:00 GMT'
+      );
       expect(modifiedResponse.headers.get('x-modified')).toBe('true');
       expect(modifiedResponse.headers.has('x-timestamp')).toBe(true);
       expect(await modifiedResponse.text()).toBe(originalBody);
@@ -95,12 +118,15 @@ describe('Response Utils', () => {
         headers: { 'content-type': 'text/plain' },
       });
 
-      const modifiedResponse = modifyResponseHeaders(originalResponse, (headers) => {
-        headers.set('x-cache', 'miss');
-        headers.set('x-served-by', 'shared-cache');
-        headers.append('vary', 'accept-encoding');
-        headers.delete('content-type');
-      });
+      const modifiedResponse = modifyResponseHeaders(
+        originalResponse,
+        (headers) => {
+          headers.set('x-cache', 'miss');
+          headers.set('x-served-by', 'shared-cache');
+          headers.append('vary', 'accept-encoding');
+          headers.delete('content-type');
+        }
+      );
 
       expect(modifiedResponse.headers.get('x-cache')).toBe('miss');
       expect(modifiedResponse.headers.get('x-served-by')).toBe('shared-cache');
@@ -119,9 +145,12 @@ describe('Response Utils', () => {
         throw new Error('Headers modification not allowed');
       };
 
-      const modifiedResponse = modifyResponseHeaders(originalResponse, (headers) => {
-        headers.set('x-error-test', 'true');
-      });
+      const modifiedResponse = modifyResponseHeaders(
+        originalResponse,
+        (headers) => {
+          headers.set('x-error-test', 'true');
+        }
+      );
 
       // Should create new response when modification fails
       expect(modifiedResponse).not.toBe(originalResponse);
@@ -137,7 +166,11 @@ describe('Response Utils', () => {
         headers: { 'content-type': 'text/plain' },
       });
 
-      const modifiedResponse = setResponseHeader(originalResponse, 'x-cache', 'hit');
+      const modifiedResponse = setResponseHeader(
+        originalResponse,
+        'x-cache',
+        'hit'
+      );
 
       // Should be the same object when headers are mutable
       expect(modifiedResponse).toBe(originalResponse);
@@ -157,7 +190,11 @@ describe('Response Utils', () => {
         throw new Error('Cannot set readonly header');
       };
 
-      const modifiedResponse = setResponseHeader(originalResponse, 'x-cache', 'miss');
+      const modifiedResponse = setResponseHeader(
+        originalResponse,
+        'x-cache',
+        'miss'
+      );
 
       // Should be different objects when headers are readonly
       expect(modifiedResponse).not.toBe(originalResponse);
@@ -225,13 +262,51 @@ describe('Response Utils', () => {
         throw new Error('Readonly headers');
       };
 
-      const modifiedResponse = modifyResponseHeaders(originalResponse, (headers) => {
-        headers.set('x-stream-test', 'true');
-      });
+      const modifiedResponse = modifyResponseHeaders(
+        originalResponse,
+        (headers) => {
+          headers.set('x-stream-test', 'true');
+        }
+      );
 
       // Body should still be readable
       expect(await modifiedResponse.text()).toBe(bodyContent);
       expect(modifiedResponse.headers.get('x-stream-test')).toBe('true');
+    });
+  });
+
+  describe('encodeCacheKeyHeaderValue', () => {
+    it('should leave ASCII cache keys unchanged', () => {
+      expect(encodeCacheKeyHeaderValue('localhost/?a=1')).toBe(
+        'localhost/?a=1'
+      );
+    });
+
+    it('should percent-encode control characters forbidden by Fetch', () => {
+      expect(encodeCacheKeyHeaderValue('a\0b')).toBe('a%00b');
+      expect(encodeCacheKeyHeaderValue('a\nb')).toBe('a%0Ab');
+      expect(encodeCacheKeyHeaderValue('a\rb')).toBe('a%0Db');
+    });
+
+    it('should percent-encode code points above Latin-1 for ByteString runtimes', () => {
+      expect(encodeCacheKeyHeaderValue('中文')).toBe('%E4%B8%AD%E6%96%87');
+      expect(encodeCacheKeyHeaderValue('😀')).toBe('%F0%9F%98%80');
+    });
+
+    it('should produce values accepted by Headers.set', () => {
+      const cases = [
+        'localhost/?q=hello%0Aworld',
+        'localhost/?q=hello\nworld',
+        'localhost/中文',
+        'evil\r\nX-Injected: true',
+      ];
+
+      for (const cacheKey of cases) {
+        const encoded = encodeCacheKeyHeaderValue(cacheKey);
+        const headers = new Headers();
+        expect(() => headers.set('x-cache-key', encoded)).not.toThrow();
+        expect(headers.get('x-cache-key')).toBe(encoded);
+      }
     });
   });
 });

@@ -10,6 +10,7 @@ import type {
   SharedCacheRequestInfo,
   SharedCacheStatus,
 } from './types';
+import type { CachePolicyObject } from '@web-widget/http-cache-semantics';
 import { createLogger, StructuredLogger } from './utils/logger';
 import {
   createCacheKeyGenerator,
@@ -23,6 +24,7 @@ import {
   HIT,
   REVALIDATED,
   STALE,
+  UPDATING,
 } from './constants';
 import { CachePolicy } from './utils/cache-semantics';
 
@@ -240,31 +242,32 @@ export class SharedCache implements WebCache {
     });
 
     const fetch = options?._fetch;
-    const policy = CachePolicy.fromObject(cacheItem.policy);
+    const policyObject = sanitizeStoredPolicy(cacheItem.policy);
+    const policy = CachePolicy.fromObject(policyObject);
 
     const { body, status, statusText } = cacheItem.response;
-    const headers = policy.responseHeaders();
+    const responseHeaders = policy.responseHeaders();
     const stale = policy.stale();
-    const response = new Response(body, {
-      status,
-      statusText,
-      headers,
-    });
-
-    // Check if the cached response satisfies the request without revalidation
-    if (
+    const needsRevalidation =
       !policy.satisfiesWithoutRevalidation(r, {
         ignoreRequestCacheControl: options?._ignoreRequestCacheControl,
         ignoreMethod: true,
         ignoreSearch: true,
         ignoreVary: true,
-      }) ||
-      stale
-    ) {
+      }) || stale;
+
+    if (needsRevalidation) {
+      const response = new Response(body, {
+        status,
+        statusText,
+        headers: responseHeaders,
+      });
+
       if (!fetch) {
         return;
-      } else if (stale && policy.useStaleWhileRevalidate()) {
-        // Serve stale response while revalidating in background
+      }
+
+      if (stale && policy.useStaleWhileRevalidate()) {
         const event = options?._event;
         const waitUntil =
           event?.waitUntil.bind(event) ??
@@ -284,40 +287,60 @@ export class SharedCache implements WebCache {
           this.#revalidate(
             r,
             {
-              response: response.clone(),
+              response,
               policy,
+              storedBody: body,
             },
             cacheKey,
             fetch,
             options
           )
         );
-        this.#setCacheStatus(response, STALE);
+        this.#setCacheStatus(response, UPDATING);
         this.#structuredLogger.info(
           'Serving stale response',
           {
             url: r.url,
             cacheKey,
-            cacheStatus: 'STALE',
+            cacheStatus: 'UPDATING',
           },
           'Revalidating in background'
         );
         return response;
-      } else {
-        // Revalidate synchronously
-        return this.#revalidate(
-          r,
-          {
-            response,
-            policy,
-          },
-          cacheKey,
-          fetch,
-          options
-        );
       }
+
+      return this.#revalidate(
+        r,
+        {
+          response,
+          policy,
+          storedBody: body,
+        },
+        cacheKey,
+        fetch,
+        options
+      );
     }
 
+    if (
+      hasConditionalRequestHeaders(r) &&
+      satisfiesConditionalRequest(r, responseHeaders)
+    ) {
+      const notModified = createNotModifiedResponse(responseHeaders);
+      this.#setCacheStatus(notModified, HIT);
+      this.#structuredLogger.info('Cache hit', {
+        url: r.url,
+        cacheKey,
+        cacheStatus: 'HIT',
+      });
+      return notModified;
+    }
+
+    const response = new Response(body, {
+      status,
+      statusText,
+      headers: responseHeaders,
+    });
     this.#setCacheStatus(response, HIT);
     this.#structuredLogger.info('Cache hit', {
       url: r.url,
@@ -573,18 +596,37 @@ export class SharedCache implements WebCache {
         revalidationResponse
       );
 
-    // Use new response if modified, otherwise use cached response
-    const response = modified
-      ? revalidationResponse
-      : resolveCacheItem.response;
+    let responseBody: string;
+    let responseStatus: number;
+    let responseStatusText: string;
 
-    // Store the updated response/policy in cache
-    await this.#putWithCustomCacheKey(request, response, cacheKey);
+    if (modified) {
+      responseBody = await revalidationResponse.clone().text();
+      responseStatus = revalidationResponse.status;
+      responseStatusText = revalidationResponse.statusText;
+    } else {
+      responseBody =
+        resolveCacheItem.storedBody ??
+        (await resolveCacheItem.response.clone().text());
+      responseStatus = resolveCacheItem.response.status;
+      responseStatusText = resolveCacheItem.response.statusText;
+    }
 
-    // Create response with updated headers from revalidated policy
-    const clonedResponse = new Response(response.body, {
-      status: response.status,
-      statusText: response.statusText,
+    // Persist the revalidated policy — do not rebuild policy from stale response headers
+    await this.#storeRevalidatedCacheItem(
+      request,
+      revalidatedPolicy,
+      {
+        body: responseBody,
+        status: responseStatus,
+        statusText: responseStatusText,
+      },
+      cacheKey
+    );
+
+    const clonedResponse = new Response(responseBody, {
+      status: responseStatus,
+      statusText: responseStatusText,
       headers: revalidatedPolicy.responseHeaders(),
     });
 
@@ -600,6 +642,20 @@ export class SharedCache implements WebCache {
         },
         'Serving fresh response'
       );
+    } else if (
+      isErrorResponse(revalidationResponse) &&
+      resolveCacheItem.policy.useStaleIfError()
+    ) {
+      this.#setCacheStatus(clonedResponse, STALE);
+      this.#structuredLogger.info(
+        'Serving stale response',
+        {
+          url: request.url,
+          cacheKey,
+          cacheStatus: 'STALE',
+        },
+        'Origin error within stale-if-error window'
+      );
     } else {
       this.#setCacheStatus(clonedResponse, REVALIDATED);
       this.#structuredLogger.info(
@@ -614,6 +670,54 @@ export class SharedCache implements WebCache {
     }
 
     return clonedResponse;
+  }
+
+  /**
+   * Stores a revalidated cache entry using the policy from revalidatedPolicy().
+   * Avoids rebuilding CachePolicy from response headers, which would persist stale Age values.
+   */
+  async #storeRevalidatedCacheItem(
+    request: Request,
+    revalidatedPolicy: CachePolicy,
+    response: { body: string; status: number; statusText: string },
+    cacheKey: string
+  ): Promise<void> {
+    const ttl = revalidatedPolicy.timeToLive();
+    const storable = revalidatedPolicy.storable();
+
+    if (!storable || ttl <= 0) {
+      this.#structuredLogger.debug(
+        'Revalidated response not cacheable',
+        {
+          url: request.url,
+          storable,
+          ttl,
+          status: response.status,
+        },
+        storable ? 'TTL is zero/negative' : 'Policy indicates not storable'
+      );
+      return;
+    }
+
+    const cacheItem: CacheItem = {
+      policy: revalidatedPolicy.toObject(),
+      response,
+    };
+
+    const responseForVary = new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: revalidatedPolicy.responseHeaders(),
+    });
+
+    await setCacheItem(
+      this.#storage,
+      cacheKey,
+      cacheItem,
+      ttl,
+      request as SharedCacheRequest,
+      responseForVary
+    );
   }
 
   /**
@@ -670,6 +774,106 @@ export class SharedCache implements WebCache {
   #getFieldValues(header: string): string[] {
     return header.split(',').map((value) => value.trim());
   }
+}
+
+/**
+ * Removes computed Age from stored policy metadata.
+ * Age is added at response time via responseHeaders(), not persisted in cache policy.
+ */
+function sanitizeStoredPolicy(policy: CachePolicyObject): CachePolicyObject {
+  if (!policy.resh || policy.resh.age === undefined) {
+    return policy;
+  }
+
+  const resh = { ...policy.resh };
+  delete resh.age;
+  return { ...policy, resh };
+}
+
+function hasConditionalRequestHeaders(request: Request): boolean {
+  return (
+    request.headers.has('if-none-match') ||
+    request.headers.has('if-modified-since')
+  );
+}
+
+/**
+ * Returns true when conditional request headers are satisfied by cached response headers.
+ * Matches Cloudflare Cache API behavior for If-None-Match and If-Modified-Since on match().
+ */
+function satisfiesConditionalRequest(
+  request: Request,
+  responseHeaders: Headers
+): boolean {
+  const ifNoneMatch = request.headers.get('if-none-match');
+
+  if (ifNoneMatch) {
+    const cachedEtag = responseHeaders.get('etag');
+    if (!cachedEtag) {
+      return false;
+    }
+    if (ifNoneMatch.trim() === '*') {
+      return true;
+    }
+
+    const cachedTag = normalizeEntityTag(cachedEtag);
+    return ifNoneMatch.split(',').some((tag) => {
+      return normalizeEntityTag(tag) === cachedTag;
+    });
+  }
+
+  const ifModifiedSince = request.headers.get('if-modified-since');
+  if (ifModifiedSince) {
+    const lastModified = responseHeaders.get('last-modified');
+    if (!lastModified) {
+      return false;
+    }
+
+    const ifModifiedSinceTime = Date.parse(ifModifiedSince);
+    const lastModifiedTime = Date.parse(lastModified);
+    if (
+      !Number.isFinite(ifModifiedSinceTime) ||
+      !Number.isFinite(lastModifiedTime)
+    ) {
+      return false;
+    }
+
+    return lastModifiedTime <= ifModifiedSinceTime;
+  }
+
+  return false;
+}
+
+function normalizeEntityTag(tag: string): string {
+  return tag.trim().replace(/^\s*W\//, '');
+}
+
+/** Headers that must not appear on 304 responses (RFC 7232). */
+const NOT_MODIFIED_OMIT_HEADERS = new Set([
+  'content-length',
+  'content-type',
+  'content-encoding',
+  'transfer-encoding',
+]);
+
+function createNotModifiedResponse(responseHeaders: Headers): Response {
+  const headers = new Headers();
+
+  responseHeaders.forEach((value, name) => {
+    if (!NOT_MODIFIED_OMIT_HEADERS.has(name.toLowerCase())) {
+      headers.set(name, value);
+    }
+  });
+
+  return new Response(null, {
+    status: 304,
+    statusText: 'Not Modified',
+    headers,
+  });
+}
+
+function isErrorResponse(response: Response): boolean {
+  return response.status >= 500;
 }
 
 /**

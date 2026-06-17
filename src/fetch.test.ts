@@ -24,7 +24,7 @@ import {
   EXPIRED,
   HIT,
   MISS,
-  STALE,
+  UPDATING,
 } from './constants';
 
 const TEST_URL = 'http://localhost/';
@@ -722,6 +722,31 @@ describe('Response Body Caching', () => {
     expect(res.status).toBe(200);
     expect(await cachedRes?.text()).toBe('lol');
   });
+
+  it('should return 304 when the client sends a matching If-None-Match', async () => {
+    const store = createCacheStore();
+    const cache = new SharedCache(store);
+    const fetch = createSharedCacheFetch(cache, {
+      async fetch() {
+        return new Response('lol', {
+          headers: {
+            'cache-control': 'max-age=300',
+            etag: '"v1"',
+          },
+        });
+      },
+    });
+
+    await fetch(TEST_URL);
+
+    const res = await fetch(TEST_URL, {
+      headers: { 'if-none-match': '"v1"' },
+    });
+
+    expect(res.status).toBe(304);
+    expect(await res.text()).toBe('');
+    expect(res.headers.get('x-cache-status')).toBe(HIT);
+  });
 });
 
 /**
@@ -1319,7 +1344,7 @@ describe('Vary Header Handling', () => {
         const res = await fetch(req);
 
         expect(res.status).toBe(200);
-        expect(res.headers.get('x-cache-status')).toBe(STALE);
+        expect(res.headers.get('x-cache-status')).toBe(UPDATING);
         expect(res.headers.get('age')).toBe('1');
         expect(await res.text()).toBe('Hello 0');
 
@@ -1338,6 +1363,49 @@ describe('Vary Header Handling', () => {
         expect(res.headers.get('x-cache-status')).toBe(HIT);
         expect(res.headers.get('age')).toBe('0');
         expect(await res.text()).toBe('Hello 1');
+      });
+    });
+
+    describe('when revalidation returns 304', () => {
+      let fetchCount = 0;
+      const store = createCacheStore();
+      const cache = new SharedCache(store);
+      const fetch = createSharedCacheFetch(cache, {
+        async fetch() {
+          fetchCount++;
+          if (fetchCount === 1) {
+            return new Response('page body', {
+              status: 200,
+              headers: {
+                'cache-control': 'max-age=1, stale-while-revalidate=300',
+                etag: '"v1"',
+              },
+            });
+          }
+          return new Response(null, {
+            status: 304,
+            headers: { etag: '"v1"' },
+          });
+        },
+      });
+
+      it('should return HIT after background 304 revalidation completes', async () => {
+        const req = new Request(TEST_URL);
+
+        await fetch(req);
+        await timeout(1100);
+
+        const staleRes = await fetch(req);
+        expect(staleRes.headers.get('x-cache-status')).toBe(UPDATING);
+        expect(await staleRes.text()).toBe('page body');
+
+        await timeout(50);
+
+        const freshRes = await fetch(req);
+        expect(freshRes.headers.get('x-cache-status')).toBe(HIT);
+        expect(freshRes.headers.get('age')).toBe('0');
+        expect(await freshRes.text()).toBe('page body');
+        expect(fetchCount).toBe(2);
       });
     });
 
@@ -1450,7 +1518,7 @@ describe('Vary Header Handling', () => {
         });
 
         expect(res.status).toBe(200);
-        expect(res.headers.get('x-cache-status')).toBe(STALE);
+        expect(res.headers.get('x-cache-status')).toBe(UPDATING);
         expect(res.headers.get('age')).toBe('1');
         expect(await res.text()).toBe('Hello 0');
 
@@ -1462,14 +1530,17 @@ describe('Vary Header Handling', () => {
         });
 
         expect(res.status).toBe(200);
-        expect(res.headers.get('x-cache-status')).toBe(STALE);
+        expect(res.headers.get('x-cache-status')).toBe(UPDATING);
         expect(res.headers.get('age')).toBe('1');
         expect(await res.text()).toBe('Hello 0');
+
+        // Allow background revalidation from the first stale response to finish
+        await timeout(100);
       });
 
       it('step 4: should bypass caching when errors last too long', async () => {
-        // NOTE: Simulation exceeds max age
-        await timeout(1008);
+        // Exceed max-age and stale-if-error after the refreshed entry was stored
+        await timeout(2100);
 
         const req = new Request(TEST_URL);
         const res = await fetch(req, {
@@ -1909,6 +1980,31 @@ describe('Vary Header Handling', () => {
         expect(response.headers.get(CACHE_KEY_HEADER_NAME)).toMatch(
           /^localhost\/:accept-language=[a-f0-9]{6}$/
         );
+      });
+
+      it('should percent-encode cache key characters illegal in header values', async () => {
+        const store = createCacheStore();
+        const cache = new SharedCache(store);
+        const fetch = createSharedCacheFetch(cache, {
+          async fetch() {
+            return new Response('encoded cache key', {
+              headers: {
+                'cache-control': 'max-age=300',
+              },
+            });
+          },
+        });
+
+        const url = 'http://localhost/?q=hello%0Aworld';
+        const response = await fetch(url, {
+          sharedCache: { debugCacheKey: true },
+        });
+
+        const cacheKeyHeader = response.headers.get(CACHE_KEY_HEADER_NAME);
+        expect(cacheKeyHeader).toBe('localhost/?q=hello%0Aworld');
+        expect(() =>
+          new Headers().set(CACHE_KEY_HEADER_NAME, cacheKeyHeader!)
+        ).not.toThrow();
       });
 
       it('should respect ignoreRequestCacheControl option', async () => {

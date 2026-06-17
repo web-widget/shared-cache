@@ -96,4 +96,5 @@ export {
   MISS,
   REVALIDATED,
   STALE,
+  UPDATING,
 } from './constants';
