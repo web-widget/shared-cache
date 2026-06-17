@@ -7,7 +7,7 @@ import { LRUCache } from 'lru-cache';
 import { KVStorage } from './types';
 import { createSharedCacheFetch } from './fetch';
 import { SharedCache } from './cache';
-import { SharedCacheStorage } from './cache-storage';
+import { SharedCacheStorage } from './storage';
 import {
   BYPASS,
   CACHE_KEY_HEADER_NAME,

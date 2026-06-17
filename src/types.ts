@@ -3,22 +3,47 @@
  * Package-level type barrel. Domain types (cache key, logger) are defined in
  * their modules and re-exported here; `index.ts` exposes types only via this file.
  *
- * Constants: HTTP/status → `constants.ts`; cache-key defaults → `cache-key.ts`.
+ * Constants: HTTP/status → `constants.ts`; key defaults → `key.ts` (`DEFAULT_CACHE_KEY_RULES`).
  */
 import CachePolicy, {
   CachePolicyObject,
 } from '@web-widget/http-cache-semantics';
-import type { SharedCacheKeyRules } from './cache-key';
 import type { Logger } from './utils/logger';
 
-/** Public type surface — re-exported from the package entry via `./types`. */
-export type {
-  CacheKeyGenerator,
-  FilterOptions,
-  SharedCacheKeyRules,
-} from './cache-key';
 export type { Logger } from './utils/logger';
-export type { SharedCacheStatus } from './constants';
+export type { CacheStatus } from './constants';
+
+/**
+ * Filter options for controlling which keys to include/exclude in cache key generation.
+ */
+export interface KeyFilterOptions {
+  /** Array of keys to explicitly include in the cache key */
+  include?: string[];
+  /** Array of keys to explicitly exclude from the cache key */
+  exclude?: string[];
+  /** Array of keys to check for presence only (value set to empty string) */
+  checkPresence?: string[];
+}
+
+/**
+ * Configuration rules for generating cache keys.
+ * Each property can be `true`, `false`, or {@link KeyFilterOptions}.
+ */
+export interface CacheKeyRules {
+  cookie?: KeyFilterOptions | boolean;
+  device?: KeyFilterOptions | boolean;
+  header?: KeyFilterOptions | boolean;
+  scheme?: KeyFilterOptions | boolean;
+  host?: KeyFilterOptions | boolean;
+  pathname?: KeyFilterOptions | boolean;
+  search?: KeyFilterOptions | boolean;
+}
+
+/** Cache key generator with an optional synchronous fast path for URL-only rules. */
+export interface CacheKeyGenerator {
+  (request: Request, cacheKeyRules?: CacheKeyRules): Promise<string>;
+  sync: (request: Request, cacheKeyRules?: CacheKeyRules) => string | undefined;
+}
 
 /** @internal URL normalization options passed via `SharedCacheOptions._cacheKeyNormalize`. */
 interface CacheKeyNormalizeOptions {
@@ -30,7 +55,7 @@ interface CacheKeyNormalizeOptions {
 /**
  * Log context structure for SharedCache operations
  */
-export interface SharedCacheLogContext {
+export interface CacheLogContext {
   /** The URL being processed */
   url?: string;
   /** Cache key involved in the operation */
@@ -74,7 +99,7 @@ export interface SharedCacheOptions {
    * Rules for generating cache keys from requests.
    * Controls which parts of the request are used in the cache key.
    */
-  cacheKeyRules?: SharedCacheKeyRules;
+  cacheKeyRules?: CacheKeyRules;
 
   /**
    * URL normalization applied before cache key generation.
@@ -143,7 +168,7 @@ export interface CacheItem {
 /**
  * Policy response pair used in revalidation.
  */
-export interface PolicyResponse {
+export interface CachePolicyResponse {
   /** The cache policy instance */
   policy: CachePolicy;
   /** The cached response */
@@ -220,7 +245,7 @@ export interface SharedCacheRequestInitProperties {
    * Custom cache key rules for this specific request.
    * Overrides default cache key generation rules.
    */
-  cacheKeyRules?: SharedCacheKeyRules;
+  cacheKeyRules?: CacheKeyRules;
 
   /**
    * Whether to ignore request cache-control headers.

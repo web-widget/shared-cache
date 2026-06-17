@@ -2,7 +2,7 @@
  * HTTP header names and cache-status values for SharedCache.
  *
  * Cache-key domain constants (`DEFAULT_CACHE_KEY_RULES`, `CANNOT_INCLUDE_HEADERS`)
- * live in `cache-key.ts` and are re-exported from the package entry.
+ * live in `key.ts` and are re-exported from the package entry.
  */
 
 /** HTTP header name for cache status information. */
@@ -32,7 +32,7 @@ export const SHARED_CACHE_STATUS = {
 } as const;
 
 /** Cache status values as defined in HTTP caching standards. */
-export type SharedCacheStatus =
+export type CacheStatus =
   (typeof SHARED_CACHE_STATUS)[keyof typeof SHARED_CACHE_STATUS];
 
 export const HIT = SHARED_CACHE_STATUS.HIT;

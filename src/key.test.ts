@@ -1,10 +1,5 @@
-import {
-  CANNOT_INCLUDE_HEADERS,
-  createCacheKeyGenerator,
-  header,
-  vary,
-  type SharedCacheKeyRules,
-} from './cache-key';
+import { CANNOT_INCLUDE_HEADERS, createCacheKeyGenerator } from './key';
+import type { CacheKeyRules } from './types';
 
 it('should support base: host + pathname + search', async () => {
   const keyGenerator = createCacheKeyGenerator();
@@ -524,104 +519,10 @@ describe('should reject unknown cache key parts', () => {
     await expect(() =>
       keyGenerator(new Request('http://localhost/'), {
         foo: true,
-      } as SharedCacheKeyRules)
+      } as CacheKeyRules)
     ).rejects.toThrow(
       'Unknown cache key part: "foo". Use built-in parts (scheme, host, pathname, search, cookie, device, header).'
     );
-  });
-});
-
-describe('get header part', () => {
-  it('should include all', async () => {
-    const key = await header(
-      new Request('http://localhost/?a=1', {
-        headers: {
-          a: '1',
-          b: '2',
-          c: '3',
-        },
-      })
-    );
-    expect(key).toBe('a&b&c@147cb5937edc2fa8cb06a802bf0d64e0419a0fb1');
-  });
-
-  it('should include some', async () => {
-    const key = await header(
-      new Request('http://localhost/?a=1', {
-        headers: {
-          a: '1',
-          b: '2',
-          c: '3',
-        },
-      }),
-      {
-        include: ['a', 'b'],
-      }
-    );
-    expect(key).toBe('a&b@d53cf64e768f4ef09c806bbe12258c78211b2690');
-  });
-
-  it('should ignore case when filtering', async () => {
-    const key = await header(
-      new Request('http://localhost/?a=1', {
-        headers: {
-          a: '1',
-          b: '2',
-          c: '3',
-        },
-      }),
-      {
-        include: ['A', 'B'],
-      }
-    );
-    expect(key).toBe('a&b@d53cf64e768f4ef09c806bbe12258c78211b2690');
-  });
-});
-
-describe('get vary part', () => {
-  it('should include all', async () => {
-    const key = await vary(
-      new Request('http://localhost/?a=1', {
-        headers: {
-          a: '1',
-          b: '2',
-          c: '3',
-        },
-      })
-    );
-    expect(key).toBe('a&b&c@147cb5937edc2fa8cb06a802bf0d64e0419a0fb1');
-  });
-
-  it('should include some', async () => {
-    const key = await vary(
-      new Request('http://localhost/?a=1', {
-        headers: {
-          a: '1',
-          b: '2',
-          c: '3',
-        },
-      }),
-      {
-        include: ['a', 'b'],
-      }
-    );
-    expect(key).toBe('a&b@d53cf64e768f4ef09c806bbe12258c78211b2690');
-  });
-
-  it('should ignore case when filtering', async () => {
-    const key = await vary(
-      new Request('http://localhost/?a=1', {
-        headers: {
-          a: '1',
-          b: '2',
-          c: '3',
-        },
-      }),
-      {
-        include: ['A', 'B'],
-      }
-    );
-    expect(key).toBe('a&b@d53cf64e768f4ef09c806bbe12258c78211b2690');
   });
 });
 

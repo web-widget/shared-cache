@@ -1,4 +1,4 @@
-import { cacheControl } from './cache-control';
+import { cacheControl } from './control';
 
 it('should append cache control headers', () => {
   const headers = new Headers();

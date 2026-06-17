@@ -1,47 +1,21 @@
+import { appendVaryKeySuffix, parseVaryHeader } from './key';
+import { vary as appendVaryResponseHeader } from './utils/vary';
+import { cacheControl } from './utils/control';
 import {
-  CACHE_KEY_VARY_SEPARATOR,
-  getCacheKeyContext,
-  vary as getVaryCachePart,
-} from './cache-key';
-import { vary } from './utils/vary';
-import { cacheControl } from './utils/cache-control';
-import {
+  applyCacheStatus,
   encodeCacheKeyHeaderValue,
   modifyResponseHeaders,
   setResponseHeader,
 } from './utils/response';
 import { invokeOrigin } from './origin';
 import { SharedCache } from './cache';
-import {
-  CACHE_KEY_HEADER_NAME,
-  BYPASS,
-  CACHE_STATUS_HEADER_NAME,
-  DYNAMIC,
-  HIT,
-  MISS,
-} from './constants';
+import { CACHE_KEY_HEADER_NAME, BYPASS, DYNAMIC, HIT, MISS } from './constants';
 import type {
   CacheHandler,
   CacheOriginHandler,
   CacheResolveOptions,
   SharedCacheRequest,
-  SharedCacheStatus,
 } from './types';
-
-/**
- * Sets cache status header on a response if not already present.
- *
- * @internal
- */
-function setCacheStatus(
-  response: Response,
-  status: SharedCacheStatus
-): Response {
-  if (!response.headers.has(CACHE_STATUS_HEADER_NAME)) {
-    return setResponseHeader(response, CACHE_STATUS_HEADER_NAME, status);
-  }
-  return response;
-}
 
 /**
  * Sets cache key header on a response for debugging.
@@ -57,41 +31,6 @@ function setCacheKey(response: Response, cacheKey?: string): Response {
     );
   }
   return response;
-}
-
-/**
- * Resolves effective cache key by applying response Vary rules.
- *
- * @internal
- */
-async function getEffectiveCacheKey(
-  request: Request,
-  response: Response,
-  cacheKey: string | undefined,
-  ignoreVary: boolean | undefined
-): Promise<string | undefined> {
-  if (!cacheKey || ignoreVary) {
-    return cacheKey;
-  }
-
-  const varyHeader = response.headers.get('vary');
-  if (!varyHeader || varyHeader === '*') {
-    return cacheKey;
-  }
-
-  const include = varyHeader
-    .split(',')
-    .map((field) => field.trim().toLowerCase())
-    .filter(Boolean);
-  if (!include.length) {
-    return cacheKey;
-  }
-
-  getCacheKeyContext(request);
-  const varyPart = await getVaryCachePart(request, { include });
-  return varyPart
-    ? `${cacheKey}${CACHE_KEY_VARY_SEPARATOR}${varyPart}`
-    : cacheKey;
 }
 
 /**
@@ -116,12 +55,30 @@ function applyResponseHeaderOverrides(
 
       // Override Vary header if specified
       if (varyOverride) {
-        vary(headers, varyOverride);
+        appendVaryResponseHeader(headers, varyOverride);
       }
     });
   }
 
   return response;
+}
+
+async function appendDebugCacheKey(
+  request: Request,
+  baseKey: string | undefined,
+  response: Response,
+  ignoreVary: boolean | undefined
+): Promise<string | undefined> {
+  if (!baseKey || ignoreVary) {
+    return baseKey;
+  }
+
+  const varyHeader = response.headers.get('vary');
+  if (!varyHeader || varyHeader === '*') {
+    return baseKey;
+  }
+
+  return appendVaryKeySuffix(request, baseKey, parseVaryHeader(varyHeader));
 }
 
 /**
@@ -213,13 +170,18 @@ export async function resolveWithCache(
 
   // Return cached response if available
   if (cachedResponse) {
-    const effectiveCacheKey = await getEffectiveCacheKey(
-      request,
-      cachedResponse,
-      debugCacheKey,
-      sharedCacheOptions.ignoreVary
+    const effectiveCacheKey = debugCacheKey
+      ? await appendDebugCacheKey(
+          request,
+          debugCacheKey,
+          cachedResponse,
+          sharedCacheOptions.ignoreVary
+        )
+      : debugCacheKey;
+    return setCacheKey(
+      applyCacheStatus(cachedResponse, HIT, { copy: true }),
+      effectiveCacheKey
     );
-    return setCacheKey(setCacheStatus(cachedResponse, HIT), effectiveCacheKey);
   }
 
   // Fetch from origin on cache miss and attempt to cache
@@ -239,7 +201,7 @@ export async function resolveWithCache(
     // Check if response should bypass cache
     if (bypassCache(responseCacheControl)) {
       return setCacheKey(
-        setCacheStatus(fetchedResponse, BYPASS),
+        applyCacheStatus(fetchedResponse, BYPASS, { copy: true }),
         debugCacheKey
       );
     }
@@ -249,22 +211,28 @@ export async function resolveWithCache(
       () => true,
       () => false
     );
-    const effectiveCacheKey = cacheSuccess
-      ? await getEffectiveCacheKey(
-          request,
-          fetchedResponse,
-          debugCacheKey,
-          sharedCacheOptions.ignoreVary
-        )
-      : debugCacheKey;
+    const effectiveCacheKey =
+      cacheSuccess && debugCacheKey
+        ? await appendDebugCacheKey(
+            request,
+            debugCacheKey,
+            fetchedResponse,
+            sharedCacheOptions.ignoreVary
+          )
+        : debugCacheKey;
     return setCacheKey(
-      setCacheStatus(fetchedResponse, cacheSuccess ? MISS : DYNAMIC),
+      applyCacheStatus(fetchedResponse, cacheSuccess ? MISS : DYNAMIC, {
+        copy: true,
+      }),
       effectiveCacheKey
     );
   }
 
   // No Cache-Control header - mark as dynamic content
-  return setCacheKey(setCacheStatus(fetchedResponse, DYNAMIC), debugCacheKey);
+  return setCacheKey(
+    applyCacheStatus(fetchedResponse, DYNAMIC, { copy: true }),
+    debugCacheKey
+  );
 }
 
 /**

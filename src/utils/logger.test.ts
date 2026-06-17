@@ -1,15 +1,9 @@
-import {
-  createLogger,
-  LogLevel,
-  StructuredLogger,
-  createSharedCacheLogger,
-  Logger,
-} from './logger';
-import type { SharedCacheLogContext } from '../types';
+import { createLogger, LogLevel, StructuredLogger, Logger } from './logger';
+import type { CacheLogContext } from '../types';
 
 describe('StructuredLogger', () => {
   let mockLogger: Logger;
-  let loggerInstance: StructuredLogger<SharedCacheLogContext>;
+  let loggerInstance: StructuredLogger<CacheLogContext>;
   let mockCalls: {
     [key: string]: Array<{ message: unknown; params: unknown[] }>;
   };
@@ -31,7 +25,7 @@ describe('StructuredLogger', () => {
         mockCalls.error.push({ message, params });
       },
     };
-    loggerInstance = createLogger<SharedCacheLogContext>(
+    loggerInstance = createLogger<CacheLogContext>(
       mockLogger,
       LogLevel.DEBUG,
       'SharedCache'
@@ -153,14 +147,6 @@ describe('StructuredLogger', () => {
   });
 
   describe('Utility Methods', () => {
-    it('should check if logging is available', () => {
-      expect(loggerInstance.canLog(LogLevel.DEBUG)).toBe(true);
-      expect(loggerInstance.canLog(LogLevel.ERROR)).toBe(true);
-
-      const noLogger = createLogger(undefined);
-      expect(noLogger.canLog(LogLevel.INFO)).toBe(false);
-    });
-
     it('should create logger with different level', () => {
       const warnLogger = loggerInstance.withLevel(LogLevel.WARN);
 
@@ -202,65 +188,6 @@ describe('StructuredLogger', () => {
         noLogger.error('test');
       }).not.toThrow();
     });
-  });
-});
-
-describe('SharedCache Backward Compatibility', () => {
-  let mockLogger: Logger;
-  let mockCalls: {
-    [key: string]: Array<{ message: unknown; params: unknown[] }>;
-  };
-
-  beforeEach(() => {
-    mockCalls = { info: [], warn: [], debug: [], error: [] };
-
-    mockLogger = {
-      info: (message: unknown, ...params: unknown[]) => {
-        mockCalls.info.push({ message, params });
-      },
-      warn: (message: unknown, ...params: unknown[]) => {
-        mockCalls.warn.push({ message, params });
-      },
-      debug: (message: unknown, ...params: unknown[]) => {
-        mockCalls.debug.push({ message, params });
-      },
-      error: (message: unknown, ...params: unknown[]) => {
-        mockCalls.error.push({ message, params });
-      },
-    };
-  });
-
-  it('should maintain SharedCache prefix compatibility with createSharedCacheLogger', () => {
-    const sharedCacheLogger = createSharedCacheLogger(
-      mockLogger,
-      LogLevel.DEBUG
-    );
-
-    sharedCacheLogger.info('test operation', { url: 'http://example.com' });
-
-    expect(mockCalls.info).toEqual([
-      {
-        message: 'SharedCache: test operation',
-        params: [{ url: 'http://example.com' }],
-      },
-    ]);
-  });
-
-  it('should allow creating SharedCache logger using createLogger with prefix', () => {
-    const sharedCacheLogger = createLogger(
-      mockLogger,
-      LogLevel.DEBUG,
-      'SharedCache'
-    );
-
-    sharedCacheLogger.warn('cache miss', { cacheKey: 'test' }, 'Key not found');
-
-    expect(mockCalls.warn).toEqual([
-      {
-        message: 'SharedCache: cache miss - Key not found',
-        params: [{ cacheKey: 'test' }],
-      },
-    ]);
   });
 });
 

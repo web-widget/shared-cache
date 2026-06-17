@@ -33,7 +33,7 @@
  */
 
 export { SharedCache as Cache } from './cache';
-export { SharedCacheStorage as CacheStorage } from './cache-storage';
+export { SharedCacheStorage as CacheStorage } from './storage';
 
 export {
   createSharedCacheFetch as createFetch,
@@ -46,32 +46,26 @@ export {
   createCacheKeyGenerator,
   DEFAULT_CACHE_KEY_RULES,
   CANNOT_INCLUDE_HEADERS,
-} from './cache-key';
+} from './key';
 
-export {
-  createLogger,
-  createSharedCacheLogger,
-  StructuredLogger,
-  SharedCacheLogger, // backward compatibility alias
-  LogLevel,
-} from './utils/logger';
+export { createLogger, StructuredLogger, LogLevel } from './utils/logger';
 
 export type {
   KVStorage,
-  SharedCacheLogContext,
+  CacheLogContext,
   SharedCacheFetch,
   SharedCacheOptions,
   SharedCacheQueryOptions,
   SharedCacheRequestInitProperties,
-  SharedCacheStatus,
+  CacheStatus,
   CacheOriginPhase,
   CacheOriginContext,
   CacheOriginHandler,
   CacheResolveOptions,
   CacheHandler,
   CacheKeyGenerator,
-  FilterOptions,
-  SharedCacheKeyRules,
+  KeyFilterOptions,
+  CacheKeyRules,
   Logger,
 } from './types';
 
