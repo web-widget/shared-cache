@@ -948,7 +948,7 @@ const cache = new SharedCache(storage, {
 All log messages include structured context data:
 
 ```typescript
-interface SharedCacheLogContext {
+interface CacheLogContext {
   url?: string; // Request URL
   cacheKey?: string; // Generated cache key
   status?: number; // HTTP status code
@@ -1065,7 +1065,7 @@ const alertingLogger = {
 
 - `KVStorage` - Storage backend interface
 - `SharedCacheRequestInitProperties` - Request cache configuration
-- `SharedCacheKeyRules` - Cache key generation rules
+- `CacheKeyRules` - Cache key generation rules
 
 ---
 
@@ -1122,7 +1122,7 @@ Request-level cache configuration:
 ```typescript
 interface SharedCacheRequestInitProperties {
   cacheControlOverride?: string;
-  cacheKeyRules?: SharedCacheKeyRules;
+  cacheKeyRules?: CacheKeyRules;
   ignoreRequestCacheControl?: boolean;
   ignoreVary?: boolean;
   varyOverride?: string;
@@ -1130,16 +1130,16 @@ interface SharedCacheRequestInitProperties {
 }
 ```
 
-#### SharedCacheKeyRules
+#### CacheKeyRules
 
 Cache key generation rules:
 
 ```typescript
-interface SharedCacheKeyRules {
-  cookie?: FilterOptions | boolean;
-  device?: FilterOptions | boolean;
-  header?: FilterOptions | boolean;
-  search?: FilterOptions | boolean;
+interface CacheKeyRules {
+  cookie?: KeyFilterOptions | boolean;
+  device?: KeyFilterOptions | boolean;
+  header?: KeyFilterOptions | boolean;
+  search?: KeyFilterOptions | boolean;
 }
 ```
 
@@ -1185,7 +1185,7 @@ Creates a structured logger with level filtering and optional prefix.
 #### Cache Status Values
 
 ```typescript
-type SharedCacheStatus =
+type CacheStatus =
   | 'HIT'
   | 'MISS'
   | 'EXPIRED'

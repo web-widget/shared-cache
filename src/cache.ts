@@ -2,38 +2,32 @@ import type {
   CacheItem,
   WebCache,
   KVStorage,
-  PolicyResponse,
-  SharedCacheLogContext,
+  CachePolicyResponse,
+  CacheLogContext,
   SharedCacheOptions,
   SharedCacheQueryOptions,
   SharedCacheRequest,
   SharedCacheRequestInfo,
-  SharedCacheStatus,
 } from './types';
 import type { CachePolicyObject } from '@web-widget/http-cache-semantics';
+import CachePolicy from '@web-widget/http-cache-semantics';
 import { createLogger, StructuredLogger } from './utils/logger';
 import {
-  CACHE_KEY_VARY_META_SUFFIX,
-  CACHE_KEY_VARY_SEPARATOR,
+  appendVaryKeySuffix,
   createCacheKeyGenerator,
   DEFAULT_CACHE_KEY_RULES,
-  getCacheKeyContext,
-  vary as getVary,
-} from './cache-key';
-import type {
-  CacheKeyGenerator,
-  FilterOptions,
-  SharedCacheKeyRules,
-} from './cache-key';
+  readStoredVaryFilter,
+  writeStoredVaryFilter,
+} from './key';
+import type { CacheKeyGenerator, CacheKeyRules } from './types';
 import {
-  CACHE_STATUS_HEADER_NAME,
-  EXPIRED,
-  HIT,
-  REVALIDATED,
-  STALE,
-  UPDATING,
-} from './constants';
-import { CachePolicy } from './utils/cache-semantics';
+  createNotModifiedResponse,
+  hasConditionalRequestHeaders,
+  isErrorResponse,
+  satisfiesConditionalRequest,
+} from './utils/conditional';
+import { applyCacheStatus } from './utils/response';
+import { EXPIRED, HIT, REVALIDATED, STALE, UPDATING } from './constants';
 
 /** Separates cache namespace from the URL-shaped cache key in storage. */
 const CACHE_NAMESPACE_SEPARATOR = '\x1f';
@@ -72,10 +66,10 @@ export class SharedCache implements WebCache {
   #cacheKeyGeneratorFactory: CacheKeyGenerator;
 
   /** Base cache key rules configured for this cache instance */
-  #defaultCacheKeyRules: SharedCacheKeyRules;
+  #defaultCacheKeyRules: CacheKeyRules;
 
   /** Structured logger instance with consistent formatting */
-  #structuredLogger: ReturnType<typeof createLogger<SharedCacheLogContext>>;
+  #structuredLogger: ReturnType<typeof createLogger<CacheLogContext>>;
 
   /** Underlying storage backend */
   #storage: KVStorage;
@@ -92,35 +86,24 @@ export class SharedCache implements WebCache {
       throw new TypeError('Missing storage.');
     }
 
-    const resolvedOptions = {
-      ...options,
-    };
-
     const cacheKeyGenerator = createCacheKeyGenerator(
-      resolvedOptions._cacheKeyNormalize
+      options?._cacheKeyNormalize
     );
 
     this.#cacheKeyGeneratorFactory = cacheKeyGenerator;
     this.#defaultCacheKeyRules = {
       ...DEFAULT_CACHE_KEY_RULES,
-      ...resolvedOptions.cacheKeyRules,
+      ...options?.cacheKeyRules,
     };
 
     // Optimize logger initialization: avoid double wrapping if already a StructuredLogger
-    if (resolvedOptions.logger instanceof StructuredLogger) {
-      // If it's already a StructuredLogger, use it directly (assuming it's compatible)
+    if (options?.logger instanceof StructuredLogger) {
       this.#structuredLogger =
-        resolvedOptions.logger as StructuredLogger<SharedCacheLogContext>;
+        options.logger as StructuredLogger<CacheLogContext>;
     } else {
-      // Otherwise, wrap the logger with StructuredLogger
-      this.#structuredLogger = createLogger<SharedCacheLogContext>(
-        resolvedOptions.logger
-      );
+      this.#structuredLogger = createLogger<CacheLogContext>(options?.logger);
     }
-    this.#storage = createNamespacedStorage(
-      storage,
-      resolvedOptions._cacheName
-    );
+    this.#storage = createNamespacedStorage(storage, options?._cacheName);
   }
 
   /**
@@ -131,27 +114,20 @@ export class SharedCache implements WebCache {
    * @returns Promise resolving to the computed cache key
    */
   async getCacheKey(request: SharedCacheRequestInfo): Promise<string> {
-    const resolvedRequest =
-      request instanceof Request ? request : new Request(request);
-    return this.#cacheKeyGenerator(resolvedRequest);
-  }
-
-  /**
-   * Generates a cache key for a request using resolved rules.
-   * @internal
-   */
-  #cacheKeyGenerator(request: SharedCacheRequest): Promise<string> {
+    const resolved = (
+      request instanceof Request ? request : new Request(request)
+    ) as SharedCacheRequest;
     const rules = {
       ...this.#defaultCacheKeyRules,
-      ...request.sharedCache?.cacheKeyRules,
+      ...resolved.sharedCache?.cacheKeyRules,
     };
-    const syncKey = this.#cacheKeyGeneratorFactory.sync(request, rules);
+    const syncKey = this.#cacheKeyGeneratorFactory.sync(resolved, rules);
 
     if (syncKey !== undefined) {
-      return Promise.resolve(syncKey);
+      return syncKey;
     }
 
-    return this.#cacheKeyGeneratorFactory(request, rules);
+    return this.#cacheKeyGeneratorFactory(resolved, rules);
   }
 
   /**
@@ -194,29 +170,14 @@ export class SharedCache implements WebCache {
     request: SharedCacheRequestInfo,
     options?: SharedCacheQueryOptions
   ): Promise<boolean> {
-    // 1. Let r be the result of calling the algorithm specified in the "Request" section
-    let r: Request | null = null;
-
-    // 2. If request is a Request object, then:
-    if (request instanceof Request) {
-      // 2.1. Set r to request.
-      r = request;
-
-      // 2.2. If r's method is not GET and options' ignoreMethod is not true, return false.
-      if (r.method !== 'GET' && !options?.ignoreMethod) {
-        return false;
-      }
-    } else {
-      // 3. Otherwise, set r to the result of invoking the Request constructor with request.
-      r = new Request(request);
+    verifyCacheQueryOptions('delete', options);
+    const resolved = resolveCacheRequest(request, options);
+    if (!resolved) {
+      return false;
     }
 
-    r = r!;
-
-    this.#verifyCacheQueryOptions('delete', options);
-    const cacheKey = await this.#cacheKeyGenerator(r);
-
-    return deleteCacheItem(r, this.#storage, cacheKey);
+    const cacheKey = await this.getCacheKey(resolved);
+    return deleteCacheItem(resolved, this.#storage, cacheKey);
   }
 
   /**
@@ -255,29 +216,13 @@ export class SharedCache implements WebCache {
     request: SharedCacheRequestInfo,
     options?: SharedCacheQueryOptions
   ): Promise<Response | undefined> {
-    // 1. Let r be the result of calling the algorithm specified in the "Request" section
-    let r: Request | null = null;
-
-    // 2. If request is not undefined, then:
-    if (request !== undefined) {
-      if (request instanceof Request) {
-        // 2.1.1. Set r to request.
-        r = request;
-
-        // 2.1.2. If r's method is not GET and options' ignoreMethod is not true, return undefined.
-        if (r.method !== 'GET' && !options?.ignoreMethod) {
-          return undefined;
-        }
-      } else if (typeof request === 'string') {
-        // 2.2.1. Set r to the result of invoking the Request constructor with request.
-        r = new Request(request);
-      }
+    verifyCacheQueryOptions('match', options);
+    const r = resolveCacheRequest(request, options);
+    if (!r) {
+      return undefined;
     }
 
-    r = r!;
-
-    this.#verifyCacheQueryOptions('match', options);
-    const cacheKey = await this.#cacheKeyGenerator(r);
+    const cacheKey = await this.getCacheKey(r);
     const cacheItem = await getCacheItem(r, this.#storage, cacheKey);
 
     if (!cacheItem) {
@@ -350,7 +295,7 @@ export class SharedCache implements WebCache {
             options
           )
         );
-        this.#setCacheStatus(response, UPDATING);
+        applyCacheStatus(response, UPDATING);
         this.#structuredLogger.info(
           'Serving stale response',
           {
@@ -381,7 +326,7 @@ export class SharedCache implements WebCache {
       satisfiesConditionalRequest(r, responseHeaders)
     ) {
       const notModified = createNotModifiedResponse(responseHeaders);
-      this.#setCacheStatus(notModified, HIT);
+      applyCacheStatus(notModified, HIT);
       this.#structuredLogger.info('Cache hit', {
         url: r.url,
         cacheKey,
@@ -395,7 +340,7 @@ export class SharedCache implements WebCache {
       statusText,
       headers: responseHeaders,
     });
-    this.#setCacheStatus(response, HIT);
+    applyCacheStatus(response, HIT);
     this.#structuredLogger.info('Cache hit', {
       url: r.url,
       cacheKey,
@@ -437,46 +382,12 @@ export class SharedCache implements WebCache {
     request: SharedCacheRequestInfo,
     response: Response
   ): Promise<void> {
-    return this.#putWithCustomCacheKey(request, response).catch((error) => {
-      this.#structuredLogger.error('Put operation failed', {
-        url: request instanceof Request ? request.url : request,
-        error,
-      });
-      throw error;
-    });
-  }
-
-  /**
-   * Internal method for putting responses with custom cache keys.
-   * Implements the full Cache API put algorithm with HTTP validation.
-   *
-   * @param request - The request to cache
-   * @param response - The response to cache
-   * @param cacheKey - Optional custom cache key
-   * @throws {TypeError} For various HTTP-compliant validation failures
-   */
-  async #putWithCustomCacheKey(
-    request: SharedCacheRequestInfo,
-    response: Response,
-    cacheKey?: string | SharedCacheQueryOptions
-  ): Promise<void> {
-    // 1. Let innerRequest be the result of calling the algorithm specified in the "Request" section
-    let innerRequest = null;
-
-    // 2. If request is a Request object, then set innerRequest to request.
-    if (request instanceof Request) {
-      innerRequest = request;
-    } else {
-      // 3. Otherwise, set innerRequest to the result of invoking the Request constructor with request.
-      innerRequest = new Request(request);
-    }
+    const innerRequest =
+      request instanceof Request ? request : new Request(request);
 
     // 4. If innerRequest's url's scheme is not an HTTP(S) scheme or innerRequest's method is not GET,
     // then throw a TypeError.
-    if (
-      !this.#urlIsHttpHttpsScheme(innerRequest.url) ||
-      innerRequest.method !== 'GET'
-    ) {
+    if (!/^https?:/.test(innerRequest.url) || innerRequest.method !== 'GET') {
       throw new TypeError(
         `SharedCache.put: Expected an http/s scheme when method is not GET.`
       );
@@ -493,9 +404,10 @@ export class SharedCache implements WebCache {
     // 7. If innerResponse's headers contain a vary header, then:
     if (innerResponse.headers.has('vary')) {
       // 7.1. Let fieldValues be the result of getting, decoding, and splitting vary from innerResponse's headers.
-      const fieldValues = this.#getFieldValues(
-        innerResponse.headers.get('vary')!
-      );
+      const fieldValues = innerResponse.headers
+        .get('vary')!
+        .split(',')
+        .map((value) => value.trim());
 
       // 7.2. For each fieldValue in fieldValues:
       for (const fieldValue of fieldValues) {
@@ -554,18 +466,24 @@ export class SharedCache implements WebCache {
       },
     };
 
-    if (typeof cacheKey !== 'string') {
-      cacheKey = await this.#cacheKeyGenerator(innerRequest);
-    }
+    const cacheKey = await this.getCacheKey(innerRequest);
 
-    await setCacheItem(
-      this.#storage,
-      cacheKey,
-      cacheItem,
-      ttl,
-      innerRequest,
-      clonedResponse
-    );
+    try {
+      await setCacheItem(
+        this.#storage,
+        cacheKey,
+        cacheItem,
+        ttl,
+        innerRequest,
+        clonedResponse
+      );
+    } catch (error) {
+      this.#structuredLogger.error('Put operation failed', {
+        url: innerRequest.url,
+        error,
+      });
+      throw error;
+    }
   }
 
   /**
@@ -581,7 +499,7 @@ export class SharedCache implements WebCache {
    */
   async #revalidate(
     request: Request,
-    resolveCacheItem: PolicyResponse,
+    resolveCacheItem: CachePolicyResponse,
     cacheKey: string,
     fetch: typeof globalThis.fetch,
     options: SharedCacheQueryOptions | undefined
@@ -686,7 +604,7 @@ export class SharedCache implements WebCache {
 
     // Set appropriate cache status based on revalidation result
     if (modified) {
-      this.#setCacheStatus(clonedResponse, EXPIRED);
+      applyCacheStatus(clonedResponse, EXPIRED);
       this.#structuredLogger.info(
         'Cache entry expired',
         {
@@ -700,7 +618,7 @@ export class SharedCache implements WebCache {
       isErrorResponse(revalidationResponse) &&
       resolveCacheItem.policy.useStaleIfError()
     ) {
-      this.#setCacheStatus(clonedResponse, STALE);
+      applyCacheStatus(clonedResponse, STALE);
       this.#structuredLogger.info(
         'Serving stale response',
         {
@@ -711,7 +629,7 @@ export class SharedCache implements WebCache {
         'Origin error within stale-if-error window'
       );
     } else {
-      this.#setCacheStatus(clonedResponse, REVALIDATED);
+      applyCacheStatus(clonedResponse, REVALIDATED);
       this.#structuredLogger.info(
         'Cache entry revalidated',
         {
@@ -773,61 +691,6 @@ export class SharedCache implements WebCache {
       responseForVary
     );
   }
-
-  /**
-   * Sets the cache status header on a response.
-   * Used to indicate the cache result to clients via the X-Shared-Cache header.
-   *
-   * @param response - Response object to modify
-   * @param status - Cache status value to set
-   */
-  #setCacheStatus(response: Response, status: SharedCacheStatus): void {
-    response.headers.set(CACHE_STATUS_HEADER_NAME, status);
-  }
-
-  /**
-   * Validates cache query options, throwing errors for unsupported features.
-   * Aligns with Cloudflare Workers Cache API: only `ignoreMethod` is supported.
-   *
-   * @param options - Cache query options to validate
-   * @throws {Error} If unsupported options are specified
-   */
-  #verifyCacheQueryOptions(
-    method: string,
-    options: SharedCacheQueryOptions | undefined
-  ): void {
-    if (options) {
-      ['ignoreSearch', 'ignoreVary'].forEach((option) => {
-        if (option in options) {
-          throw new Error(
-            `SharedCache.${method}() not implemented option: "${option}".`
-          );
-        }
-      });
-    }
-  }
-
-  /**
-   * Checks if a URL uses an HTTP or HTTPS scheme.
-   * Used to validate request URLs before caching as per HTTP specifications.
-   *
-   * @param url - URL string to validate
-   * @returns True if the URL uses http: or https: scheme
-   */
-  #urlIsHttpHttpsScheme(url: string): boolean {
-    return /^https?:/.test(url);
-  }
-
-  /**
-   * Parses comma-separated header field values.
-   * Used for parsing Vary header values and other structured headers.
-   *
-   * @param header - Header value string to parse
-   * @returns Array of trimmed field values
-   */
-  #getFieldValues(header: string): string[] {
-    return header.split(',').map((value) => value.trim());
-  }
 }
 
 /**
@@ -844,296 +707,91 @@ function sanitizeStoredPolicy(policy: CachePolicyObject): CachePolicyObject {
   return { ...policy, resh };
 }
 
-function hasConditionalRequestHeaders(request: Request): boolean {
-  return (
-    request.headers.has('if-none-match') ||
-    request.headers.has('if-modified-since')
-  );
-}
+function resolveCacheRequest(
+  request: Request | string,
+  options?: SharedCacheQueryOptions
+): Request | undefined {
+  const resolved = request instanceof Request ? request : new Request(request);
 
-/**
- * Returns true when conditional request headers are satisfied by cached response headers.
- * Matches Cloudflare Cache API behavior for If-None-Match and If-Modified-Since on match().
- */
-function satisfiesConditionalRequest(
-  request: Request,
-  responseHeaders: Headers
-): boolean {
-  const ifNoneMatch = request.headers.get('if-none-match');
-
-  if (ifNoneMatch) {
-    const cachedEtag = responseHeaders.get('etag');
-    if (!cachedEtag) {
-      return false;
-    }
-    if (ifNoneMatch.trim() === '*') {
-      return true;
-    }
-
-    const cachedTag = normalizeEntityTag(cachedEtag);
-    return ifNoneMatch.split(',').some((tag) => {
-      return normalizeEntityTag(tag) === cachedTag;
-    });
+  if (resolved.method !== 'GET' && !options?.ignoreMethod) {
+    return undefined;
   }
 
-  const ifModifiedSince = request.headers.get('if-modified-since');
-  if (ifModifiedSince) {
-    const lastModified = responseHeaders.get('last-modified');
-    if (!lastModified) {
-      return false;
-    }
+  return resolved;
+}
 
-    const ifModifiedSinceTime = Date.parse(ifModifiedSince);
-    const lastModifiedTime = Date.parse(lastModified);
-    if (
-      !Number.isFinite(ifModifiedSinceTime) ||
-      !Number.isFinite(lastModifiedTime)
-    ) {
-      return false;
-    }
-
-    return lastModifiedTime <= ifModifiedSinceTime;
+function verifyCacheQueryOptions(
+  method: string,
+  options: SharedCacheQueryOptions | undefined
+): void {
+  if (!options) {
+    return;
   }
 
-  return false;
-}
-
-function normalizeEntityTag(tag: string): string {
-  return tag.trim().replace(/^\s*W\//, '');
-}
-
-/** Headers that must not appear on 304 responses (RFC 7232). */
-const NOT_MODIFIED_OMIT_HEADERS = new Set([
-  'content-length',
-  'content-type',
-  'content-encoding',
-  'transfer-encoding',
-]);
-
-function createNotModifiedResponse(responseHeaders: Headers): Response {
-  const headers = new Headers();
-
-  responseHeaders.forEach((value, name) => {
-    if (!NOT_MODIFIED_OMIT_HEADERS.has(name.toLowerCase())) {
-      headers.set(name, value);
+  for (const option of ['ignoreSearch', 'ignoreVary'] as const) {
+    if (option in options) {
+      throw new Error(
+        `SharedCache.${method}() not implemented option: "${option}".`
+      );
     }
-  });
-
-  return new Response(null, {
-    status: 304,
-    statusText: 'Not Modified',
-    headers,
-  });
+  }
 }
 
-function isErrorResponse(response: Response): boolean {
-  return response.status >= 500;
+async function resolveVaryStorageKey(
+  request: SharedCacheRequest,
+  storage: KVStorage,
+  baseKey: string
+): Promise<string> {
+  if (request.sharedCache?.ignoreVary) {
+    return baseKey;
+  }
+
+  const varyFilter = await readStoredVaryFilter(storage, baseKey);
+  return appendVaryKeySuffix(request, baseKey, varyFilter);
 }
 
-/**
- * Retrieves a cache item from storage with Vary header support.
- * Implements HTTP Vary header processing as per RFC 7234 Section 4.1.
- *
- * This function handles:
- * - Base cache key lookup when ignoreVary is true
- * - Vary-aware cache key resolution when Vary headers are present
- * - Proper cache miss handling
- *
- * @param request - The HTTP request to look up in cache
- * @param storage - Key-value storage backend
- * @param customCacheKey - Base cache key for the request
- * @returns Promise resolving to cached item or undefined if not found
- */
 async function getCacheItem(
   request: SharedCacheRequest,
   storage: KVStorage,
-  customCacheKey: string
+  baseKey: string
 ): Promise<CacheItem | undefined> {
-  let cacheKey = customCacheKey;
-  const ignoreVary = request.sharedCache?.ignoreVary;
-
-  // If not ignoring Vary headers, compute effective cache key
-  if (!ignoreVary) {
-    cacheKey = await getEffectiveCacheKey(request, storage, customCacheKey);
-  }
-
+  const cacheKey = await resolveVaryStorageKey(request, storage, baseKey);
   return (await storage.get(cacheKey)) as CacheItem | undefined;
 }
 
-/**
- * Deletes a cache item from storage with Vary header support.
- * Implements proper cache invalidation as per HTTP specifications.
- *
- * When Vary headers are involved, this function:
- * - Deletes the specific vary-keyed entry
- * - Also deletes the base cache key to ensure complete invalidation
- * - Handles cases where no Vary processing is needed
- *
- * @param request - The HTTP request to delete from cache
- * @param storage - Key-value storage backend
- * @param customCacheKey - Base cache key for the request
- * @returns Promise resolving to true if item was deleted, false if not found
- */
 async function deleteCacheItem(
   request: SharedCacheRequest,
   storage: KVStorage,
-  customCacheKey: string
+  baseKey: string
 ): Promise<boolean> {
-  let cacheKey = customCacheKey;
-  const ignoreVary = request.sharedCache?.ignoreVary;
+  const cacheKey = await resolveVaryStorageKey(request, storage, baseKey);
 
-  // Compute effective cache key if Vary processing is enabled
-  if (!ignoreVary) {
-    cacheKey = await getEffectiveCacheKey(request, storage, customCacheKey);
-  }
-
-  if (cacheKey === customCacheKey) {
-    // Simple case: delete the base key
+  if (cacheKey === baseKey) {
     return storage.delete(cacheKey);
-  } else {
-    // Vary case: delete both vary-specific key and base key for complete invalidation
-    return (
-      (await storage.delete(cacheKey)) && (await storage.delete(customCacheKey))
-    );
   }
+
+  return (await storage.delete(cacheKey)) && (await storage.delete(baseKey));
 }
 
-/**
- * Stores a cache item in storage with Vary header support.
- * Implements HTTP Vary header processing for cache storage as per RFC 7234.
- *
- * This function:
- * - Processes Vary headers to create appropriate cache keys
- * - Stores Vary filter metadata for future lookups
- * - Handles cases where Vary processing is disabled
- * - Ensures proper cache key generation based on varying headers
- *
- * @param storage - Key-value storage backend
- * @param customCacheKey - Base cache key for the request
- * @param cacheItem - Cache item containing response and policy data
- * @param ttl - Time to live in seconds for cache expiration
- * @param request - Original HTTP request being cached
- * @param response - HTTP response being cached
- * @returns Promise that resolves when item is stored
- */
 async function setCacheItem(
   storage: KVStorage,
-  customCacheKey: string,
+  baseKey: string,
   cacheItem: CacheItem,
   ttl: number,
   request: SharedCacheRequest,
   response: Response
 ): Promise<void> {
-  let cacheKey = customCacheKey;
-  const ignoreVary = request.sharedCache?.ignoreVary;
+  let cacheKey = baseKey;
 
-  if (!ignoreVary) {
-    const vary = response.headers.get('vary');
-    const varyFilterOptions = await getAndSaveVaryFilterOptions(
+  if (!request.sharedCache?.ignoreVary) {
+    const varyFilter = await writeStoredVaryFilter(
       storage,
-      customCacheKey,
+      baseKey,
       ttl,
-      vary
+      response.headers.get('vary')
     );
-    cacheKey = await getVaryCacheKey(
-      request,
-      customCacheKey,
-      varyFilterOptions
-    );
+    cacheKey = await appendVaryKeySuffix(request, baseKey, varyFilter);
   }
 
   await storage.set(cacheKey, cacheItem, ttl);
-}
-
-/**
- * Computes the effective cache key for a request considering Vary headers.
- * This function implements the cache key resolution algorithm for Vary-enabled caches.
- *
- * @param request - HTTP request to compute cache key for
- * @param storage - Storage backend to retrieve Vary metadata
- * @param customCacheKey - Base cache key
- * @returns Promise resolving to the effective cache key
- */
-async function getEffectiveCacheKey(
-  request: Request,
-  storage: KVStorage,
-  customCacheKey: string
-): Promise<string> {
-  const varyFilterOptions = await getVaryFilterOptions(storage, customCacheKey);
-  return getVaryCacheKey(request, customCacheKey, varyFilterOptions);
-}
-
-/**
- * Retrieves Vary filter options from storage.
- * These options define which headers should be used for cache key generation.
- *
- * @param storage - Storage backend
- * @param customCacheKey - Base cache key to retrieve Vary options for
- * @returns Promise resolving to filter options or undefined if not found
- */
-async function getVaryFilterOptions(
-  storage: KVStorage,
-  customCacheKey: string
-): Promise<FilterOptions | undefined> {
-  const varyKey = `${customCacheKey}${CACHE_KEY_VARY_META_SUFFIX}`;
-  return (await storage.get(varyKey)) as FilterOptions | undefined;
-}
-
-/**
- * Processes and stores Vary header information for cache key generation.
- * Implements Vary header parsing as per RFC 7234 Section 4.1.
- *
- * This function:
- * - Parses Vary header field values
- * - Rejects Vary: * responses (handled at put() level)
- * - Stores filter options for future cache key generation
- *
- * @param storage - Storage backend
- * @param customCacheKey - Base cache key
- * @param ttl - Time to live for the Vary metadata
- * @param vary - Vary header value from response
- * @returns Promise resolving to filter options or undefined for invalid Vary values
- */
-async function getAndSaveVaryFilterOptions(
-  storage: KVStorage,
-  customCacheKey: string,
-  ttl: number,
-  vary: string | null
-): Promise<FilterOptions | undefined> {
-  if (!vary || vary === '*') {
-    return;
-  }
-
-  const varyKey = `${customCacheKey}${CACHE_KEY_VARY_META_SUFFIX}`;
-  const varyFilterOptions: FilterOptions = {
-    include: vary.split(',').map((field) => field.trim()),
-  };
-
-  await storage.set(varyKey, varyFilterOptions, ttl);
-  return varyFilterOptions;
-}
-
-/**
- * Generates a Vary-aware cache key based on filter options.
- * Creates cache keys that incorporate header values specified in Vary header.
- *
- * @param request - HTTP request to generate key for
- * @param customCacheKey - Base cache key
- * @param varyFilterOptions - Filter options defining which headers to include
- * @returns Promise resolving to the final cache key
- */
-async function getVaryCacheKey(
-  request: Request,
-  customCacheKey: string,
-  varyFilterOptions: FilterOptions | undefined
-): Promise<string> {
-  if (!varyFilterOptions) {
-    return customCacheKey;
-  }
-
-  getCacheKeyContext(request);
-  const varyPart = await getVary(request, varyFilterOptions);
-  return varyPart
-    ? `${customCacheKey}${CACHE_KEY_VARY_SEPARATOR}${varyPart}`
-    : customCacheKey;
 }

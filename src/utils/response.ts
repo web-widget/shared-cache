@@ -1,3 +1,6 @@
+import { CACHE_STATUS_HEADER_NAME } from '../constants';
+import type { CacheStatus } from '../constants';
+
 /**
  * Utility functions for working with Response objects
  */
@@ -76,4 +79,25 @@ export function setResponseHeader(
   return modifyResponseHeaders(response, (headers) => {
     headers.set(name, value);
   });
+}
+
+/**
+ * Applies the cache status header. Uses in-place mutation by default; pass
+ * `copy: true` when the response may have readonly headers (resolve path).
+ */
+export function applyCacheStatus(
+  response: Response,
+  status: CacheStatus,
+  { copy = false }: { copy?: boolean } = {}
+): Response {
+  if (response.headers.has(CACHE_STATUS_HEADER_NAME)) {
+    return response;
+  }
+
+  if (copy) {
+    return setResponseHeader(response, CACHE_STATUS_HEADER_NAME, status);
+  }
+
+  response.headers.set(CACHE_STATUS_HEADER_NAME, status);
+  return response;
 }

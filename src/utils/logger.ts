@@ -138,13 +138,6 @@ export class StructuredLogger<TContext = Record<string, unknown>> {
   withPrefix(prefix: string): StructuredLogger<TContext> {
     return new StructuredLogger<TContext>(this.logger, this.minLevel, prefix);
   }
-
-  /**
-   * Check if logger is available and can log at the specified level
-   */
-  canLog(level: LogLevel): boolean {
-    return this.shouldLog(level);
-  }
 }
 
 /**
@@ -158,17 +151,3 @@ export function createLogger<TContext = Record<string, unknown>>(
 ): StructuredLogger<TContext> {
   return new StructuredLogger<TContext>(logger, minLevel, prefix);
 }
-
-/**
- * Helper function to create a SharedCache-specific logger instance
- * @deprecated Use createLogger with prefix parameter instead
- */
-export function createSharedCacheLogger<TContext = Record<string, unknown>>(
-  logger?: Logger,
-  minLevel: LogLevel = LogLevel.INFO
-): StructuredLogger<TContext> {
-  return new StructuredLogger<TContext>(logger, minLevel, 'SharedCache');
-}
-
-// For backward compatibility
-export const SharedCacheLogger = StructuredLogger;

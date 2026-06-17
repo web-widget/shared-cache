@@ -1,6 +1,6 @@
 import { LRUCache } from 'lru-cache';
 import { SharedCache } from './cache';
-import { SharedCacheStorage } from './cache-storage';
+import { SharedCacheStorage } from './storage';
 import { KVStorage } from './types';
 
 const createCacheStore = (): KVStorage => {
