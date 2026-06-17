@@ -253,4 +253,48 @@ export interface SharedCacheRequestInitProperties {
    */
   waitUntil?: (promise: Promise<unknown>) => void;
 }
+
+/**
+ * Phase indicating why a cache origin handler is invoked.
+ */
+export type CacheOriginPhase = 'miss' | 'revalidate';
+
+/**
+ * Context passed to middleware-friendly cache origin handlers.
+ */
+export interface CacheOriginContext {
+  /** Why the origin is being invoked. */
+  phase: CacheOriginPhase;
+  /** Present when invoked from a conditional revalidation request. */
+  revalidationRequest?: Request;
+  /** Abort signal from the outer resolve call or request. */
+  signal?: AbortSignal;
+}
+
+/**
+ * In-process origin handler for middleware integrations.
+ *
+ * @remarks
+ * - **miss**: throws propagate to the caller (framework error handling).
+ * - **revalidate**: throws are converted to 5xx responses for stale-if-error.
+ */
+export type CacheOriginHandler = (
+  request: Request,
+  context: CacheOriginContext
+) => Response | Promise<Response>;
+
+/**
+ * Options for {@link resolveWithCache} and {@link createCacheHandler}.
+ */
+export type CacheResolveOptions = SharedCacheRequestInitProperties & {
+  signal?: AbortSignal;
+};
+
+export interface CacheHandler {
+  resolve(
+    request: Request,
+    origin: CacheOriginHandler,
+    options?: CacheResolveOptions
+  ): Promise<Response>;
+}
 /* c8 ignore stop */

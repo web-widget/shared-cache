@@ -1,23 +1,7 @@
-import { vary } from './utils/vary';
-import { vary as getVaryCachePart } from './cache-key';
-import { cacheControl } from './utils/cache-control';
-import {
-  encodeCacheKeyHeaderValue,
-  modifyResponseHeaders,
-  setResponseHeader,
-} from './utils/response';
 import { SharedCache } from './cache';
 import { SharedCacheStorage } from './cache-storage';
+import { resolveWithCache } from './resolve';
 import {
-  CACHE_KEY_HEADER_NAME,
-  BYPASS,
-  CACHE_STATUS_HEADER_NAME,
-  DYNAMIC,
-  HIT,
-  MISS,
-} from './constants';
-import {
-  SharedCacheStatus,
   SharedCacheFetch,
   SharedCacheRequestInitProperties,
   SharedCacheRequest,
@@ -57,7 +41,7 @@ const ORIGINAL_FETCH = globalThis.fetch;
  * const caches = new CacheStorage(createLRUStorage());
  * const cache = await caches.open('api-cache');
  *
- * // Create cached fetch with default options
+ * // Create cached fetch with default configuration
  * const fetch = createFetch(cache, {
  *   defaults: {
  *     cacheControlOverride: 's-maxage=300',
@@ -101,8 +85,15 @@ export function createSharedCacheFetch(
     // Extract and validate cache mode
     const requestCache = getRequestCacheMode(request, init?.cache);
 
+    // Validate unsupported cache modes
+    if (requestCache && requestCache !== 'default') {
+      throw new Error(
+        `Cache mode "${requestCache}" is not implemented. Only "default" mode is supported.`
+      );
+    }
+
     // Configure shared cache options with defaults merged with request options
-    const sharedCacheOptions = (request.sharedCache = {
+    const sharedCacheOptions = {
       // Start with global defaults
       ignoreRequestCacheControl: true,
       ignoreVary: false,
@@ -112,96 +103,17 @@ export function createSharedCacheFetch(
       ...request.sharedCache,
       // Finally apply init options (highest priority)
       ...init?.sharedCache,
-    });
-    const debugCacheKey = sharedCacheOptions.debugCacheKey
-      ? await cache.getCacheKey(request)
-      : undefined;
+    };
 
-    // Create interceptor for response header manipulation
-    const interceptor = createInterceptor(
-      fetcher,
-      sharedCacheOptions.cacheControlOverride,
-      sharedCacheOptions.varyOverride
-    );
-
-    // Validate unsupported cache modes
-    if (requestCache && requestCache !== 'default') {
-      throw new Error(
-        `Cache mode "${requestCache}" is not implemented. Only "default" mode is supported.`
-      );
-    }
-
-    // Create event from waitUntil function if event is not provided but waitUntil is
-    const event =
-      sharedCacheOptions.event ||
-      (sharedCacheOptions.waitUntil
-        ? ({
-            waitUntil: sharedCacheOptions.waitUntil,
-          } as ExtendableEvent)
-        : undefined);
-
-    // Attempt to serve from cache
-    const cachedResponse = await cache.match(request, {
-      _fetch: interceptor,
-      _ignoreRequestCacheControl: sharedCacheOptions.ignoreRequestCacheControl,
-      _event: event,
-      ignoreMethod: request.method === 'HEAD', // HEAD requests can match GET
-    });
-
-    // Return cached response if available
-    if (cachedResponse) {
-      const effectiveCacheKey = await getEffectiveCacheKey(
-        request,
-        cachedResponse,
-        debugCacheKey,
-        sharedCacheOptions.ignoreVary
-      );
-      return setCacheKey(
-        setCacheStatus(cachedResponse, HIT),
-        effectiveCacheKey
-      );
-    }
-
-    // Fetch from network and attempt to cache
-    const fetchedResponse = await interceptor(request);
-    // Process response caching based on Cache-Control directives
-    const cacheControl = fetchedResponse.headers.get('cache-control');
-
-    if (cacheControl) {
-      // Check if response should bypass cache
-      if (bypassCache(cacheControl)) {
-        return setCacheKey(
-          setCacheStatus(fetchedResponse, BYPASS),
-          debugCacheKey
-        );
-      } else {
-        // Attempt to store in cache
-        const cacheSuccess = await cache.put(request, fetchedResponse).then(
-          () => true,
-          () => {
-            return false;
-          }
-        );
-        const effectiveCacheKey = cacheSuccess
-          ? await getEffectiveCacheKey(
-              request,
-              fetchedResponse,
-              debugCacheKey,
-              sharedCacheOptions.ignoreVary
-            )
-          : debugCacheKey;
-        return setCacheKey(
-          setCacheStatus(fetchedResponse, cacheSuccess ? MISS : DYNAMIC),
-          effectiveCacheKey
-        );
+    return resolveWithCache(
+      cache,
+      request,
+      (originRequest) => fetcher(originRequest, init),
+      {
+        ...sharedCacheOptions,
+        signal: init?.signal ?? undefined,
       }
-    } else {
-      // No Cache-Control header - mark as dynamic content
-      return setCacheKey(
-        setCacheStatus(fetchedResponse, DYNAMIC),
-        debugCacheKey
-      );
-    }
+    );
   };
 }
 
@@ -217,173 +129,12 @@ export function createSharedCacheFetch(
 export const sharedCacheFetch = createSharedCacheFetch();
 
 /**
- * Sets cache status header on a response if not already present.
- *
- * This function adds diagnostic information about cache behavior by setting
- * a custom header. The header is only set if it doesn't already exist,
- * preserving any existing cache status information.
- *
- * @param response - The response to modify
- * @param status - The cache status to set
- * @returns The response with cache status header set
- * @internal
- */
-function setCacheStatus(
-  response: Response,
-  status: SharedCacheStatus
-): Response {
-  if (!response.headers.has(CACHE_STATUS_HEADER_NAME)) {
-    return setResponseHeader(response, CACHE_STATUS_HEADER_NAME, status);
-  }
-  return response;
-}
-
-/**
- * Sets cache key header on a response for debugging.
- *
- * @param response - The response to modify
- * @param cacheKey - The computed cache key
- * @returns The response with cache key header set when enabled
- * @internal
- */
-function setCacheKey(response: Response, cacheKey?: string): Response {
-  if (cacheKey) {
-    return setResponseHeader(
-      response,
-      CACHE_KEY_HEADER_NAME,
-      encodeCacheKeyHeaderValue(cacheKey)
-    );
-  }
-  return response;
-}
-
-/**
- * Resolves effective cache key by applying response Vary rules.
- *
- * @param request - The original request
- * @param response - The response used for cache lookup/store
- * @param cacheKey - The base cache key
- * @param ignoreVary - Whether vary handling is disabled
- * @returns The effective cache key used by storage
- * @internal
- */
-async function getEffectiveCacheKey(
-  request: Request,
-  response: Response,
-  cacheKey: string | undefined,
-  ignoreVary: boolean | undefined
-): Promise<string | undefined> {
-  if (!cacheKey || ignoreVary) {
-    return cacheKey;
-  }
-
-  const varyHeader = response.headers.get('vary');
-  if (!varyHeader || varyHeader === '*') {
-    return cacheKey;
-  }
-
-  const include = varyHeader
-    .split(',')
-    .map((field) => field.trim().toLowerCase())
-    .filter(Boolean);
-  if (!include.length) {
-    return cacheKey;
-  }
-
-  const varyPart = await getVaryCachePart(request, { include });
-  return varyPart ? `${cacheKey}:${varyPart}` : cacheKey;
-}
-
-/**
- * Creates an interceptor function that can modify response headers.
- *
- * This function creates a wrapper around the fetch function that allows
- * overriding Cache-Control and Vary headers on successful responses.
- * This is useful for:
- * - Enforcing consistent caching policies
- * - Adding cache directives to responses that lack them
- * - Customizing vary behavior for specific applications
- *
- * Header overrides are only applied to successful responses (response.ok = true)
- * to avoid interfering with error handling.
- *
- * @param fetcher - The underlying fetch function to wrap
- * @param cacheControlOverride - Optional Cache-Control header value to set
- * @param varyOverride - Optional Vary header value to set
- * @returns A fetch function with header modification capabilities
- * @internal
- */
-function createInterceptor(
-  fetcher: typeof fetch,
-  cacheControlOverride: string | undefined,
-  varyOverride: string | undefined
-): typeof fetch {
-  return async function fetch(...args) {
-    const response = await fetcher(...args);
-
-    // Only modify headers on successful responses
-    if (response.ok && (cacheControlOverride || varyOverride)) {
-      return modifyResponseHeaders(response, (headers) => {
-        // Override Cache-Control header if specified
-        if (cacheControlOverride) {
-          cacheControl(headers, cacheControlOverride);
-        }
-
-        // Override Vary header if specified
-        if (varyOverride) {
-          vary(headers, varyOverride);
-        }
-      });
-    }
-
-    return response;
-  };
-}
-
-/**
- * Determines if a response should bypass the cache based on Cache-Control directives.
- *
- * This function implements cache bypass logic according to HTTP caching specifications.
- * A response bypasses the cache if it contains any of the following directives:
- *
- * - `no-store`: Response must not be stored in any cache
- * - `no-cache`: Response must not be served from cache without revalidation
- * - `private`: Response is intended for a single user and shouldn't be stored in shared caches
- * - `s-maxage=0`: Response expires immediately for shared caches
- * - `max-age=0` (without s-maxage): Response expires immediately for all caches
- *
- * This follows RFC 7234 Section 5.2 and best practices for shared cache implementations.
- *
- * @param cacheControlHeader - The Cache-Control header value to analyze
- * @returns True if the response should bypass the cache, false otherwise
- * @internal
- */
-function bypassCache(cacheControlHeader: string): boolean {
-  const cacheControl = cacheControlHeader.toLowerCase();
-
-  return (
-    cacheControl.includes('no-store') || // Must not store
-    cacheControl.includes('no-cache') || // Must revalidate
-    cacheControl.includes('private') || // Not for shared caches
-    cacheControl.includes('s-maxage=0') || // Shared cache max-age is 0
-    // max-age=0 only if no s-maxage directive exists (shared cache priority)
-    (!cacheControl.includes('s-maxage') && cacheControl.includes('max-age=0'))
-  );
-}
-
-/**
  * Safely extracts the cache mode from a request object.
  *
  * This function handles environments where the `request.cache` property
  * may not be implemented (e.g., some server-side environments) by falling
  * back to a default cache mode.
  *
- * The cache property is part of the Fetch API specification but may not
- * be available in all JavaScript environments.
- *
- * @param request - The request object to extract cache mode from
- * @param defaultCacheMode - Fallback cache mode if request.cache is not available
- * @returns The request's cache mode or the default if not available
  * @internal
  */
 function getRequestCacheMode(
