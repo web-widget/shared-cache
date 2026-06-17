@@ -770,6 +770,15 @@ describe('SharedCache', () => {
 
       expect(customCache).toBeInstanceOf(SharedCache);
     });
+
+    it('should reject ignoreSearch in match options', async () => {
+      const request = new Request('https://example.com/items?sort=asc');
+      await expect(
+        cache.match(request, { ignoreSearch: true })
+      ).rejects.toThrow(
+        'SharedCache.match() not implemented option: "ignoreSearch".'
+      );
+    });
   });
 
   describe('HTTP compliance', () => {

@@ -3,6 +3,21 @@ import { deviceType as getDeviceType } from './utils/user-agent';
 import { CACHE_KEY_HEADER_NAME, CACHE_STATUS_HEADER_NAME } from './constants';
 import { RequestCookies } from './utils/cookies';
 
+/** Separator between named cache key fragments. */
+const CACHE_KEY_FRAGMENT_SEPARATOR = '|';
+
+/** Separator between fragment key names and the combined value digest. */
+const CACHE_KEY_VALUE_DIGEST_SEPARATOR = '@';
+
+/** Separator between key names within a fragment. */
+const CACHE_KEY_INTRA_FRAGMENT_SEPARATOR = '&';
+
+/** Separator between a base cache key and its Vary-derived suffix. @internal */
+export const CACHE_KEY_VARY_SEPARATOR = '|v|';
+
+/** Suffix used to store Vary filter metadata for a base cache key. @internal */
+export const CACHE_KEY_VARY_META_SUFFIX = '|vary|';
+
 /**
  * Filter options for controlling which keys to include/exclude in cache key generation.
  * Used to fine-tune cache key granularity and avoid cache pollution.
@@ -14,6 +29,20 @@ export interface FilterOptions {
   exclude?: string[];
   /** Array of keys to check for presence only (value set to empty string) */
   checkPresence?: string[];
+}
+
+/**
+ * Optional cache-key normalization beyond what the URL API already applies when
+ * parsing `request.url` (scheme/host case, default ports, etc.).
+ * @internal
+ */
+interface CacheKeyNormalizeOptions {
+  /** Remove trailing slashes from pathname (except the root path `/`) */
+  trailingSlash?: boolean;
+  /** Lowercase pathname segments */
+  pathnameLowerCase?: boolean;
+  /** Remove whitespace from pathname and search parameter values */
+  ignoreSpaces?: boolean;
 }
 
 /**
@@ -32,255 +61,97 @@ export interface SharedCacheKeyRules {
   device?: FilterOptions | boolean;
   /** Use request headers as part of cache key for content negotiation */
   header?: FilterOptions | boolean;
+  /** Use URL scheme as part of cache key (`http://`, `https://`) per RFC 9111 */
+  scheme?: FilterOptions | boolean;
   /** Use request host as part of cache key for multi-tenant applications */
   host?: FilterOptions | boolean;
   /** Use URL pathname as part of cache key for resource identification */
   pathname?: FilterOptions | boolean;
   /** Use URL search parameters as part of cache key for dynamic content */
   search?: FilterOptions | boolean;
-  /** Use custom part of cache key for application-specific logic */
-  [customPart: string]: unknown | boolean | undefined;
 }
 
-/**
- * Function signature for custom cache key part definers.
- * Allows extending cache key generation with application-specific logic.
- */
-export interface SharedCacheKeyPartDefiners {
-  [customPart: string]: (
+type RuleValue = FilterOptions | boolean | undefined;
+
+/** Built-in URL part keys in processing order. @internal */
+const URL_PART_KEYS = ['scheme', 'host', 'pathname', 'search'] as const;
+
+/** Built-in request part keys in processing order. @internal */
+const REQUEST_PART_KEYS = ['cookie', 'device', 'header'] as const;
+
+/** @internal */
+const CACHE_KEY_RULE_KEYS = new Set<string>([
+  ...URL_PART_KEYS,
+  ...REQUEST_PART_KEYS,
+]);
+
+type URLPartKey = (typeof URL_PART_KEYS)[number];
+type RequestPartKey = (typeof REQUEST_PART_KEYS)[number];
+type KeyValueSource = 'cookie' | 'header';
+
+/** @internal */
+interface CompiledFilter {
+  includeOnly: boolean;
+  exclude?: ReadonlySet<string>;
+  include?: ReadonlySet<string>;
+  /** Sorted include keys for whitelist fast paths. */
+  includeList?: readonly string[];
+  checkPresence?: ReadonlySet<string>;
+}
+
+/** @internal */
+interface CompiledRule {
+  filter?: CompiledFilter;
+}
+
+/** @internal */
+interface CollectedKeyValues {
+  keys: string;
+  canonicalValues: string;
+  displayValues: string;
+}
+
+/** @internal */
+interface FragmentContribution {
+  keys: string;
+  canonical: string;
+}
+
+/** @internal */
+interface CompiledFragment {
+  name: RequestPartKey;
+  filter?: CompiledFilter;
+}
+
+/** @internal */
+interface CompiledCacheKeyPlan {
+  url: Partial<Record<URLPartKey, CompiledRule>>;
+  fragments: CompiledFragment[];
+  /** True when the plan only needs synchronous URL assembly. */
+  syncOnly: boolean;
+}
+
+/** Per-request cache key context that lazily parses headers and cookies once. @internal */
+interface CacheKeyRequestContext {
+  getHeaderEntries(): [string, string][];
+  getCookieEntries(): [string, string][];
+}
+
+/** Cache key generator with an optional synchronous fast path for URL-only rules. */
+export interface CacheKeyGenerator {
+  (request: Request, cacheKeyRules?: SharedCacheKeyRules): Promise<string>;
+  /**
+   * Builds a cache key synchronously when rules only include URL parts.
+   * Returns `undefined` when fragments or hashing are required.
+   */
+  sync: (
     request: Request,
-    options?: unknown
-  ) => Promise<string> | undefined;
+    cacheKeyRules?: SharedCacheKeyRules
+  ) => string | undefined;
 }
 
-/**
- * Internal type for built-in cache key part definers that accept FilterOptions.
- * @internal
- */
-type BuiltInExpandedPartDefiner = (
-  request: Request,
-  options?: FilterOptions
-) => Promise<string>;
-
-/**
- * Internal registry of built-in cache key part definers.
- * @internal
- */
-interface BuiltInExpandedCacheKeyPartDefiners {
-  [part: string]: BuiltInExpandedPartDefiner | undefined;
-}
-
-/**
- * Filters an array of key-value pairs based on include/exclude rules.
- *
- * This function implements a filtering algorithm that:
- * 1. First applies exclusion rules (blacklist)
- * 2. Then applies inclusion rules (whitelist)
- * 3. Finally applies presence check rules (keys without values)
- *
- * @param array - Array of [key, value] tuples to filter
- * @param options - Filtering options
- * @returns Filtered array of [key, value] tuples
- */
-export function filter(
-  array: [key: string, value: string][],
-  options?: FilterOptions
-) {
-  let result = array;
-  const exclude = options?.exclude;
-  const include = options?.include;
-  const checkPresence = options?.checkPresence;
-
-  // Apply exclusion filter (blacklist)
-  if (exclude?.length) {
-    result = result.filter(([key]) => !exclude.includes(key));
-  }
-
-  // Apply inclusion filter (whitelist)
-  if (include?.length) {
-    result = result.filter(([key]) => include.includes(key));
-  }
-
-  // Apply presence check filter (keys without values)
-  if (checkPresence?.length) {
-    result = result.map((item) =>
-      checkPresence.includes(item[0]) ? [item[0], ''] : item
-    );
-  }
-
-  return result;
-}
-
-/**
- * Generates a short hash (6 characters) from input data.
- * Used to create compact cache key components while maintaining uniqueness.
- *
- * @param data - Data to hash
- * @returns Promise resolving to 6-character hash string
- * @internal
- */
-async function shortHash(data: string) {
-  return (await sha1(data))?.slice(0, 6);
-}
-
-/**
- * Sorts an array of key-value pairs by key name (case-sensitive).
- * Ensures consistent cache key generation regardless of input order.
- *
- * @param array - Array of [key, value] tuples to sort
- * @returns Sorted array of [key, value] tuples
- * @internal
- */
-function sort(array: [key: string, value: string][]) {
-  return array.sort((a, b) => a[0].localeCompare(b[0]));
-}
-
-/**
- * Converts FilterOptions string arrays to lowercase for case-insensitive matching.
- * Used for HTTP headers which are case-insensitive per RFC 7230.
- *
- * @param options - Filter options to convert
- * @returns New FilterOptions with lowercase strings
- * @internal
- */
-function toLowerCase(options?: FilterOptions) {
-  if (typeof options === 'object') {
-    const newOptions: FilterOptions = {
-      include: options.include?.map((name) => name.toLowerCase()),
-      exclude: options.exclude?.map((name) => name.toLowerCase()),
-      checkPresence: options.checkPresence?.map((name) => name.toLowerCase()),
-    };
-    return newOptions;
-  }
-  return options;
-}
-
-/**
- * Generates a cache key component based on request cookies.
- *
- * This function creates a deterministic cache key part from HTTP cookies,
- * which is useful for personalized content caching. Cookie values are hashed
- * to protect sensitive information while maintaining cache effectiveness.
- *
- * @param request - The HTTP request containing cookies
- * @param options - Optional filtering rules for cookie selection
- * @returns Promise resolving to cookie-based cache key component (format: "name1=hash1&name2=hash2")
- */
-export async function cookie(request: Request, options?: FilterOptions) {
-  const cookie = new RequestCookies(request.headers);
-  const entries: [string, string][] = cookie
-    .getAll()
-    .map(({ name, value }) => [name, value]);
-
-  return (
-    await Promise.all(
-      sort(filter(entries, options)).map(async ([key, value]) =>
-        value ? `${key}=${await shortHash(value)}` : key
-      )
-    )
-  ).join('&');
-}
-
-/**
- * Generates a cache key component based on device type detection.
- *
- * This function identifies the device type from User-Agent headers
- * and includes it in the cache key for responsive content delivery.
- * Useful for serving different content to mobile, tablet, and desktop devices.
- *
- * @param request - The HTTP request containing User-Agent header
- * @param options - Optional filtering rules for device type
- * @returns Promise resolving to device-based cache key component
- */
-export async function device(request: Request, options?: FilterOptions) {
-  const device = getDeviceType(request.headers);
-  return filter([[device, '']], options)
-    .map(([key]) => key)
-    .join('');
-}
-
-/**
- * Generates a cache key component based on the request host.
- *
- * This function extracts the host from the URL for multi-tenant applications
- * where different hosts serve different content.
- *
- * @param url - The request URL containing the host
- * @param options - Optional filtering rules for host inclusion
- * @returns Host-based cache key component
- */
-export function host(url: URL, options?: FilterOptions) {
-  const host = url.host;
-  return filter([[host, '']], options)
-    .map(([key]) => key)
-    .join('');
-}
-
-/**
- * Generates a cache key component based on the URL pathname.
- *
- * This function extracts the pathname for resource-based cache differentiation.
- * Essential for most caching scenarios as different paths represent different resources.
- *
- * @param url - The request URL containing the pathname
- * @param options - Optional filtering rules for pathname inclusion
- * @returns Pathname-based cache key component
- */
-export function pathname(url: URL, options?: FilterOptions) {
-  const pathname = url.pathname;
-  return filter([[pathname, '']], options)
-    .map(([key]) => key)
-    .join('');
-}
-
-/**
- * Generates a cache key component based on URL search parameters.
- *
- * This function extracts and sorts query parameters to create consistent
- * cache keys for dynamic content. Parameters are sorted alphabetically
- * to ensure consistent key generation regardless of parameter order.
- *
- * @param url - The request URL containing search parameters
- * @param options - Optional filtering rules for parameter selection
- * @returns Search parameter-based cache key component (format: "?param1=value1&param2=value2")
- */
-export function search(url: URL, options?: FilterOptions) {
-  const { searchParams } = url;
-  searchParams.sort();
-
-  const entries = Array.from(searchParams.entries());
-  const search = filter(entries, options)
-    .map(([key, value]) => {
-      return value ? `${key}=${value}` : key;
-    })
-    .join('&');
-  return search ? `?${search}` : '';
-}
-
-/**
- * Generates a cache key component based on HTTP Vary header processing.
- *
- * This function implements the HTTP Vary header semantics as defined in RFC 7231.
- * It creates cache key components from request headers that are listed in the
- * response's Vary header, enabling proper content negotiation caching.
- *
- * Header names are converted to lowercase for case-insensitive comparison
- * as per HTTP specification (RFC 7230 Section 3.2).
- *
- * @param request - The HTTP request containing headers to process
- * @param options - Optional filtering rules for header selection
- * @returns Promise resolving to vary-based cache key component (format: "header1=hash1&header2=hash2")
- */
-export async function vary(request: Request, options?: FilterOptions) {
-  const entries = Array.from(request.headers.entries());
-  return (
-    await Promise.all(
-      sort(filter(entries, toLowerCase(options))).map(
-        async ([key, value]) => `${key}=${await shortHash(value)}`
-      )
-    )
-  ).join('&');
-}
+/** @internal */
+const cacheKeyContexts = new WeakMap<Request, CacheKeyRequestContext>();
 
 /**
  * List of HTTP headers that should not be included in cache keys.
@@ -294,7 +165,6 @@ export async function vary(request: Request, options?: FilterOptions) {
  * Based on best practices from CDN implementations and HTTP caching specifications.
  */
 export const CANNOT_INCLUDE_HEADERS = [
-  // Headers that have high cardinality and risk cache fragmentation
   'accept',
   'accept-charset',
   'accept-encoding',
@@ -302,7 +172,6 @@ export const CANNOT_INCLUDE_HEADERS = [
   'accept-language',
   'referer',
   'user-agent',
-  // Headers that implement cache or proxy features
   'connection',
   'content-length',
   'cache-control',
@@ -312,189 +181,720 @@ export const CANNOT_INCLUDE_HEADERS = [
   'if-unmodified-since',
   'range',
   'upgrade',
-  // Headers that are covered by other cache key features
   'cookie',
   'host',
   'vary',
-  // Headers that contain cache status information
   CACHE_STATUS_HEADER_NAME,
   CACHE_KEY_HEADER_NAME,
 ] as const;
 
+/** @internal */
+const FORBIDDEN_HEADERS = new Set<string>(CANNOT_INCLUDE_HEADERS);
+
 /**
- * Generates a cache key component based on request headers.
- *
- * This function creates cache key components from HTTP request headers,
- * useful for content negotiation and custom header-based caching.
- * Header values are hashed to keep cache keys compact while preventing
- * cache pollution from high-cardinality headers.
- *
- * Certain headers are automatically excluded to prevent cache fragmentation
- * and conflicts with other cache features.
- *
- * @param request - The HTTP request containing headers to process
- * @param options - Optional filtering rules for header selection
- * @returns Promise resolving to header-based cache key component
- * @throws {TypeError} When attempting to include a forbidden header
+ * Returns a per-request cache key context for reusing parsed headers and cookies.
+ * @internal
  */
-export async function header(request: Request, options?: FilterOptions) {
-  const entries = Array.from(request.headers.entries());
-  return (
-    await Promise.all(
-      sort(filter(entries, toLowerCase(options))).map(async ([key, value]) => {
-        if ((CANNOT_INCLUDE_HEADERS as readonly string[]).includes(key)) {
-          throw new TypeError(
-            `Cannot include header "${key}" in cache key. This header is excluded to prevent cache fragmentation or conflicts with other cache features.`
+export function getCacheKeyContext(request: Request): CacheKeyRequestContext {
+  let context = cacheKeyContexts.get(request);
+
+  if (!context) {
+    let headerEntries: [string, string][] | undefined;
+    let cookieEntries: [string, string][] | undefined;
+
+    context = {
+      getHeaderEntries() {
+        if (!headerEntries) {
+          headerEntries = Array.from(request.headers.entries()).map(
+            ([key, value]) => [key.toLowerCase(), value] as [string, string]
           );
         }
-        return value ? `${key}=${await shortHash(value)}` : key;
-      })
-    )
-  ).join('&');
+
+        return headerEntries;
+      },
+      getCookieEntries() {
+        if (!cookieEntries) {
+          cookieEntries = new RequestCookies(request.headers)
+            .getAll()
+            .map(({ name, value }) => [name, value]);
+        }
+
+        return cookieEntries;
+      },
+    };
+
+    cacheKeyContexts.set(request, context);
+  }
+
+  return context;
 }
 
 /**
- * Registry of built-in URL-based cache key part definers.
- * These functions operate on URL components and don't require async operations.
- * @internal
+ * Filters an array of key-value pairs based on include/exclude rules.
+ *
+ * @param array - Array of [key, value] tuples to filter
+ * @param options - Filtering options
+ * @returns Filtered array of [key, value] tuples
  */
-const BUILT_IN_URL_PART_DEFINERS: {
-  [key: string]: (url: URL, options?: FilterOptions) => string;
-} = {
-  host,
-  pathname,
-  search,
-};
+export function filter(
+  array: [key: string, value: string][],
+  options?: FilterOptions
+) {
+  return applyCompiledFilter(array, compileFilterOptions(options));
+}
 
 /**
- * List of built-in URL part keys in processing order.
+ * Sorts an array of key-value pairs by key name (case-sensitive).
  * @internal
  */
-const BUILT_IN_URL_PART_KEYS = ['host', 'pathname', 'search'];
+function sortEntries(array: [key: string, value: string][]) {
+  return array.sort((a, b) => a[0].localeCompare(b[0]));
+}
 
 /**
- * Registry of built-in expanded cache key part definers.
- * These functions require async operations and work with request data.
+ * Compiles filter options into reusable lookup structures.
  * @internal
  */
-const BUILT_IN_EXPANDED_PART_DEFINERS: BuiltInExpandedCacheKeyPartDefiners = {
-  cookie,
-  device,
-  header,
-};
+function compileFilterOptions(
+  options?: FilterOptions,
+  lowercaseKeys = false
+): CompiledFilter | undefined {
+  if (!options) {
+    return undefined;
+  }
+
+  const normalize = (values?: string[]) =>
+    values?.map((name) => (lowercaseKeys ? name.toLowerCase() : name));
+
+  const include = normalize(options.include);
+  const exclude = normalize(options.exclude);
+  const checkPresence = normalize(options.checkPresence);
+  const includeOnly = Boolean(
+    include?.length && !exclude?.length && !checkPresence?.length
+  );
+
+  return {
+    includeOnly,
+    exclude: exclude ? new Set(exclude) : undefined,
+    include: include ? new Set(include) : undefined,
+    includeList: includeOnly
+      ? [...include!].sort((a, b) => a.localeCompare(b))
+      : undefined,
+    checkPresence: checkPresence ? new Set(checkPresence) : undefined,
+  };
+}
+
+/** @internal */
+function compileRule(rule: RuleValue): CompiledRule | undefined {
+  if (!isEnabled(rule)) {
+    return undefined;
+  }
+
+  return {
+    filter: rule === true ? undefined : compileFilterOptions(rule),
+  };
+}
+
+/**
+ * Applies compiled filter options to key/value entries.
+ * @internal
+ */
+function applyCompiledFilter(
+  entries: [string, string][],
+  compiled?: CompiledFilter,
+  { prefiltered = false }: { prefiltered?: boolean } = {}
+) {
+  if (prefiltered || compiled?.includeOnly) {
+    return entries;
+  }
+
+  let result = entries;
+
+  if (compiled?.exclude?.size) {
+    result = result.filter(([key]) => !compiled.exclude!.has(key));
+  }
+
+  if (compiled?.include?.size) {
+    result = result.filter(([key]) => compiled.include!.has(key));
+  }
+
+  if (compiled?.checkPresence?.size) {
+    result = result.map((item) =>
+      compiled.checkPresence!.has(item[0]) ? [item[0], ''] : item
+    );
+  }
+
+  return sortEntries(result);
+}
+
+/**
+ * Resolves normalize options for cache key generation.
+ * @internal
+ */
+function resolveNormalizeOptions(
+  normalize?: boolean | CacheKeyNormalizeOptions
+): CacheKeyNormalizeOptions {
+  if (normalize === false) {
+    return {};
+  }
+
+  if (typeof normalize === 'object') {
+    return { ...normalize };
+  }
+
+  return {};
+}
+
+/**
+ * Applies optional normalization on top of the URL returned by `new URL()`.
+ * @internal
+ */
+function normalizeUrl(url: URL, options: CacheKeyNormalizeOptions = {}): URL {
+  if (
+    !options.trailingSlash &&
+    !options.pathnameLowerCase &&
+    !options.ignoreSpaces
+  ) {
+    return url;
+  }
+
+  const normalized = new URL(url);
+  let pathname = normalized.pathname;
+
+  if (options.pathnameLowerCase) {
+    pathname = pathname.toLowerCase();
+  }
+
+  if (options.trailingSlash && pathname.length > 1 && pathname.endsWith('/')) {
+    pathname = pathname.replace(/\/+$/, '') || '/';
+  }
+
+  if (options.ignoreSpaces) {
+    pathname = pathname.replace(/%20/gi, '').replace(/\s+/g, '');
+  }
+
+  normalized.pathname = pathname;
+
+  if (options.ignoreSpaces && normalized.search) {
+    const params = new URLSearchParams(normalized.search);
+    const canonical = new URLSearchParams();
+
+    for (const [key, value] of params.entries()) {
+      canonical.append(key, value.replace(/\s+/g, ''));
+    }
+
+    canonical.sort();
+    normalized.search = canonical.toString();
+  }
+
+  return normalized;
+}
+
+/** @internal */
+function isEnabled(rule: RuleValue): rule is true | FilterOptions {
+  return rule !== false && rule !== undefined;
+}
+
+async function formatHashedSegment(
+  keys: string,
+  canonicalValues: string
+): Promise<string> {
+  return `${keys}${CACHE_KEY_VALUE_DIGEST_SEPARATOR}${await sha1(canonicalValues)}`;
+}
+
+/**
+ * Reads whitelisted cookie or header entries without scanning all values.
+ * @internal
+ */
+function readIncludedKeyValueEntries(
+  request: Request,
+  source: KeyValueSource,
+  includeList: readonly string[]
+): [string, string][] {
+  const entries: [string, string][] = [];
+
+  if (source === 'cookie') {
+    const cookies = new RequestCookies(request.headers);
+
+    for (const name of includeList) {
+      const cookie = cookies.get(name);
+
+      if (cookie) {
+        entries.push([name, cookie.value]);
+      }
+    }
+
+    return entries;
+  }
+
+  for (const name of includeList) {
+    const value = request.headers.get(name);
+
+    if (value !== null) {
+      entries.push([name, value]);
+    }
+  }
+
+  return entries;
+}
+
+/**
+ * Reads cookie or header entries for cache key generation.
+ * @internal
+ */
+function readKeyValueEntries(
+  request: Request,
+  source: KeyValueSource,
+  compiled?: CompiledFilter,
+  context = getCacheKeyContext(request)
+): [string, string][] {
+  if (compiled?.includeOnly && compiled.includeList) {
+    return readIncludedKeyValueEntries(request, source, compiled.includeList);
+  }
+
+  if (source === 'cookie') {
+    return context.getCookieEntries();
+  }
+
+  return context.getHeaderEntries();
+}
+
+/**
+ * Collects sorted key names and canonical/display value pairs from filtered entries.
+ * @internal
+ */
+function prepareKeyValueEntries(
+  entries: [string, string][],
+  compiled?: CompiledFilter,
+  {
+    prefiltered = false,
+    forbiddenKeys,
+  }: {
+    prefiltered?: boolean;
+    forbiddenKeys?: ReadonlySet<string>;
+  } = {}
+): CollectedKeyValues | undefined {
+  const filtered = applyCompiledFilter(entries, compiled, { prefiltered });
+
+  if (!filtered.length) {
+    return undefined;
+  }
+
+  const keyParts: string[] = [];
+  const canonicalParts: string[] = [];
+  const displayParts: string[] = [];
+
+  for (const [key, value] of filtered) {
+    if (forbiddenKeys?.has(key)) {
+      throw new TypeError(
+        `Cannot include header "${key}" in cache key. This header is excluded to prevent cache fragmentation or conflicts with other cache features.`
+      );
+    }
+
+    keyParts.push(key);
+    canonicalParts.push(`${key}=${value}`);
+    displayParts.push(value ? `${key}=${value}` : key);
+  }
+
+  const separator = CACHE_KEY_INTRA_FRAGMENT_SEPARATOR;
+
+  return {
+    keys: keyParts.join(separator),
+    canonicalValues: canonicalParts.join(separator),
+    displayValues: displayParts.join(separator),
+  };
+}
+
+/**
+ * Formats request key/value pairs as a hashed `keys@digest` segment.
+ * @internal
+ */
+async function formatHashedKeyValues(
+  request: Request,
+  compiled: CompiledFilter | undefined,
+  source: KeyValueSource,
+  forbidden = false
+): Promise<string> {
+  const collected = prepareKeyValueEntries(
+    readKeyValueEntries(request, source, compiled),
+    compiled,
+    {
+      prefiltered: compiled?.includeOnly,
+      forbiddenKeys: forbidden ? FORBIDDEN_HEADERS : undefined,
+    }
+  );
+
+  if (!collected) {
+    return '';
+  }
+
+  return formatHashedSegment(collected.keys, collected.canonicalValues);
+}
+
+/**
+ * Applies FilterOptions to a single scalar cache key component.
+ * @internal
+ */
+function scalarPart(value: string, compiled?: CompiledFilter) {
+  if (!compiled) {
+    return value;
+  }
+
+  if (compiled.includeOnly && compiled.include) {
+    return compiled.include.has(value) ? value : '';
+  }
+
+  return applyCompiledFilter([[value, '']], compiled)[0]?.[0] ?? '';
+}
+
+/** @internal */
+function validateCacheKeyRules(rules: SharedCacheKeyRules) {
+  for (const key of Object.keys(rules)) {
+    if (!CACHE_KEY_RULE_KEYS.has(key)) {
+      throw new TypeError(
+        `Unknown cache key part: "${key}". Use built-in parts (${[...CACHE_KEY_RULE_KEYS].join(', ')}).`
+      );
+    }
+  }
+}
+
+/** @internal */
+function compileCacheKeyPlan(rules: SharedCacheKeyRules): CompiledCacheKeyPlan {
+  validateCacheKeyRules(rules);
+
+  const { scheme, host, pathname, search, cookie, device, header } = rules;
+  const fragments: CompiledFragment[] = [];
+
+  for (const name of REQUEST_PART_KEYS) {
+    const rule = { cookie, device, header }[name];
+
+    if (!isEnabled(rule)) {
+      continue;
+    }
+
+    fragments.push({
+      name,
+      filter:
+        name === 'header'
+          ? compileFilterOptions(rule === true ? undefined : rule, true)
+          : compileFilterOptions(rule === true ? undefined : rule),
+    });
+  }
+
+  return {
+    url: {
+      scheme: compileRule(scheme),
+      host: compileRule(host),
+      pathname: compileRule(pathname),
+      search: compileRule(search),
+    },
+    fragments,
+    syncOnly: fragments.length === 0,
+  };
+}
+
+/**
+ * Generates a cache key component based on the URL scheme.
+ * @internal
+ */
+export function scheme(url: URL, compiled?: CompiledRule) {
+  return scalarPart(`${url.protocol}//`, compiled?.filter);
+}
+
+/**
+ * Generates a cache key component based on the request host.
+ * @internal
+ */
+export function host(url: URL, compiled?: CompiledRule) {
+  return scalarPart(url.host, compiled?.filter);
+}
+
+/**
+ * Generates a cache key component based on the URL pathname.
+ * @internal
+ */
+export function pathname(url: URL, compiled?: CompiledRule) {
+  return scalarPart(url.pathname, compiled?.filter);
+}
+
+/**
+ * Generates a cache key component based on URL search parameters.
+ * @internal
+ */
+export function search(url: URL, compiled?: CompiledRule) {
+  const searchParams = new URLSearchParams(url.search);
+  const filter = compiled?.filter;
+  let entries: [string, string][];
+
+  if (filter?.includeOnly && filter.includeList) {
+    entries = [];
+
+    for (const key of filter.includeList) {
+      const value = searchParams.get(key);
+
+      if (value !== null) {
+        entries.push([key, value]);
+      }
+    }
+  } else {
+    searchParams.sort();
+    entries = Array.from(searchParams.entries());
+  }
+
+  const collected = prepareKeyValueEntries(entries, filter, {
+    prefiltered: filter?.includeOnly,
+  });
+
+  return collected ? `?${collected.displayValues}` : '';
+}
+
+/**
+ * Generates a cache key component based on request cookies.
+ * @internal
+ */
+export function cookie(request: Request, options?: FilterOptions) {
+  return formatHashedKeyValues(
+    request,
+    compileFilterOptions(options),
+    'cookie'
+  );
+}
+
+/**
+ * Generates a cache key component based on device type detection.
+ * @internal
+ */
+export function device(request: Request, options?: FilterOptions) {
+  return scalarPart(
+    getDeviceType(request.headers),
+    compileFilterOptions(options)
+  );
+}
+
+/**
+ * Generates a cache key component based on request headers.
+ * @internal
+ */
+export function header(request: Request, options?: FilterOptions) {
+  return formatHashedKeyValues(
+    request,
+    compileFilterOptions(options, true),
+    'header',
+    true
+  );
+}
+
+/**
+ * Generates a cache key component based on HTTP Vary header processing.
+ * @internal
+ */
+export function vary(request: Request, options?: FilterOptions) {
+  return formatHashedKeyValues(
+    request,
+    compileFilterOptions(options, true),
+    'header'
+  );
+}
 
 /**
  * Default cache key generation rules.
- *
- * Includes the most common cache key components that work for most HTTP caching scenarios:
- * - host: Enables multi-tenant caching
- * - pathname: Differentiates resources
- * - search: Handles query parameters
- *
- * These defaults provide a good balance between cache effectiveness and key uniqueness.
  */
 export const DEFAULT_CACHE_KEY_RULES: SharedCacheKeyRules = {
+  scheme: true,
   host: true,
   pathname: true,
   search: true,
 };
 
 /**
- * Creates a cache key generator function with customizable rules and part definers.
- *
- * This factory function creates a highly configurable cache key generator that can
- * be tailored for specific application needs. The generated function follows a
- * consistent key format: `[cacheName/]host+pathname+search[#fragment1:fragment2:...]`
- *
- * Cache key structure:
- * - Base URL parts (host, pathname, search) are concatenated directly
- * - Fragment parts (cookie, device, header, custom) are hashed and joined with ":"
- * - Fragments are appended after "#" if any exist
- * - Cache name prefix is added if specified (except for "default")
- *
- * @param cacheName - Optional cache namespace (omitted if "default")
- * @param cacheKeyPartDefiners - Optional custom part definers for extending functionality
- * @returns A cache key generator function that accepts requests and rules
- *
- * @example
- * ```typescript
- * const generator = createCacheKeyGenerator('api-cache');
- * const key = await generator(request, { host: true, pathname: true, cookie: true });
- * // Result: "api-cache/example.com/api/users?limit=10#cookie=abc123"
- * ```
+ * Builds the URL portion of a cache key from enabled URL rules.
+ * @internal
+ */
+function buildUrlSegment(url: URL, urlRules: CompiledCacheKeyPlan['url']) {
+  const segments: string[] = [];
+
+  for (const name of URL_PART_KEYS) {
+    const rule = urlRules[name];
+    if (!rule) {
+      continue;
+    }
+
+    switch (name) {
+      case 'scheme':
+        segments.push(scheme(url, rule));
+        break;
+      case 'host':
+        segments.push(host(url, rule));
+        break;
+      case 'pathname':
+        segments.push(pathname(url, rule));
+        break;
+      case 'search':
+        segments.push(search(url, rule));
+        break;
+    }
+  }
+
+  return segments.join('');
+}
+
+/**
+ * Collects a named key/value fragment contribution.
+ * @internal
+ */
+function collectNamedKeyValuesFragment(
+  name: KeyValueSource,
+  request: Request,
+  compiled?: CompiledFilter
+): FragmentContribution | undefined {
+  const collected = prepareKeyValueEntries(
+    readKeyValueEntries(request, name, compiled),
+    compiled,
+    {
+      prefiltered: compiled?.includeOnly,
+      forbiddenKeys: name === 'header' ? FORBIDDEN_HEADERS : undefined,
+    }
+  );
+
+  if (!collected) {
+    return undefined;
+  }
+
+  return {
+    keys: `${name}:${collected.keys}`,
+    canonical: `${name}:${collected.canonicalValues}`,
+  };
+}
+
+/**
+ * Collects a scalar fragment contribution.
+ * @internal
+ */
+function collectScalarFragment(
+  name: string,
+  value: string,
+  compiled?: CompiledFilter
+): FragmentContribution | undefined {
+  if (!scalarPart(value, compiled)) {
+    return undefined;
+  }
+
+  return {
+    keys: name,
+    canonical: `${name}:${value}`,
+  };
+}
+
+/**
+ * Builds a named fragment segment for request-based cache key parts.
+ * @internal
+ */
+function buildFragmentContribution(
+  fragment: CompiledFragment,
+  request: Request
+): FragmentContribution | undefined {
+  if (fragment.name === 'device') {
+    return collectScalarFragment(
+      fragment.name,
+      getDeviceType(request.headers),
+      fragment.filter
+    );
+  }
+
+  return collectNamedKeyValuesFragment(fragment.name, request, fragment.filter);
+}
+
+/**
+ * Builds the fragment suffix with visible key names and one combined digest.
+ * @internal
+ */
+async function buildFragmentSuffix(
+  contributions: FragmentContribution[]
+): Promise<string> {
+  const keys = contributions
+    .map((part) => part.keys)
+    .join(CACHE_KEY_FRAGMENT_SEPARATOR);
+  const canonical = contributions
+    .map((part) => part.canonical)
+    .join(CACHE_KEY_FRAGMENT_SEPARATOR);
+
+  return `${keys}${CACHE_KEY_VALUE_DIGEST_SEPARATOR}${await sha1(canonical)}`;
+}
+
+/**
+ * Builds a cache key synchronously when only URL parts are enabled.
+ * @internal
+ */
+function buildCacheKeySync(
+  request: Request,
+  cacheKeyRules: SharedCacheKeyRules,
+  resolvedNormalize: CacheKeyNormalizeOptions
+): string | undefined {
+  const plan = compileCacheKeyPlan(cacheKeyRules);
+
+  if (!plan.syncOnly) {
+    return undefined;
+  }
+
+  const url = normalizeUrl(new URL(request.url), resolvedNormalize);
+  return buildUrlSegment(url, plan.url);
+}
+
+/**
+ * Builds a cache key, using the synchronous fast path when possible.
+ * @internal
+ */
+async function buildCacheKey(
+  request: Request,
+  cacheKeyRules: SharedCacheKeyRules,
+  resolvedNormalize: CacheKeyNormalizeOptions
+): Promise<string> {
+  const plan = compileCacheKeyPlan(cacheKeyRules);
+  const url = normalizeUrl(new URL(request.url), resolvedNormalize);
+  const baseKey = buildUrlSegment(url, plan.url);
+
+  if (plan.syncOnly) {
+    return baseKey;
+  }
+
+  getCacheKeyContext(request);
+
+  const contributions: FragmentContribution[] = [];
+
+  for (const fragment of plan.fragments) {
+    const contribution = buildFragmentContribution(fragment, request);
+
+    if (contribution) {
+      contributions.push(contribution);
+    }
+  }
+
+  return contributions.length
+    ? `${baseKey}#${await buildFragmentSuffix(contributions)}`
+    : baseKey;
+}
+
+/**
+ * Creates a cache key generator function with customizable rules.
  */
 export function createCacheKeyGenerator(
-  cacheName?: string,
-  cacheKeyPartDefiners?: SharedCacheKeyPartDefiners
-) {
-  return async function cacheKeyGenerator(
+  cacheKeyNormalize?: boolean | CacheKeyNormalizeOptions
+): CacheKeyGenerator {
+  const resolvedNormalize = resolveNormalizeOptions(cacheKeyNormalize);
+
+  const cacheKeyGenerator = async function cacheKeyGenerator(
     request: Request,
     cacheKeyRules: SharedCacheKeyRules = DEFAULT_CACHE_KEY_RULES
   ): Promise<string> {
-    // Separate URL parts from fragment parts for different processing
-    const { host, pathname, search, ...fragmentRules } = cacheKeyRules;
-
-    // Generate cache name prefix (empty for "default" cache)
-    const prefix = cacheName
-      ? cacheName === 'default'
-        ? ''
-        : `${cacheName}/`
-      : '';
-
-    const urlRules: SharedCacheKeyRules = { host, pathname, search };
-    const url = new URL(request.url);
-
-    // Process URL-based parts (synchronous, concatenated directly)
-    const urlPart: string[] = BUILT_IN_URL_PART_KEYS.filter(
-      (name) => urlRules[name]
-    ).map((name) => {
-      const urlPartDefiner = BUILT_IN_URL_PART_DEFINERS[name];
-      const options = cacheKeyRules[name];
-
-      if (options === true) {
-        return urlPartDefiner(url);
-      } else if (options === false) {
-        return '';
-      } else {
-        return urlPartDefiner(url, options as FilterOptions);
-      }
-    });
-
-    // Process fragment parts (asynchronous, hashed and joined with ":")
-    const fragmentPart = (
-      await Promise.all(
-        Object.keys(fragmentRules)
-          .sort() // Ensure consistent ordering
-          .map((name) => {
-            const expandedCacheKeyPartDefiners =
-              BUILT_IN_EXPANDED_PART_DEFINERS[name] ??
-              cacheKeyPartDefiners?.[name];
-
-            if (expandedCacheKeyPartDefiners) {
-              const options = cacheKeyRules[name];
-
-              if (options === true) {
-                return expandedCacheKeyPartDefiners(request);
-              } else if (options === false) {
-                return '';
-              } else {
-                return expandedCacheKeyPartDefiners(
-                  request,
-                  options as FilterOptions
-                );
-              }
-            }
-
-            throw new TypeError(
-              `Unknown cache key part: "${name}". Register a custom part definer or use a built-in part (${Object.keys(BUILT_IN_EXPANDED_PART_DEFINERS).join(', ')}).`
-            );
-          })
-      )
-    ).filter(Boolean); // Remove empty parts
-
-    // Combine URL parts and fragment parts into final cache key
-    return fragmentPart.length
-      ? `${prefix}${urlPart.join('')}#${fragmentPart.join(':')}`
-      : `${prefix}${urlPart.join('')}`;
+    return buildCacheKey(request, cacheKeyRules, resolvedNormalize);
   };
+
+  cacheKeyGenerator.sync = function cacheKeyGeneratorSync(
+    request: Request,
+    cacheKeyRules: SharedCacheKeyRules = DEFAULT_CACHE_KEY_RULES
+  ) {
+    return buildCacheKeySync(request, cacheKeyRules, resolvedNormalize);
+  };
+
+  return cacheKeyGenerator;
 }

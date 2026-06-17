@@ -1920,13 +1920,17 @@ describe('Vary Header Handling', () => {
           sharedCache: { debugCacheKey: true },
         });
         expect(first.headers.get('x-cache-status')).toBe(MISS);
-        expect(first.headers.get(CACHE_KEY_HEADER_NAME)).toBe('localhost/');
+        expect(first.headers.get(CACHE_KEY_HEADER_NAME)).toBe(
+          'http://localhost/'
+        );
 
         const second = await fetch(TEST_URL, {
           sharedCache: { debugCacheKey: true },
         });
         expect(second.headers.get('x-cache-status')).toBe(HIT);
-        expect(second.headers.get(CACHE_KEY_HEADER_NAME)).toBe('localhost/');
+        expect(second.headers.get(CACHE_KEY_HEADER_NAME)).toBe(
+          'http://localhost/'
+        );
       });
 
       it('should not expose cache key when debugCacheKey is disabled', async () => {
@@ -1969,7 +1973,7 @@ describe('Vary Header Handling', () => {
 
         expect(response.headers.get('x-cache-status')).toBe(MISS);
         expect(response.headers.get(CACHE_KEY_HEADER_NAME)).toMatch(
-          /^localhost\/:accept-language=[a-f0-9]{6}$/
+          /^http:\/\/localhost\/\|v\|accept-language@[a-f0-9]{40}$/
         );
       });
 
@@ -1992,7 +1996,7 @@ describe('Vary Header Handling', () => {
         });
 
         const cacheKeyHeader = response.headers.get(CACHE_KEY_HEADER_NAME);
-        expect(cacheKeyHeader).toBe('localhost/?q=hello%0Aworld');
+        expect(cacheKeyHeader).toBe('http://localhost/?q=hello%0Aworld');
         expect(() =>
           new Headers().set(CACHE_KEY_HEADER_NAME, cacheKeyHeader!)
         ).not.toThrow();
