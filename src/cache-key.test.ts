@@ -641,22 +641,25 @@ describe('sync cache key generator', () => {
 
     expect(generator.sync(request, { cookie: true })).toBeUndefined();
   });
-});
 
-describe('sync cache key generator', () => {
-  it('should build default URL keys synchronously', () => {
-    const generator = createCacheKeyGenerator();
-    const request = new Request('http://localhost/?a=1');
+  it('should treat normalize true the same as the default generator', async () => {
+    const defaultGenerator = createCacheKeyGenerator();
+    const explicitGenerator = createCacheKeyGenerator(true);
+    const request = new Request('http://localhost/API');
 
-    expect(generator.sync(request)).toBe('http://localhost/?a=1');
+    expect(
+      await explicitGenerator(request, { host: true, pathname: true })
+    ).toBe(await defaultGenerator(request, { host: true, pathname: true }));
   });
 
-  it('should return undefined when fragments are required', () => {
+  it('should omit fragments when whitelisted headers are absent', async () => {
     const generator = createCacheKeyGenerator();
-    const request = new Request('http://localhost/', {
-      headers: { cookie: 'a=1' },
+    const key = await generator(new Request('http://localhost/'), {
+      host: true,
+      pathname: true,
+      header: { include: ['x-missing'] },
     });
 
-    expect(generator.sync(request, { cookie: true })).toBeUndefined();
+    expect(key).toBe('localhost/');
   });
 });

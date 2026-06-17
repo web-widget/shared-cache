@@ -401,6 +401,26 @@ describe('SharedCache', () => {
       expect(matched!.status).toBe(200);
     });
 
+    it('should return 200 when If-None-Match is present but the cached response has no ETag', async () => {
+      const request = new Request('https://example.com/conditional-no-etag');
+      await cache.put(
+        request,
+        createTestResponse('cached data', 200, {
+          'cache-control': 'max-age=300',
+        })
+      );
+
+      const matched = await cache.match(
+        new Request('https://example.com/conditional-no-etag', {
+          headers: { 'if-none-match': '"anything"' },
+        })
+      );
+
+      expect(matched).toBeDefined();
+      expect(matched!.status).toBe(200);
+      expect(matched!.headers.get(CACHE_STATUS_HEADER_NAME)).toBe(HIT);
+    });
+
     it('should return 200 when If-None-Match does not match the cached ETag', async () => {
       const request = new Request('https://example.com/conditional-etag-miss');
       await cache.put(
@@ -707,6 +727,23 @@ describe('SharedCache', () => {
       });
       const result = await cache.delete(request, { ignoreMethod: true });
       expect(result).toBe(true);
+    });
+
+    it('should delete Vary-aware cache entries and their base keys', async () => {
+      const request = new Request('https://example.com/vary-delete', {
+        headers: { 'accept-language': 'en' },
+      });
+
+      await cache.put(
+        request,
+        createTestResponse('localized body', 200, {
+          vary: 'accept-language',
+          'cache-control': 'max-age=300',
+        })
+      );
+
+      await cache.delete(request);
+      expect(await cache.match(request)).toBeUndefined();
     });
   });
 

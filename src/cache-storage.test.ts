@@ -27,6 +27,37 @@ describe('SharedCacheStorage', () => {
     cacheStorage = new SharedCacheStorage(createCacheStore());
   });
 
+  it('should require a storage backend', () => {
+    expect(() => new SharedCacheStorage(null as unknown as KVStorage)).toThrow(
+      'Storage backend is required for SharedCacheStorage.'
+    );
+  });
+
+  it('should reject unimplemented CacheStorage methods', async () => {
+    await expect(cacheStorage.delete('api')).rejects.toThrow(
+      'SharedCacheStorage.delete() is not implemented.'
+    );
+    await expect(cacheStorage.has('api')).rejects.toThrow(
+      'SharedCacheStorage.has() is not implemented.'
+    );
+    await expect(cacheStorage.keys()).rejects.toThrow(
+      'SharedCacheStorage.keys() is not implemented.'
+    );
+    await expect(cacheStorage.match('http://localhost/')).rejects.toThrow(
+      'SharedCacheStorage.match() is not implemented.'
+    );
+  });
+
+  it('should inherit default options when opening caches', async () => {
+    const storage = new SharedCacheStorage(createCacheStore(), {
+      cacheKeyRules: { search: false },
+    });
+    const cache = await storage.open('api');
+
+    const key = await cache.getCacheKey(new Request('http://localhost/?a=1'));
+    expect(key).toBe('http://localhost/');
+  });
+
   it('should open a cache', async () => {
     const cache1 = await cacheStorage.open('1');
     const cache2 = await cacheStorage.open('2');
