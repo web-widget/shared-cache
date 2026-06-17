@@ -1,5 +1,5 @@
 ---
-'@web-widget/shared-cache': minor
+'@web-widget/shared-cache': major
 ---
 
 Overhaul cache key generation for safety and HTTP alignment:
