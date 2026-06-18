@@ -1,5 +1,7 @@
 # Cloudflare Cache vs SharedCache
 
+[← Back to README](../README.md) · [Documentation index](./README.md)
+
 This guide compares [Cloudflare CDN Cache](https://developers.cloudflare.com/cache/) and the [Workers Cache API](https://developers.cloudflare.com/workers/runtime-apis/cache/) with `@web-widget/shared-cache`—how the public API maps to Cloudflare behavior and where they differ.
 
 ## Cache Key
