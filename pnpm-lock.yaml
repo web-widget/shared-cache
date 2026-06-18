@@ -12,8 +12,8 @@ importers:
         specifier: ^6.0.0
         version: 6.0.0
       '@web-widget/http-cache-semantics':
-        specifier: ^1.2.0
-        version: 1.2.0
+        specifier: ^2.0.1
+        version: 2.0.1
     devDependencies:
       '@changesets/cli':
         specifier: ^2.27.1
@@ -980,8 +980,8 @@ packages:
   '@ungap/structured-clone@1.3.0':
     resolution: {integrity: sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g==}
 
-  '@web-widget/http-cache-semantics@1.2.0':
-    resolution: {integrity: sha512-q/MobtHmwp3oaHmEATX/f6BJ+4bNMPVQ1nfDiNW9GkGI/JxRGhpOcs8wxdyr4tbcTgkuqjex8h9G7ONTDuVBmQ==}
+  '@web-widget/http-cache-semantics@2.0.1':
+    resolution: {integrity: sha512-JKJygfnKVCz+qsLgdGa9qOo1B9W+NpNK/RsdXPmiESsazSceMPwwLTkmP4Ni0UFfcDILnEVo9BFV2XejMgN7jA==}
 
   JSV@4.0.2:
     resolution: {integrity: sha512-ZJ6wx9xaKJ3yFUhq5/sk82PJMuUyLk277I8mQeyDgCTjGdjWJIvPfaU5LIXaMuaN2UO1X3kZH4+lgphublZUHw==}
@@ -4151,7 +4151,7 @@ snapshots:
 
   '@ungap/structured-clone@1.3.0': {}
 
-  '@web-widget/http-cache-semantics@1.2.0': {}
+  '@web-widget/http-cache-semantics@2.0.1': {}
 
   JSV@4.0.2: {}
 

@@ -9,8 +9,9 @@ import type {
   SharedCacheRequest,
   SharedCacheRequestInfo,
 } from './types';
-import type { CachePolicyObject } from '@web-widget/http-cache-semantics';
-import CachePolicy from '@web-widget/http-cache-semantics';
+import CachePolicy, {
+  type CachePolicyObject,
+} from '@web-widget/http-cache-semantics';
 import { createLogger, StructuredLogger } from './utils/logger';
 import {
   appendVaryKeySuffix,
@@ -242,19 +243,14 @@ export class SharedCache implements WebCache {
     const fetch = options?._fetch;
     const policyObject = sanitizeStoredPolicy(cacheItem.policy);
     const policy = CachePolicy.fromObject(policyObject);
+    const evaluationRequest = normalizePolicyRequest(r, policyObject, options);
+    const evaluation = policy.evaluateRequest(evaluationRequest);
 
     const { body, status, statusText } = cacheItem.response;
-    const responseHeaders = policy.responseHeaders();
-    const stale = policy.stale();
-    const needsRevalidation =
-      !policy.satisfiesWithoutRevalidation(r, {
-        ignoreRequestCacheControl: options?._ignoreRequestCacheControl,
-        ignoreMethod: true,
-        ignoreSearch: true,
-        ignoreVary: true,
-      }) || stale;
 
-    if (needsRevalidation) {
+    if (evaluation.revalidation) {
+      const responseHeaders =
+        evaluation.response?.headers ?? policy.responseHeaders();
       const response = new Response(body, {
         status,
         statusText,
@@ -265,7 +261,7 @@ export class SharedCache implements WebCache {
         return;
       }
 
-      if (stale && policy.useStaleWhileRevalidate()) {
+      if (evaluation.revalidation.synchronous === false) {
         const event = options?._event;
         const waitUntil =
           event?.waitUntil.bind(event) ??
@@ -284,6 +280,7 @@ export class SharedCache implements WebCache {
         waitUntil(
           this.#revalidate(
             r,
+            evaluationRequest,
             {
               response,
               policy,
@@ -291,7 +288,7 @@ export class SharedCache implements WebCache {
             },
             cacheKey,
             fetch,
-            options
+            evaluation.revalidation.headers
           )
         );
         applyCacheStatus(response, UPDATING);
@@ -309,6 +306,7 @@ export class SharedCache implements WebCache {
 
       return this.#revalidate(
         r,
+        evaluationRequest,
         {
           response,
           policy,
@@ -316,9 +314,15 @@ export class SharedCache implements WebCache {
         },
         cacheKey,
         fetch,
-        options
+        evaluation.revalidation.headers
       );
     }
+
+    if (!evaluation.response) {
+      return;
+    }
+
+    const responseHeaders = evaluation.response.headers;
 
     if (
       hasConditionalRequestHeaders(r) &&
@@ -498,19 +502,14 @@ export class SharedCache implements WebCache {
    */
   async #revalidate(
     request: Request,
+    evaluationRequest: Request,
     resolveCacheItem: CachePolicyResponse,
     cacheKey: string,
     fetch: typeof globalThis.fetch,
-    options: SharedCacheQueryOptions | undefined
+    revalidationHeaders: Headers
   ): Promise<Response> {
-    // Create conditional request with validation headers (If-None-Match, If-Modified-Since)
-    const revalidationRequest = new Request(request, {
-      headers: resolveCacheItem.policy.revalidationHeaders(request, {
-        ignoreRequestCacheControl: options?._ignoreRequestCacheControl,
-        ignoreMethod: true,
-        ignoreSearch: true,
-        ignoreVary: true,
-      }),
+    const revalidationRequest = new Request(evaluationRequest, {
+      headers: revalidationHeaders,
     });
 
     let revalidationResponse: Response;
@@ -613,10 +612,7 @@ export class SharedCache implements WebCache {
         },
         'Serving fresh response'
       );
-    } else if (
-      isErrorResponse(revalidationResponse) &&
-      resolveCacheItem.policy.useStaleIfError()
-    ) {
+    } else if (isErrorResponse(revalidationResponse)) {
       applyCacheStatus(clonedResponse, STALE);
       this.#structuredLogger.info(
         'Serving stale response',
@@ -690,6 +686,35 @@ export class SharedCache implements WebCache {
       responseForVary
     );
   }
+}
+
+/**
+ * Normalizes a request for CachePolicy evaluation.
+ * Vary matching is handled at the cache-key layer; method, URL, and request
+ * headers are aligned with the stored policy metadata before calling evaluateRequest().
+ */
+function normalizePolicyRequest(
+  request: Request,
+  policyObject: CachePolicyObject,
+  options?: SharedCacheQueryOptions
+): Request {
+  const headers = new Headers(request.headers);
+
+  if (options?._ignoreRequestCacheControl) {
+    headers.delete('cache-control');
+    headers.delete('pragma');
+  }
+
+  if (policyObject.reqh) {
+    for (const [name, value] of Object.entries(policyObject.reqh)) {
+      headers.set(name, value);
+    }
+  }
+
+  return new Request(policyObject.u, {
+    method: policyObject.m,
+    headers,
+  });
 }
 
 /**
