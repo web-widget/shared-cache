@@ -33,8 +33,17 @@ export interface CacheKeyRules {
   cookie?: KeyFilterOptions | boolean;
   device?: KeyFilterOptions | boolean;
   header?: KeyFilterOptions | boolean;
+  /**
+   * @internal Scheme is implicit in the URL cache key and not separately configurable.
+   */
   scheme?: KeyFilterOptions | boolean;
+  /**
+   * @internal Host is implicit in the URL cache key and not separately configurable.
+   */
   host?: KeyFilterOptions | boolean;
+  /**
+   * @internal Pathname is implicit in the URL cache key and not separately configurable.
+   */
   pathname?: KeyFilterOptions | boolean;
   search?: KeyFilterOptions | boolean;
 }
@@ -45,7 +54,7 @@ export interface CacheKeyGenerator {
   sync: (request: Request, cacheKeyRules?: CacheKeyRules) => string | undefined;
 }
 
-/** @internal URL normalization options passed via `SharedCacheOptions._cacheKeyNormalize`. */
+/** URL normalization options passed via `SharedCacheOptions._cacheKeyNormalize`. */
 interface CacheKeyNormalizeOptions {
   trailingSlash?: boolean;
   pathnameLowerCase?: boolean;
@@ -176,7 +185,6 @@ export interface CachePolicyResponse {
   /**
    * Response body already materialized in storage.
    * Avoids re-reading the response stream during 304 revalidation.
-   * @internal
    */
   storedBody?: string;
 }

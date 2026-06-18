@@ -16,7 +16,6 @@ function toAbortError(reason?: unknown): Error {
  * NOTE: Revalidation failures must remain HTTP responses so `stale-if-error`
  * and conditional revalidation can run. Miss-phase failures propagate as throws.
  *
- * @internal
  */
 export function toOriginFailureResponse(error: unknown): Response {
   const message =
@@ -41,7 +40,6 @@ function settleOriginFailure(
 /**
  * Invokes a cache origin with phase-aware error and abort handling.
  *
- * @internal
  */
 export async function invokeOrigin(
   origin: CacheOriginHandler,

@@ -135,7 +135,6 @@ export const sharedCacheFetch = createSharedCacheFetch();
  * may not be implemented (e.g., some server-side environments) by falling
  * back to a default cache mode.
  *
- * @internal
  */
 function getRequestCacheMode(
   request: Request,

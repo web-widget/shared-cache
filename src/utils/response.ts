@@ -44,7 +44,6 @@ export function modifyResponseHeaders(
  *
  * @param cacheKey - Raw cache key from storage key generation
  * @returns Header-safe cache key (ASCII-only, percent-encoded where needed)
- * @internal
  */
 export function encodeCacheKeyHeaderValue(cacheKey: string): string {
   let encoded = '';

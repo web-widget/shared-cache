@@ -11,7 +11,7 @@
 [![WinterCG](https://img.shields.io/badge/WinterCG-Compatible-blue.svg)](https://wintercg.org/)
 [![RFC Compliant](https://img.shields.io/badge/RFC%207234-Compliant-green.svg)](https://tools.ietf.org/html/rfc7234)
 
-**A standards-compliant HTTP cache implementation for server-side applications.**
+A standards-compliant HTTP cache implementation for server-side applications.
 
 SharedCache is an HTTP caching library that follows Web Standards and HTTP specifications. It implements a cache interface similar to the [Web Cache API](https://developer.mozilla.org/en-US/docs/Web/API/Cache) but optimized for server-side shared caching scenarios.
 
@@ -29,6 +29,7 @@ SharedCache is an HTTP caching library that follows Web Standards and HTTP speci
 - [🎛️ Advanced Configuration](#️-advanced-configuration)
 - [📚 API Reference](#-api-reference)
 - [📋 Standards Compliance](#-standards-compliance)
+- [☁️ Cloudflare Comparison](#️-cloudflare-comparison)
 - [❓ Frequently Asked Questions](#-frequently-asked-questions)
 - [🤝 Who's Using SharedCache](#-whos-using-sharedcache)
 - [🙏 Acknowledgments](#-acknowledgments)
@@ -36,18 +37,18 @@ SharedCache is an HTTP caching library that follows Web Standards and HTTP speci
 
 ## ✨ Key Features
 
-- **📋 RFC Compliance**: Supports [RFC 5861](https://tools.ietf.org/html/rfc5861) directives like `stale-if-error` and `stale-while-revalidate`
-- **🎯 Smart Caching**: Handles complex HTTP scenarios including `Vary` headers, proxy revalidation, and authenticated responses
-- **🔧 Flexible Storage**: Pluggable storage backend supporting memory, Redis, or any custom key-value store
-- **🚀 Enhanced Fetch**: Extends the standard `fetch` API with caching capabilities while maintaining full compatibility
-- **🔌 Middleware Origin**: `createCacheHandler` for in-process handlers (e.g. middleware `next()`)
-- **🎛️ Custom Cache Keys**: Cache key customization supporting device types, cookies, headers, and URL components
-- **⚡ Shared Cache Optimization**: Prioritizes `s-maxage` over `max-age` for shared cache performance
-- **🌍 Universal Runtime**: Compatible with [WinterCG](https://wintercg.org/) environments including Node.js, Deno, Bun, and Edge Runtime
+- 📋 **RFC Compliance**: Supports [RFC 5861](https://tools.ietf.org/html/rfc5861) directives like `stale-if-error` and `stale-while-revalidate`
+- 🎯 **Smart Caching**: Handles complex HTTP scenarios including `Vary` headers, proxy revalidation, and authenticated responses
+- 🔧 **Flexible Storage**: Pluggable storage backend supporting memory, Redis, or any custom key-value store
+- 🚀 **Enhanced Fetch**: Extends the standard `fetch` API with caching capabilities while maintaining full compatibility
+- 🔌 **Middleware Origin**: `createCacheHandler` for in-process handlers (e.g. middleware `next()`)
+- 🎛️ **Custom Cache Keys**: Cache key customization supporting device types, cookies, headers, and URL components
+- ⚡ **Shared Cache Optimization**: Prioritizes `s-maxage` over `max-age` for shared cache performance
+- 🌍 **Universal Runtime**: Compatible with [WinterCG](https://wintercg.org/) environments including Node.js, Deno, Bun, and Edge Runtime
 
 ## 🤔 Why SharedCache?
 
-While the Web `fetch` API has become ubiquitous in server-side JavaScript, existing browser Cache APIs are designed for single-user scenarios. Server-side applications need **shared caches** that serve multiple users efficiently.
+While the Web `fetch` API has become ubiquitous in server-side JavaScript, existing browser Cache APIs are designed for single-user scenarios. Server-side applications need shared caches that serve multiple users efficiently.
 
 SharedCache provides:
 
@@ -74,7 +75,7 @@ SharedCache provides:
 
 ### 🎯 Primary Use Cases
 
-#### **Server-Side API Caching**
+#### Server-Side API Caching
 
 ```typescript
 // Cache API responses to reduce backend load
@@ -84,7 +85,7 @@ const apiFetch = createFetch(cache, {
 const userData = await apiFetch('/api/user/profile'); // First: 200ms, subsequent: 2ms
 ```
 
-#### **Server-Side Page Caching**
+#### Server-Side Page Caching
 
 ```typescript
 // Cache rendered pages using HTTP cache control directives
@@ -105,7 +106,7 @@ export const handler = {
 };
 ```
 
-**Integration Requirements**: Use `createCacheHandler` in framework middleware, or integrate SharedCache manually in your SSR pipeline.
+**Integration requirements:** Use `createCacheHandler` in framework middleware, or integrate SharedCache manually in your SSR pipeline.
 
 ```typescript
 const handler = createCacheHandler(cache, {
@@ -114,7 +115,7 @@ const handler = createCacheHandler(cache, {
 return handler.resolve(request, () => next(), { waitUntil });
 ```
 
-#### **Cross-Runtime Applications**
+#### Cross-Runtime Applications
 
 ```typescript
 // Same code works in Node.js, Deno, Bun, and Edge Runtime
@@ -122,7 +123,7 @@ const fetch = createFetch(cache);
 // Deploy anywhere without code changes
 ```
 
-#### **Distributed Caching**
+#### Distributed Caching
 
 ```typescript
 // Redis backend for multi-instance applications
@@ -692,15 +693,15 @@ sharedCache: {
 }
 ```
 
-**Default cache key rules:** `scheme`, `host`, `pathname`, and `search` are all enabled. Keys look like `https://example.com/path?a=1`. Set `scheme: false` only if a reverse proxy always presents `http:` internally.
+**Default cache key rules:** Keys look like `https://example.com/path?a=1` (full request URL). Query parameters are included by default (`search: true`).
 
 ### Cache Key Components
 
-#### **URL Components**
+#### URL Components
 
 - **`search`**: Control query parameter inclusion
 
-**Query Parameter Control:**
+**Query parameter control:**
 
 ```typescript
 // Include all query parameters (default)
@@ -720,7 +721,7 @@ search: {
 }
 ```
 
-#### **Device Classification**
+#### Device Classification
 
 Automatically classify requests as `mobile`, `desktop`, or `tablet` based on User-Agent:
 
@@ -730,7 +731,7 @@ cacheKeyRules: {
 }
 ```
 
-#### **Cookie-Based Caching**
+#### Cookie-Based Caching
 
 Include specific cookies in the cache key:
 
@@ -743,7 +744,7 @@ cacheKeyRules: {
 }
 ```
 
-#### **Header-Based Caching**
+#### Header-Based Caching
 
 Include request headers in the cache key:
 
@@ -756,7 +757,7 @@ cacheKeyRules: {
 }
 ```
 
-**Restricted Headers:** For security and performance, certain headers cannot be included:
+**Restricted headers:** For security and performance, certain headers cannot be included:
 
 - **High-cardinality headers**: `accept`, `accept-charset`, `accept-encoding`, `accept-language`, `user-agent`, `referer`
 - **Cache/proxy headers**: `cache-control`, `if-*`, `range`, `connection`
@@ -771,14 +772,14 @@ SharedCache provides comprehensive monitoring through the `x-cache-status` heade
 
 | Status            | Description                                        | When It Occurs                                             |
 | ----------------- | -------------------------------------------------- | ---------------------------------------------------------- |
-| **`HIT`**         | Response served from cache                         | Fresh cache hit, or conditional `304` from `Cache.match()` |
-| **`MISS`**        | Response fetched from origin                       | The requested resource was not found in cache              |
-| **`EXPIRED`**     | Cached response expired, fresh response fetched    | The cached response exceeded its TTL                       |
-| **`UPDATING`**    | Stale response served during background revalidate | `stale-while-revalidate` via `createFetch`                 |
-| **`STALE`**       | Stale response served when origin is unreachable   | `stale-if-error` or revalidation failure                   |
-| **`BYPASS`**      | Cache bypassed                                     | Bypassed due to cache control directives like `no-store`   |
-| **`REVALIDATED`** | Cached response revalidated with origin            | Synchronous revalidation; origin returned 304 Not Modified |
-| **`DYNAMIC`**     | Response cannot be cached                          | Cannot be cached due to HTTP method or status code         |
+| `HIT`         | Response served from cache                         | Fresh cache hit, or conditional `304` from `Cache.match()` |
+| `MISS`        | Response fetched from origin                       | The requested resource was not found in cache              |
+| `EXPIRED`     | Cached response expired, fresh response fetched    | The cached response exceeded its TTL                       |
+| `UPDATING`    | Stale response served during background revalidate | `stale-while-revalidate` via `createFetch`                 |
+| `STALE`       | Stale response served when origin is unreachable   | `stale-if-error` or revalidation failure                   |
+| `BYPASS`      | Cache bypassed                                     | Bypassed due to cache control directives like `no-store`   |
+| `REVALIDATED` | Cached response revalidated with origin            | Synchronous revalidation; origin returned 304 Not Modified |
+| `DYNAMIC`     | Response cannot be cached                          | Cannot be cached due to HTTP method or status code         |
 
 ### Cache Status Header Details
 
@@ -1049,23 +1050,23 @@ const alertingLogger = {
 
 ### Core API Overview
 
-**Main Functions:**
+**Main functions:**
 
-- `createFetch(cache?, options?)` - Cached fetch for outbound HTTP requests
-- `createCacheHandler(cache, defaults?)` - Cached resolver for in-process origin handlers
-- `resolveWithCache(cache, request, origin, options?)` - Low-level cache resolution (used by both APIs above)
-- `createLogger(logger?, logLevel?, prefix?)` - Create logger with level filtering
+- **`createFetch(cache?, options?)`** - Cached fetch for outbound HTTP requests
+- **`createCacheHandler(cache, defaults?)`** - Cached resolver for in-process origin handlers
+- **`resolveWithCache(cache, request, origin, options?)`** - Low-level cache resolution (used by both APIs above)
+- **`createLogger(logger?, logLevel?, prefix?)`** - Create logger with level filtering
 
 **Classes:**
 
-- `Cache` - Main cache implementation
-- `CacheStorage` - Cache storage manager
+- **`Cache`** - Main cache implementation
+- **`CacheStorage`** - Cache storage manager
 
-**Key Types:**
+**Key types:**
 
-- `KVStorage` - Storage backend interface
-- `SharedCacheRequestInitProperties` - Request cache configuration
-- `CacheKeyRules` - Cache key generation rules
+- **`KVStorage`** - Storage backend interface
+- **`SharedCacheRequestInitProperties`** - Request cache configuration
+- **`CacheKeyRules`** - Cache key generation rules
 
 ---
 
@@ -1085,13 +1086,13 @@ function createFetch(
 
 **Parameters:**
 
-- `cache` - Optional SharedCache instance (auto-discovered from globalThis.caches if not provided)
-- `options.fetch` - Custom fetch implementation to use as the underlying fetcher (defaults to globalThis.fetch)
-- `options.defaults` - Default shared cache options to apply to all requests
+- **`cache`** - Optional SharedCache instance (auto-discovered from globalThis.caches if not provided)
+- **`options.fetch`** - Custom fetch implementation to use as the underlying fetcher (defaults to globalThis.fetch)
+- **`options.defaults`** - Default shared cache options to apply to all requests
 
 **Returns:** `SharedCacheFetch` - A fetch function with caching capabilities
 
-**Basic Usage:**
+**Basic usage:**
 
 ```typescript
 const cache = await caches.open('my-cache');
@@ -1198,15 +1199,15 @@ type CacheStatus =
 
 Status values are automatically added to response headers as `x-cache-status`.
 
-**Complete API documentation available in TypeScript definitions and source code.**
+**Complete API documentation** available in TypeScript definitions and source code.
 
 ## 📋 Standards Compliance
 
-SharedCache demonstrates **exceptional HTTP standards compliance**, fully adhering to established web caching specifications:
+SharedCache demonstrates exceptional HTTP standards compliance, fully adhering to established web caching specifications:
 
 ### ✅ HTTP Caching Standards (RFC 7234)
 
-**Complete Compliance Features:**
+**Complete compliance features:**
 
 - **Cache Control Directives**: Proper handling of `no-store`, `no-cache`, `private`, `public`, `s-maxage`, and `max-age`
 - **HTTP Method Support**: Standards-compliant caching for GET/HEAD methods with correct rejection of non-cacheable methods
@@ -1222,7 +1223,7 @@ SharedCache demonstrates **exceptional HTTP standards compliance**, fully adheri
 
 ### ✅ Web Cache API Compatibility
 
-SharedCache implements a **subset** of the standard Web Cache API interface, focusing on core caching operations:
+SharedCache implements a subset of the standard Web Cache API interface, focusing on core caching operations:
 
 ```typescript
 interface Cache {
@@ -1238,17 +1239,17 @@ interface Cache {
 }
 ```
 
-**Implementation Status:**
+**Implementation status:**
 
-- **✅ Core Methods**: `match()`, `put()`, `delete()` - Fully implemented with HTTP semantics
-- **❌ Convenience Methods**: `add()`, `addAll()` - Use `put()` instead
-- **❌ Enumeration Methods**: `keys()`, `matchAll()` - Not available in server environments
+- ✅ **Core Methods**: `match()`, `put()`, `delete()` - Fully implemented with HTTP semantics
+- ❌ **Convenience Methods**: `add()`, `addAll()` - Use `put()` instead
+- ❌ **Enumeration Methods**: `keys()`, `matchAll()` - Not available in server environments
 
-**`createFetch` vs `Cache`:** `createFetch` adds SWR, origin revalidation, and status headers. Bare `cache.match()` / `cache.put()` are storage-style APIs (expired entries return `undefined` without `createFetch`).
+**`createFetch` vs `Cache`**: `createFetch` adds SWR, origin revalidation, and status headers. Bare `cache.match()` / `cache.put()` are storage-style APIs (expired entries return `undefined` without `createFetch`).
 
-**`createFetch` vs `createCacheHandler`:** Same caching core. `createFetch` wraps outbound `fetch`; `createCacheHandler` accepts an in-process origin callback.
+**`createFetch` vs `createCacheHandler`**: Same caching core. `createFetch` wraps outbound `fetch`; `createCacheHandler` accepts an in-process origin callback.
 
-**Options Parameter Differences:**
+**Options parameter differences:**
 
 `match()` and `delete()` support `ignoreMethod` only—the same subset as the [Cloudflare Workers Cache API](https://developers.cloudflare.com/workers/runtime-apis/cache/). To ignore query strings, set `cacheKeyRules.search: false`. To bypass Vary processing, set `sharedCache.ignoreVary: true`.
 
@@ -1256,10 +1257,10 @@ interface Cache {
 
 | Standard                           | Status                   | Coverage     |
 | ---------------------------------- | ------------------------ | ------------ |
-| **RFC 7234** (HTTP Caching)        | ✅ Fully Compliant       | 100%         |
-| **RFC 5861** (stale-\* extensions) | ✅ Fully Compliant       | 100%         |
-| **Web Cache API**                  | ✅ Subset Implementation | Core Methods |
-| **WinterCG Standards**             | ✅ Fully Supported       | 100%         |
+| RFC 7234 (HTTP Caching)        | ✅ Fully Compliant       | 100%         |
+| RFC 5861 (stale-\* extensions) | ✅ Fully Compliant       | 100%         |
+| Web Cache API                  | ✅ Subset Implementation | Core Methods |
+| WinterCG Standards             | ✅ Fully Supported       | 100%         |
 
 ### 🛡️ Production-Grade Implementation
 
@@ -1278,7 +1279,18 @@ interface Cache {
 
 **🔒 Important Security Note**: SharedCache automatically enforces HTTP caching security rules. Requests containing `Authorization` headers will not be cached unless the response explicitly allows it with directives like `public`, `s-maxage`, or `must-revalidate`. This ensures compliance with shared cache security requirements.
 
-**SharedCache is production-ready and battle-tested**, providing enterprise-grade HTTP caching with full standards compliance for server-side applications.
+SharedCache is production-ready and battle-tested, providing enterprise-grade HTTP caching with full standards compliance for server-side applications.
+
+## ☁️ Cloudflare Comparison
+
+SharedCache is designed for origin-side caching (application servers with pluggable `KVStorage` such as Redis or S3), not as a replacement for Cloudflare's global edge cache. Where it helps to align with Cloudflare semantics, the library mirrors familiar patterns from the CDN and [Workers Cache API](https://developers.cloudflare.com/workers/runtime-apis/cache/):
+
+- **Cache Key** — public `cacheKeyRules` (`search`, `header`, `cookie`, `device`) vs [Cloudflare Cache Rules](https://developers.cloudflare.com/cache/how-to/cache-keys/)
+- **Cache Status** — `x-cache-status` (`HIT`, `MISS`, `UPDATING`, `STALE`, …) vs `CF-Cache-Status`
+- **Workers Cache API** — `match()` / `delete()` with `ignoreMethod` only; no `ignoreSearch` / `ignoreVary`
+- **Storage** — `KVStorage` at the origin vs platform-managed edge / Workers cache
+
+**[→ Full comparison guide](docs/cloudflare-cache-comparison.md)** — quick reference table and detailed notes.
 
 ## ❓ Frequently Asked Questions
 
@@ -1307,16 +1319,16 @@ const redisStorage: KVStorage = {
 
 ### Q: Is SharedCache compatible with edge runtimes?
 
-**A:** SharedCache is technically compatible with edge runtimes, but it's typically **not needed** in edge environments. Most edge runtimes (Cloudflare Workers, Vercel Edge Runtime, Deno Deploy) already provide native `caches` API implementation.
+**A:** SharedCache is technically compatible with edge runtimes, but it's typically not needed in edge environments. Most edge runtimes (Cloudflare Workers, Vercel Edge Runtime, Deno Deploy) already provide native `caches` API implementation.
 
-**Primary Use Cases for SharedCache:**
+**Primary use cases for SharedCache:**
 
 - **Node.js environments** - Where the `caches` API is not natively available
 - **Development environments** - For consistent caching behavior across different runtimes
 - **Meta-frameworks** - Like [Web Widget](https://github.com/web-widget/web-widget) that enable seamless migration between environments
 - **Custom storage backends** - When you need Redis, database, or other storage solutions
 
-**Migration Benefits:**
+**Migration benefits:**
 
 When using SharedCache with meta-frameworks, you can develop with a consistent caching API and deploy to any environment - whether it has native `caches` support or not. This provides true runtime portability for your caching logic.
 
@@ -1331,10 +1343,10 @@ When using SharedCache with meta-frameworks, you can develop with a consistent c
 
 **A:** SharedCache processes Vary headers by default, which requires **two KV storage queries** per cache lookup:
 
-1. First query: Get Vary metadata from base cache key
-2. Second query: Get actual response from variant cache key
+1. **First query**: Get Vary metadata from base cache key
+2. **Second query**: Get actual response from variant cache key
 
-**Performance Impact:**
+**Performance impact:**
 
 - **Local Redis**: Minimal impact (0.2-1ms additional latency)
 - **Remote Redis**: Significant impact (4-20ms additional latency)
@@ -1376,15 +1388,15 @@ const fetch = createFetch(cache, {
 
 SharedCache draws inspiration from industry-leading caching implementations:
 
-- [Cloudflare Cache Key](https://developers.cloudflare.com/cache/how-to/cache-keys/) - Cache key customization patterns
-- [Next.js Data Cache](https://nextjs.org/docs/app/building-your-application/caching#data-cache) - Server-side caching strategies
-- [nodejs/undici](https://github.com/nodejs/undici/blob/main/lib/web/cache/cache.js) - Web Standards implementation
-- [http-cache-lru](https://github.com/o-development/http-cache-lru/) - HTTP cache semantics
-- [Cloudflare Miniflare](https://github.com/cloudflare/miniflare/blob/master/packages/cache/src/cache.ts) - Edge runtime patterns
-- [Cloudflare Workers SDK](https://github.com/cloudflare/workers-sdk/blob/main/packages/miniflare/src/workers/cache/cache.worker.ts) - Worker environment optimizations
-- [ultrafetch](https://github.com/natemoo-re/ultrafetch) - Fetch API extensions
-- [island.is Cache Middleware](https://github.com/island-is/island.is/blob/main/libs/clients/middlewares/src/lib/withCache/withCache.ts) - Production caching patterns
-- [make-fetch-happen](https://github.com/npm/make-fetch-happen) - HTTP caching with retry and offline support
+- **[Cloudflare Cache Key](https://developers.cloudflare.com/cache/how-to/cache-keys/)** - Cache key customization patterns
+- **[Next.js Data Cache](https://nextjs.org/docs/app/building-your-application/caching#data-cache)** - Server-side caching strategies
+- **[nodejs/undici](https://github.com/nodejs/undici/blob/main/lib/web/cache/cache.js)** - Web Standards implementation
+- **[http-cache-lru](https://github.com/o-development/http-cache-lru/)** - HTTP cache semantics
+- **[Cloudflare Miniflare](https://github.com/cloudflare/miniflare/blob/master/packages/cache/src/cache.ts)** - Edge runtime patterns
+- **[Cloudflare Workers SDK](https://github.com/cloudflare/workers-sdk/blob/main/packages/miniflare/src/workers/cache/cache.worker.ts)** - Worker environment optimizations
+- **[ultrafetch](https://github.com/natemoo-re/ultrafetch)** - Fetch API extensions
+- **[island.is Cache Middleware](https://github.com/island-is/island.is/blob/main/libs/clients/middlewares/src/lib/withCache/withCache.ts)** - Production caching patterns
+- **[make-fetch-happen](https://github.com/npm/make-fetch-happen)** - HTTP caching with retry and offline support
 
 ## 📄 License
 

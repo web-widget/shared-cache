@@ -40,13 +40,11 @@ interface CacheKeyNormalizeOptions {
 
 type RuleValue = KeyFilterOptions | boolean | undefined;
 
-/** Built-in URL part keys in processing order. @internal */
+/**  Built-in URL part keys in processing order. */
 const URL_PART_KEYS = ['scheme', 'host', 'pathname', 'search'] as const;
 
-/** Built-in request part keys in processing order. @internal */
+/**  Built-in request part keys in processing order. */
 const REQUEST_PART_KEYS = ['cookie', 'device', 'header'] as const;
-
-/** @internal */
 const CACHE_KEY_RULE_KEYS = new Set<string>([
   ...URL_PART_KEYS,
   ...REQUEST_PART_KEYS,
@@ -55,8 +53,6 @@ const CACHE_KEY_RULE_KEYS = new Set<string>([
 type URLPartKey = (typeof URL_PART_KEYS)[number];
 type RequestPartKey = (typeof REQUEST_PART_KEYS)[number];
 type KeyValueSource = 'cookie' | 'header';
-
-/** @internal */
 interface CompiledFilter {
   includeOnly: boolean;
   exclude?: ReadonlySet<string>;
@@ -65,32 +61,22 @@ interface CompiledFilter {
   includeList?: readonly string[];
   checkPresence?: ReadonlySet<string>;
 }
-
-/** @internal */
 interface CompiledRule {
   filter?: CompiledFilter;
 }
-
-/** @internal */
 interface CollectedKeyValues {
   keys: string;
   canonicalValues: string;
   displayValues: string;
 }
-
-/** @internal */
 interface FragmentContribution {
   keys: string;
   canonical: string;
 }
-
-/** @internal */
 interface CompiledFragment {
   name: RequestPartKey;
   filter?: CompiledFilter;
 }
-
-/** @internal */
 interface CompiledCacheKeyPlan {
   url: Partial<Record<URLPartKey, CompiledRule>>;
   fragments: CompiledFragment[];
@@ -98,13 +84,11 @@ interface CompiledCacheKeyPlan {
   syncOnly: boolean;
 }
 
-/** Per-request cache key context that lazily parses headers and cookies once. @internal */
+/**  Per-request cache key context that lazily parses headers and cookies once. */
 interface CacheKeyRequestContext {
   getHeaderEntries(): [string, string][];
   getCookieEntries(): [string, string][];
 }
-
-/** @internal */
 const cacheKeyContexts = new WeakMap<Request, CacheKeyRequestContext>();
 
 /**
@@ -141,8 +125,6 @@ export const CANNOT_INCLUDE_HEADERS = [
   CACHE_STATUS_HEADER_NAME,
   CACHE_KEY_HEADER_NAME,
 ] as const;
-
-/** @internal */
 const FORBIDDEN_HEADERS = new Set<string>(CANNOT_INCLUDE_HEADERS);
 
 /**
@@ -184,7 +166,6 @@ function getCacheKeyContext(request: Request): CacheKeyRequestContext {
 
 /**
  * Sorts an array of key-value pairs by key name (case-sensitive).
- * @internal
  */
 function sortEntries(array: [key: string, value: string][]) {
   return array.sort((a, b) => a[0].localeCompare(b[0]));
@@ -192,7 +173,6 @@ function sortEntries(array: [key: string, value: string][]) {
 
 /**
  * Compiles filter options into reusable lookup structures.
- * @internal
  */
 function compileFilterOptions(
   options?: KeyFilterOptions,
@@ -222,8 +202,6 @@ function compileFilterOptions(
     checkPresence: checkPresence ? new Set(checkPresence) : undefined,
   };
 }
-
-/** @internal */
 function compileRule(rule: RuleValue): CompiledRule | undefined {
   if (!isEnabled(rule)) {
     return undefined;
@@ -236,7 +214,6 @@ function compileRule(rule: RuleValue): CompiledRule | undefined {
 
 /**
  * Applies compiled filter options to key/value entries.
- * @internal
  */
 function applyCompiledFilter(
   entries: [string, string][],
@@ -268,7 +245,6 @@ function applyCompiledFilter(
 
 /**
  * Resolves normalize options for cache key generation.
- * @internal
  */
 function resolveNormalizeOptions(
   normalize?: boolean | CacheKeyNormalizeOptions
@@ -286,7 +262,6 @@ function resolveNormalizeOptions(
 
 /**
  * Applies optional normalization on top of the URL returned by `new URL()`.
- * @internal
  */
 function normalizeUrl(url: URL, options: CacheKeyNormalizeOptions = {}): URL {
   if (
@@ -328,8 +303,6 @@ function normalizeUrl(url: URL, options: CacheKeyNormalizeOptions = {}): URL {
 
   return normalized;
 }
-
-/** @internal */
 function isEnabled(rule: RuleValue): rule is true | KeyFilterOptions {
   return rule !== false && rule !== undefined;
 }
@@ -343,7 +316,6 @@ async function formatHashedSegment(
 
 /**
  * Reads whitelisted cookie or header entries without scanning all values.
- * @internal
  */
 function readIncludedKeyValueEntries(
   request: Request,
@@ -379,7 +351,6 @@ function readIncludedKeyValueEntries(
 
 /**
  * Reads cookie or header entries for cache key generation.
- * @internal
  */
 function readKeyValueEntries(
   request: Request,
@@ -400,7 +371,6 @@ function readKeyValueEntries(
 
 /**
  * Collects sorted key names and canonical/display value pairs from filtered entries.
- * @internal
  */
 function prepareKeyValueEntries(
   entries: [string, string][],
@@ -443,8 +413,6 @@ function prepareKeyValueEntries(
     displayValues: displayParts.join(separator),
   };
 }
-
-/** @internal */
 const URL_PART_RENDERERS: Record<
   URLPartKey,
   (url: URL, rule: CompiledRule) => string
@@ -454,8 +422,6 @@ const URL_PART_RENDERERS: Record<
   pathname: (url, rule) => scalarPart(url.pathname, rule.filter),
   search: (url, rule) => renderSearchPart(url, rule),
 };
-
-/** @internal */
 function renderSearchPart(url: URL, rule: CompiledRule): string {
   const searchParams = new URLSearchParams(url.search);
   const filter = rule.filter;
@@ -485,7 +451,6 @@ function renderSearchPart(url: URL, rule: CompiledRule): string {
 
 /**
  * Collects key/value material for hashing, optionally prefixed for fragments.
- * @internal
  */
 function collectKeyValueMaterial(
   request: Request,
@@ -536,7 +501,6 @@ async function formatHashedKeyValues(
 
 /**
  * Applies KeyFilterOptions to a single scalar cache key component.
- * @internal
  */
 function scalarPart(value: string, compiled?: CompiledFilter) {
   if (!compiled) {
@@ -549,8 +513,6 @@ function scalarPart(value: string, compiled?: CompiledFilter) {
 
   return applyCompiledFilter([[value, '']], compiled)[0]?.[0] ?? '';
 }
-
-/** @internal */
 function validateCacheKeyRules(rules: CacheKeyRules) {
   for (const key of Object.keys(rules)) {
     if (!CACHE_KEY_RULE_KEYS.has(key)) {
@@ -560,8 +522,6 @@ function validateCacheKeyRules(rules: CacheKeyRules) {
     }
   }
 }
-
-/** @internal */
 function compileCacheKeyPlan(rules: CacheKeyRules): CompiledCacheKeyPlan {
   validateCacheKeyRules(rules);
 
@@ -608,7 +568,6 @@ export const DEFAULT_CACHE_KEY_RULES: CacheKeyRules = {
 
 /**
  * Builds the URL portion of a cache key from enabled URL rules.
- * @internal
  */
 function buildUrlSegment(url: URL, urlRules: CompiledCacheKeyPlan['url']) {
   const segments: string[] = [];
@@ -633,7 +592,6 @@ function hashVaryKeyPart(request: Request, options?: KeyFilterOptions) {
 
 /**
  * Collects a scalar fragment contribution.
- * @internal
  */
 function collectScalarFragment(
   name: string,
@@ -652,7 +610,6 @@ function collectScalarFragment(
 
 /**
  * Builds a named fragment segment for request-based cache key parts.
- * @internal
  */
 function buildFragmentContribution(
   fragment: CompiledFragment,
@@ -674,7 +631,6 @@ function buildFragmentContribution(
 
 /**
  * Builds the fragment suffix with visible key names and one combined digest.
- * @internal
  */
 async function buildFragmentSuffix(
   contributions: FragmentContribution[]
@@ -691,7 +647,6 @@ async function buildFragmentSuffix(
 
 /**
  * Builds a cache key synchronously when only URL parts are enabled.
- * @internal
  */
 function buildCacheKeySync(
   request: Request,
@@ -710,7 +665,6 @@ function buildCacheKeySync(
 
 /**
  * Builds a cache key, using the synchronous fast path when possible.
- * @internal
  */
 async function buildCacheKey(
   request: Request,

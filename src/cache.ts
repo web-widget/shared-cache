@@ -34,7 +34,6 @@ const CACHE_NAMESPACE_SEPARATOR = '\x1f';
 
 /**
  * Prefixes storage keys with a cache namespace without changing the logical cache key.
- * @internal
  */
 function createNamespacedStorage(
   storage: KVStorage,

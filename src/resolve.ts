@@ -20,7 +20,6 @@ import type {
 /**
  * Sets cache key header on a response for debugging.
  *
- * @internal
  */
 function setCacheKey(response: Response, cacheKey?: string): Response {
   if (cacheKey) {
@@ -39,7 +38,6 @@ function setCacheKey(response: Response, cacheKey?: string): Response {
  * Header overrides are only applied when `response.ok` is true to avoid
  * interfering with error handling.
  *
- * @internal
  */
 function applyResponseHeaderOverrides(
   response: Response,
@@ -86,7 +84,6 @@ async function appendDebugCacheKey(
  *
  * This follows RFC 7234 Section 5.2 and best practices for shared cache implementations.
  *
- * @internal
  */
 function bypassCache(cacheControlHeader: string): boolean {
   const normalized = cacheControlHeader.toLowerCase();
