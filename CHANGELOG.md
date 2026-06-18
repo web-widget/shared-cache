@@ -1,5 +1,15 @@
 # @web-widget/shared-cache
 
+## 2.1.0
+
+### Minor Changes
+
+- 932f1c2: Upgrade to `@web-widget/http-cache-semantics` 2.0.1 and migrate cache policy evaluation to `evaluateRequest()`.
+
+  - Normalize requests at the cache layer before calling `evaluateRequest()` (replacing removed `CacheQueryOptions`)
+  - Use `evaluateRequest()` for stale-while-revalidate and synchronous revalidation
+  - Rely on `revalidatedPolicy()` for stale-if-error handling (removed public `useStaleIfError()`)
+
 ## 2.0.0
 
 ### Major Changes
