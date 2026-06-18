@@ -63,7 +63,7 @@ interface Cache {
 
 ## Production-Grade Implementation
 
-- **Professional HTTP Semantics**: Powered by `http-cache-semantics` for RFC compliance
+- **Professional HTTP Semantics**: Powered by [`http-cache-semantics`](https://github.com/web-widget/http-cache-semantics) for RFC compliance
 - **Configurable Cache Keys**: Rules for URL parts, cookies, headers, and custom fragments
 - **Robust Error Handling**: Comprehensive exception handling with graceful degradation
 - **Performance Optimized**: Efficient storage backends with configurable TTL

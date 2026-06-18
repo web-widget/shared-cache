@@ -162,7 +162,7 @@ SharedCache is built for production HTTP caching with full adherence to web stan
 - **Web Cache API**: Core methods with HTTP semantics; `match()` / `delete()` support `ignoreMethod` (same subset as [Cloudflare Workers Cache API](https://developers.cloudflare.com/workers/runtime-apis/cache/))
 - **Security**: Requests with `Authorization` headers are not cached unless the response explicitly allows it (`public`, `s-maxage`, etc.)
 
-Powered by [`http-cache-semantics`](https://www.npmjs.com/package/http-cache-semantics) for RFC-compliant cache policy evaluation.
+Powered by [`http-cache-semantics`](https://github.com/web-widget/http-cache-semantics) for RFC-compliant cache policy evaluation.
 
 **[→ Full standards compliance guide](docs/standards-compliance.md)** — Web Cache API details, security notes, and implementation status.
 
